@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    container_name: book-tracker
+    ports:
+      - "8080:3001"
+    volumes:
+      - book-tracker-data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+      - PORT=3001
+    restart: unless-stopped
+
+volumes:
+  book-tracker-data:
