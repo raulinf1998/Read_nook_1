@@ -4,6 +4,14 @@ import type { Book, BookStatus } from '../types';
 import { STATUS_META, FORMAT_META } from '../types';
 import { StarRating } from './StarRating';
 
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 interface Props {
   books: Book[];
   onUpdate: (id: string, patch: Partial<Book>) => void;
@@ -134,7 +142,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{FORMAT_META[book.format].label}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{book.pages || '—'}</td>
                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                      {book.finishedAt ? new Date(book.finishedAt).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      {book.finishedAt ? formatDate(book.finishedAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       {book.rating > 0 ? (
@@ -186,7 +194,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
                       {book.finishedAt && (
                         <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
                           <Calendar size={10} />
-                          {new Date(book.finishedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+                          {formatDate(book.finishedAt)}
                         </span>
                       )}
                       {book.rating > 0 && <StarRating value={book.rating} size={12} />}

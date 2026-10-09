@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
-import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Upload, FileText, CheckCircle, AlertCircle, Loader2, Globe } from 'lucide-react';
 import { parseStoryGraphCsv, enrichWithCovers } from '../lib';
-import type { Book } from '../types';
+import type { Book, BookLanguage } from '../types';
+import { LANGUAGE_META } from '../types';
 
 interface Props {
   onImport: (books: Omit<Book, 'id' | 'createdAt'>[]) => void;
@@ -14,6 +15,8 @@ export function ImportModal({ onImport, onClose }: Props) {
   const [fileName, setFileName] = useState('');
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [defaultLang, setDefaultLang] = useState<BookLanguage>('es');
+  const [rawText, setRawText] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = (file: File) => {
@@ -22,6 +25,7 @@ export function ImportModal({ onImport, onClose }: Props) {
     const reader = new FileReader();
     reader.onload = () => {
       const text = reader.result as string;
+      setRawText(text);
       tryParse(text);
     };
     reader.readAsText(file);
@@ -29,7 +33,7 @@ export function ImportModal({ onImport, onClose }: Props) {
 
   const tryParse = (text: string) => {
     try {
-      const books = parseStoryGraphCsv(text);
+      const books = parseStoryGraphCsv(text, defaultLang);
       if (books.length === 0) {
         setError('No se encontraron libros en el CSV. Verifica el formato.');
         setPreview(null);
@@ -40,6 +44,16 @@ export function ImportModal({ onImport, onClose }: Props) {
     } catch {
       setError('Error al procesar el archivo CSV.');
       setPreview(null);
+    }
+  };
+
+  const handleLangChange = (lang: BookLanguage) => {
+    setDefaultLang(lang);
+    if (rawText) {
+      try {
+        const books = parseStoryGraphCsv(rawText, lang);
+        if (books.length > 0) setPreview(books);
+      } catch { /* keep existing preview */ }
     }
   };
 
@@ -76,6 +90,21 @@ export function ImportModal({ onImport, onClose }: Props) {
               Exporta tu biblioteca desde TheStoryGraph en formato CSV (Settings &gt; Export Data),
               luego súbelo aquí. Los libros con ISBN se enriquecerán automáticamente con portadas desde Google Books y Open Library.
             </p>
+          </div>
+
+          {/* Default language selector */}
+          <div className="flex items-center gap-2.5">
+            <Globe size={16} className="text-gray-400 flex-shrink-0" />
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">Idioma por defecto</label>
+            <select
+              value={defaultLang}
+              onChange={(e) => handleLangChange(e.target.value as BookLanguage)}
+              className="ml-auto px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 outline-none border border-gray-100 dark:border-gray-700"
+            >
+              {(Object.keys(LANGUAGE_META) as BookLanguage[]).map((l) => (
+                <option key={l} value={l}>{LANGUAGE_META[l].label}</option>
+              ))}
+            </select>
           </div>
 
           <div

@@ -127,7 +127,7 @@ export async function fetchByIsbn(isbn: string): Promise<IsbnResult | null> {
 
 // --- CSV Parser (TheStoryGraph + similar exports) ---
 
-export function parseStoryGraphCsv(csvText: string): Omit<Book, 'id' | 'createdAt'>[] {
+export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguage = 'es'): Omit<Book, 'id' | 'createdAt'>[] {
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
@@ -147,9 +147,9 @@ export function parseStoryGraphCsv(csvText: string): Omit<Book, 'id' | 'createdA
   const iStatus = findIdx(['Read Status', 'Status']);
   const iRating = findIdx(['Star Rating', 'Rating']);
   const iPages = findIdx(['Number of Pages', 'Pages', 'Page Count']);
-  const iLastRead = findIdx(['Last Date Read', 'Finished Date', 'Date Finished', 'Last Date Finished']);
+  const iLastRead = findIdx(['Last Date Read', 'Finished Date', 'Date Finished', 'Last Date Finished', 'Date Read']);
   const iDatesRead = findIdx(['Dates Read']);
-  const iStarted = findIdx(['Started Date', 'Date Started']);
+  const iStarted = findIdx(['Started Date', 'Date Started', 'Date Added', 'Date Added to Library']);
   const iTags = findIdx(['Tags', 'Genres']);
   const iCover = findIdx(['Cover']);
 
@@ -187,16 +187,34 @@ export function parseStoryGraphCsv(csvText: string): Omit<Book, 'id' | 'createdA
       return isNaN(d.getTime()) ? null : d.getTime();
     };
 
-    // Prefer "Last Date Read" / "Finished Date", fallback to first date in "Dates Read"
+    // Prefer "Last Date Read" / "Finished Date", fallback to last date in "Dates Read"
     let finishedAt: number | null = null;
     if (iLastRead >= 0) finishedAt = parseDate(cols[iLastRead] || '');
     if (!finishedAt && iDatesRead >= 0) {
       const datesRaw = cols[iDatesRead] || '';
-      const firstDate = datesRaw.split(/[,\s]+/).slice(0, 10).join(' ');
-      finishedAt = parseDate(firstDate);
+      // StoryGraph "Dates Read" can contain multiple ranges separated by commas
+      // e.g. "2023-01-01 to 2023-01-15, 2023-03-01 to 2023-03-10"
+      // We want the last finish date
+      const ranges = datesRaw.split(/,/).map((s) => s.trim()).filter(Boolean);
+      for (let r = ranges.length - 1; r >= 0; r--) {
+        const parts = ranges[r].split(/\s+to\s+/i);
+        const lastDate = parts[parts.length - 1].trim();
+        const parsed = parseDate(lastDate);
+        if (parsed) { finishedAt = parsed; break; }
+      }
     }
 
-    const startedAt = iStarted >= 0 ? parseDate(cols[iStarted] || '') : null;
+    // Start date: prefer "Started Date", fallback to first date in "Dates Read"
+    let startedAt: number | null = null;
+    if (iStarted >= 0) startedAt = parseDate(cols[iStarted] || '');
+    if (!startedAt && iDatesRead >= 0) {
+      const datesRaw = cols[iDatesRead] || '';
+      const firstRange = datesRaw.split(/,/)[0]?.trim();
+      if (firstRange) {
+        const firstDate = firstRange.split(/\s+to\s+/i)[0].trim();
+        startedAt = parseDate(firstDate);
+      }
+    }
     const isbn = iIsbn >= 0 ? (cols[iIsbn] || '').replace(/[-\s]/g, '') : '';
 
     books.push({
@@ -209,7 +227,7 @@ export function parseStoryGraphCsv(csvText: string): Omit<Book, 'id' | 'createdA
       pages,
       currentPage: status === 'read' ? pages : 0,
       format,
-      language: 'en',
+      language: defaultLanguage,
       publishDate: '',
       description: '',
       tags,

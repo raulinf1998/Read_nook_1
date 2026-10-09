@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, FileText, Star, Calendar } from 'lucide-react';
+import { BookOpen, FileText, Star, Calendar, Globe } from 'lucide-react';
 import type { Book } from '../types';
 import { BarChart, DonutChart, HBarChart } from './Charts';
 
@@ -16,19 +16,22 @@ const MONTHS = [
   { value: 9, label: 'Oct' }, { value: 10, label: 'Nov' }, { value: 11, label: 'Dic' },
 ];
 
+type FilterMode = 'global' | 'year' | 'month';
+
 interface Props {
   books: Book[];
 }
 
 export function Statistics({ books }: Props) {
-  const [filterMode, setFilterMode] = useState<'all' | 'month'>('all');
+  const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
 
   const allRead = useMemo(() => books.filter((b) => b.status === 'read'), [books]);
 
+  // Books filtered by the selected period (used by all stats except monthly chart)
   const readBooks = useMemo(() => {
-    if (filterMode === 'all') return allRead;
+    if (filterMode === 'global') return allRead;
     return allRead.filter((b) => {
       if (!b.finishedAt) return false;
       const d = new Date(b.finishedAt);
@@ -90,13 +93,13 @@ export function Statistics({ books }: Props) {
     const langData = Array.from(langMap.entries())
       .map(([label, value], i) => ({ label, value, color: LANG_COLORS[i] }));
 
-    const ratingBuckets = Array.from({ length: 11 }, (_, i) => ({ label: i % 2 === 0 ? String(i / 2) : String(i / 2), value: 0 }));
+    const ratingBuckets = Array.from({ length: 11 }, (_, i) => ({ label: String(i / 2), value: 0 }));
     readBooks.forEach((b) => {
       const idx = Math.round(b.rating * 2);
       if (idx >= 0 && idx <= 10) ratingBuckets[idx].value++;
     });
 
-    // Monthly chart for the selected year
+    // Monthly chart: always shows 12 months for the selected year
     const monthly = MONTHS.map((m) => ({ label: m.label, value: 0, month: m.value }));
     allRead.forEach((b) => {
       if (!b.finishedAt) return;
@@ -104,12 +107,34 @@ export function Statistics({ books }: Props) {
       if (d.getFullYear() === year) monthly[d.getMonth()].value++;
     });
 
-    return { totalPages, totalBooks, tagData, pageRanges, formatData, authorData, langData, ratingBuckets, monthly };
-  }, [readBooks, allRead, year]);
+    // Daily chart: days 1-31 for the selected month+year
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daily = Array.from({ length: daysInMonth }, (_, i) => ({
+      label: String(i + 1),
+      value: 0,
+    }));
+    if (filterMode === 'month') {
+      allRead.forEach((b) => {
+        if (!b.finishedAt) return;
+        const d = new Date(b.finishedAt);
+        if (d.getFullYear() === year && d.getMonth() === month) {
+          daily[d.getDate() - 1].value++;
+        }
+      });
+    }
+
+    return { totalPages, totalBooks, tagData, pageRanges, formatData, authorData, langData, ratingBuckets, monthly, daily };
+  }, [readBooks, allRead, year, month, filterMode]);
 
   const avgRating = readBooks.filter((b) => b.rating > 0).length
     ? (readBooks.reduce((s, b) => s + b.rating, 0) / readBooks.filter((b) => b.rating > 0).length).toFixed(1)
     : '—';
+
+  const periodLabel = filterMode === 'global'
+    ? 'Histórico'
+    : filterMode === 'year'
+      ? `Año ${year}`
+      : `${MONTHS[month].label} ${year}`;
 
   if (allRead.length === 0) {
     return (
@@ -131,10 +156,17 @@ export function Statistics({ books }: Props) {
           <Calendar size={16} className="text-gray-400" />
           <div className="flex gap-1.5">
             <button
-              onClick={() => setFilterMode('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterMode === 'all' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
+              onClick={() => setFilterMode('global')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterMode === 'global' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
             >
-              Global
+              <Globe size={13} />
+              Vista global
+            </button>
+            <button
+              onClick={() => setFilterMode('year')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterMode === 'year' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}
+            >
+              Por año
             </button>
             <button
               onClick={() => setFilterMode('month')}
@@ -143,28 +175,28 @@ export function Statistics({ books }: Props) {
               Por mes
             </button>
           </div>
-          {filterMode !== 'all' && (
-            <>
-              <select
-                value={month}
-                onChange={(e) => setMonth(parseInt(e.target.value))}
-                className="px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 outline-none border border-gray-100 dark:border-gray-700"
-              >
-                {MONTHS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-            </>
+          {filterMode === 'month' && (
+            <select
+              value={month}
+              onChange={(e) => setMonth(parseInt(e.target.value))}
+              className="px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 outline-none border border-gray-100 dark:border-gray-700"
+            >
+              {MONTHS.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
           )}
-          <select
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value))}
-            className="px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 outline-none border border-gray-100 dark:border-gray-700 ml-auto"
-          >
-            {availableYears.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          {filterMode !== 'global' && (
+            <select
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value))}
+              className="px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-gray-300 outline-none border border-gray-100 dark:border-gray-700 ml-auto"
+            >
+              {availableYears.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -175,20 +207,26 @@ export function Statistics({ books }: Props) {
         <MetricCard icon={Star} label="Nota media" value={avgRating} />
       </div>
 
-      {/* Monthly chart for selected year */}
-      <Card title="Libros por mes" subtitle={`Año ${year}`}>
-        <BarChart data={stats.monthly} height={140} />
-      </Card>
+      {/* Temporal chart: daily when month selected, monthly otherwise */}
+      {filterMode === 'month' ? (
+        <Card title="Libros por día" subtitle={`${MONTHS[month].label} ${year}`}>
+          <BarChart data={stats.daily} height={140} />
+        </Card>
+      ) : (
+        <Card title="Libros por mes" subtitle={`Año ${year}`}>
+          <BarChart data={stats.monthly} height={140} />
+        </Card>
+      )}
 
       {/* Tags */}
-      <Card title="Géneros / Tags" subtitle="Distribución por tags personalizados">
+      <Card title="Géneros / Tags" subtitle={`Distribución · ${periodLabel}`}>
         {stats.tagData.length > 0 ? (
           <DonutChart data={stats.tagData} centerLabel="tags" centerValue={stats.tagData.length.toString()} />
         ) : <EmptyChart />}
       </Card>
 
       {/* Page ranges */}
-      <Card title="Páginas por rango" subtitle="Distribución de extensión">
+      <Card title="Páginas por rango" subtitle={`Distribución · ${periodLabel}`}>
         <BarChart
           data={stats.pageRanges.map((p, i) => ({ ...p, color: `linear-gradient(180deg, ${PAGE_COLORS[i]}, ${PAGE_COLORS[i]}cc)` }))}
           height={140}
@@ -197,12 +235,12 @@ export function Statistics({ books }: Props) {
 
       {/* Format + Language */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card title="Formato" subtitle="Físico vs Ebook">
+        <Card title="Formato" subtitle={`Físico vs Ebook · ${periodLabel}`}>
           {stats.formatData.length > 0 ? (
             <DonutChart data={stats.formatData} size={120} centerLabel="libros" />
           ) : <EmptyChart />}
         </Card>
-        <Card title="Idioma" subtitle="Español vs Inglés">
+        <Card title="Idioma" subtitle={`Español vs Inglés · ${periodLabel}`}>
           {stats.langData.length > 0 ? (
             <DonutChart data={stats.langData} size={120} centerLabel="libros" />
           ) : <EmptyChart />}
@@ -210,12 +248,12 @@ export function Statistics({ books }: Props) {
       </div>
 
       {/* Authors */}
-      <Card title="Libros por autor" subtitle="Top 10 autores más leídos">
+      <Card title="Libros por autor" subtitle={`Top 10 · ${periodLabel}`}>
         <HBarChart data={stats.authorData} />
       </Card>
 
       {/* Rating distribution */}
-      <Card title="Distribución de puntuaciones" subtitle="De 0 a 5 estrellas (con medias)">
+      <Card title="Distribución de puntuaciones" subtitle={`De 0 a 5 estrellas · ${periodLabel}`}>
         <BarChart data={stats.ratingBuckets.map((r, i) => ({ ...r, color: RATING_COLORS[Math.min(Math.floor(i / 2), 5)] }))} height={120} />
       </Card>
     </div>

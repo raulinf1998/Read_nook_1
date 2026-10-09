@@ -160,12 +160,23 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">URL de la portada</label>
-            <input
-              value={coverUrl}
-              onChange={(e) => setCoverUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
-            />
+            <div className="flex gap-3 items-start">
+              <input
+                value={coverUrl}
+                onChange={(e) => setCoverUrl(e.target.value)}
+                placeholder="https://..."
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
+              />
+              {coverUrl.trim() && (
+                <img
+                  src={coverUrl.trim()}
+                  alt="Vista previa"
+                  className="w-12 h-16 object-cover rounded-md border border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-800"
+                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+                />
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Pega una URL para corregir la portada si la búsqueda ISBN trajo la edición equivocada.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
