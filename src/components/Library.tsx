@@ -1,15 +1,13 @@
 import { useState, useMemo } from 'react';
-import { Search, Pencil, Trash2, BookMarked, Star, Filter, Calendar } from 'lucide-react';
+import { Search, Pencil, Trash2, LayoutGrid, Rows3, SearchX, TriangleAlert } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
 import { STATUS_META, FORMAT_META } from '../types';
 import { StarRating } from './StarRating';
+import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filterChipCls, iconBtn, selectCls } from './ui';
+import { useLocalStorage } from '../hooks';
 
 function formatDate(ts: number): string {
-  const d = new Date(ts);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return new Date(ts).toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 interface Props {
@@ -19,10 +17,14 @@ interface Props {
   onEdit: (book: Book) => void;
 }
 
+type ViewMode = 'grid' | 'list';
+
 export function Library({ books, onDelete, onEdit }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating'>('recent');
+  const [view, setView] = useLocalStorage<ViewMode>('readnook-library-view', 'grid');
+  const [confirming, setConfirming] = useState<Book | null>(null);
 
   const filtered = useMemo(() => {
     let result = books;
@@ -30,12 +32,15 @@ export function Library({ books, onDelete, onEdit }: Props) {
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
-        (b) => b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q)
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
     const sorted = [...result];
-    if (sort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title));
-    else if (sort === 'author') sorted.sort((a, b) => a.author.localeCompare(b.author));
+    if (sort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title, 'es'));
+    else if (sort === 'author') sorted.sort((a, b) => a.author.localeCompare(b.author, 'es'));
     else if (sort === 'rating') sorted.sort((a, b) => b.rating - a.rating);
     else sorted.sort((a, b) => b.createdAt - a.createdAt);
     return sorted;
@@ -43,177 +48,249 @@ export function Library({ books, onDelete, onEdit }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Search + sort */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+      {/* Buscador + orden + vista */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink3 pointer-events-none" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por título o autor..."
-            className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 focus:border-gray-300 dark:focus:border-gray-700 focus:ring-2 focus:ring-gray-900/5 dark:focus:ring-white/5 outline-none transition-all text-sm text-gray-900 dark:text-white"
+            placeholder="Buscar por título, autor o género…"
+            className="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface border border-line text-ink placeholder:text-ink3 focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all text-sm shadow-card"
           />
         </div>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
-          className="px-3 py-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-sm text-gray-700 dark:text-gray-300 outline-none focus:border-gray-300 dark:focus:border-gray-700"
+          className={cx(selectCls, 'rounded-full shadow-card')}
+          aria-label="Ordenar por"
         >
-          <option value="recent">Recientes</option>
+          <option value="recent">Más recientes</option>
           <option value="title">Título</option>
           <option value="author">Autor</option>
           <option value="rating">Puntuación</option>
         </select>
+        <div className="flex rounded-full border border-line bg-surface shadow-card p-1" role="group" aria-label="Modo de vista">
+          <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} icon={<LayoutGrid size={16} />} label="Rejilla" />
+          <ViewBtn active={view === 'list'} onClick={() => setView('list')} icon={<Rows3 size={16} />} label="Lista" />
+        </div>
       </div>
 
-      {/* Status filter */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      {/* Filtro por estado */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
         {(['all', 'reading', 'pending', 'read'] as const).map((s) => {
           const label = s === 'all' ? 'Todos' : STATUS_META[s].label;
           const count = s === 'all' ? books.length : books.filter((b) => b.status === s).length;
           const active = statusFilter === s;
           return (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                active
-                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                  : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-800'
-              }`}
-            >
+            <button key={s} onClick={() => setStatusFilter(s)} className={filterChipCls(active)} aria-pressed={active}>
+              {s !== 'all' && <span className={cx('w-2 h-2 rounded-full', STATUS_META[s].dot)} />}
               {label}
-              <span className={`text-xs ${active ? 'text-white/60 dark:text-gray-500' : 'text-gray-400'}`}>{count}</span>
+              <span className={active ? 'text-onprimary/70 text-xs' : 'text-ink3 text-xs'}>{count}</span>
             </button>
           );
         })}
+        <span className="ml-auto text-xs font-medium text-ink3 whitespace-nowrap pl-2">
+          {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'}
+        </span>
       </div>
 
-      {/* Table */}
       {filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-3">
-            <Filter size={24} className="text-gray-300 dark:text-gray-600" />
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No se encontraron libros</p>
-          <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Prueba con otro filtro o búsqueda</p>
+        <EmptyState
+          icon={<SearchX size={26} />}
+          title="No se encontraron libros"
+          description="Prueba con otro filtro o término de búsqueda. La búsqueda también mira autores y géneros."
+        >
+          {(search || statusFilter !== 'all') && (
+            <button
+              className={btnGhost}
+              onClick={() => { setSearch(''); setStatusFilter('all'); }}
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </EmptyState>
+      ) : view === 'grid' ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 stagger">
+          {filtered.map((book) => (
+            <GridCard key={book.id} book={book} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
+          ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
-          {/* Desktop table */}
-          <table className="hidden sm:table w-full">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-800">
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Libro</th>
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Estado</th>
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Formato</th>
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Págs</th>
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Terminado</th>
-                <th className="text-left text-xs font-medium text-gray-400 dark:text-gray-500 px-4 py-3">Valoración</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((book) => {
-                const meta = STATUS_META[book.status];
-                return (
-                  <tr key={book.id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors group">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {book.coverUrl ? (
-                          <img src={book.coverUrl} alt={book.title} className="w-9 h-12 object-cover rounded-sm flex-shrink-0 bg-gray-100" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                        ) : (
-                          <div className="w-9 h-12 rounded-sm bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                            <BookMarked size={14} className="text-gray-300" />
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{book.title}</p>
-                          <p className="text-xs text-gray-400 truncate">{book.author || 'Autor desconocido'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${meta.badge} ${meta.badgeDark}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                        {meta.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{FORMAT_META[book.format].label}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{book.pages || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                      {book.finishedAt ? formatDate(book.finishedAt) : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      {book.rating > 0 ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
-                          <Star size={12} className="fill-amber-400 text-amber-400" />
-                          {book.rating}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-300 dark:text-gray-600">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => onEdit(book)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                          <Pencil size={15} className="text-gray-500 dark:text-gray-400" />
-                        </button>
-                        <button onClick={() => onDelete(book.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-                          <Trash2 size={15} className="text-gray-500 dark:text-gray-400 group-hover:text-red-500" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {/* Mobile cards */}
-          <div className="sm:hidden divide-y divide-gray-50 dark:divide-gray-800/50">
-            {filtered.map((book) => {
-              const meta = STATUS_META[book.status];
-              return (
-                <div key={book.id} className="p-3 flex items-center gap-3">
-                  {book.coverUrl ? (
-                    <img src={book.coverUrl} alt={book.title} className="w-10 h-14 object-cover rounded-sm flex-shrink-0 bg-gray-100" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  ) : (
-                    <div className="w-10 h-14 rounded-sm bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
-                      <BookMarked size={14} className="text-gray-300" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{book.title}</p>
-                    <p className="text-xs text-gray-400 truncate">{book.author || 'Autor desconocido'}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${meta.badge} ${meta.badgeDark}`}>
-                        <span className={`w-1 h-1 rounded-full ${meta.dot}`} />
-                        {meta.label}
-                      </span>
-                      {book.finishedAt && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] text-gray-400">
-                          <Calendar size={10} />
-                          {formatDate(book.finishedAt)}
-                        </span>
-                      )}
-                      {book.rating > 0 && <StarRating value={book.rating} size={12} />}
-                    </div>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <button onClick={() => onEdit(book)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <Pencil size={15} className="text-gray-500 dark:text-gray-400" />
-                    </button>
-                    <button onClick={() => onDelete(book.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">
-                      <Trash2 size={15} className="text-gray-500 dark:text-gray-400" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <ListView books={filtered} onEdit={onEdit} onAskDelete={setConfirming} />
       )}
+
+      {/* Confirmación de borrado */}
+      {confirming && (
+        <Modal
+          title="Eliminar libro"
+          icon={<TriangleAlert size={17} />}
+          onClose={() => setConfirming(null)}
+          maxWidth="max-w-sm"
+          footer={
+            <div className="flex gap-2.5">
+              <button onClick={() => setConfirming(null)} className={cx(btnGhost, 'flex-1 bg-surface border border-line')}>
+                Cancelar
+              </button>
+              <button
+                onClick={() => { onDelete(confirming.id); setConfirming(null); }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-btn bg-danger text-white text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-all"
+              >
+                <Trash2 size={15} /> Eliminar
+              </button>
+            </div>
+          }
+        >
+          <div className="flex gap-3.5 items-center">
+            <BookCover title={confirming.title} author={confirming.author} coverUrl={confirming.coverUrl} detail="sm" className="w-11 h-16 shadow-book" />
+            <div className="min-w-0">
+              <p className="font-display font-semibold text-ink leading-snug line-clamp-2">«{confirming.title}»</p>
+              <p className="text-xs text-ink3 mt-0.5">{confirming.author || 'Autor desconocido'}</p>
+            </div>
+          </div>
+          <p className="text-sm text-ink2 mt-4 leading-relaxed">
+            Se borrará de tu biblioteca junto con sus notas y su diario lector. Esta acción no se puede deshacer.
+          </p>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`Vista de ${label}`}
+      className={cx(
+        'px-3 py-1.5 rounded-full transition-all active:scale-95',
+        active ? 'bg-primary text-onprimary shadow-card' : 'text-ink3 hover:text-ink'
+      )}
+    >
+      {icon}
+    </button>
+  );
+}
+
+/* ---------- Vista de rejilla ---------- */
+
+function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => void; onAskDelete: () => void }) {
+  const pct = book.pages > 0 ? Math.min((book.currentPage / book.pages) * 100, 100) : 0;
+  return (
+    <article className={cx(cardCls, 'group overflow-hidden hover:shadow-lift hover:-translate-y-1 transition-all duration-300')}>
+      <button onClick={onEdit} className="block w-full relative bg-sunken" aria-label={`Abrir ${book.title}`}>
+        <BookCover
+          title={book.title}
+          author={book.author}
+          coverUrl={book.coverUrl}
+          detail="lg"
+          className="w-full aspect-[2/3] group-hover:scale-[1.03] transition-transform duration-500"
+        />
+        <StatusBadge status={book.status} className="absolute top-2 left-2 backdrop-blur-md bg-surface/80 shadow-card" />
+        {book.status === 'reading' && book.pages > 0 && (
+          <span className="absolute bottom-2 right-2 text-[10px] font-extrabold bg-surface/85 backdrop-blur-md text-ink px-1.5 py-0.5 rounded-md shadow-card tabular-nums">
+            {pct.toFixed(0)}%
+          </span>
+        )}
+      </button>
+      <div className="p-3">
+        <h3 className="font-display font-semibold text-ink text-sm leading-snug line-clamp-2 min-h-[2.5em]">{book.title}</h3>
+        <p className="text-xs text-ink3 truncate mt-1">{book.author || 'Autor desconocido'}</p>
+        <div className="flex items-center justify-between mt-2 gap-1">
+          {book.rating > 0 ? (
+            <StarRating value={book.rating} size={12} />
+          ) : (
+            <span className="text-[11px] text-ink3">{book.pages ? `${book.pages} págs` : ' '}</span>
+          )}
+          <span className="flex gap-0.5 -mr-1.5">
+            <button onClick={onEdit} className={cx(iconBtn, 'p-1.5')} aria-label={`Editar ${book.title}`}>
+              <Pencil size={14} />
+            </button>
+            <button onClick={onAskDelete} className={cx(iconBtn, 'p-1.5 hover:!text-danger hover:!bg-danger/10')} aria-label={`Eliminar ${book.title}`}>
+              <Trash2 size={14} />
+            </button>
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ---------- Vista de lista / tabla ---------- */
+
+function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: Book) => void; onAskDelete: (b: Book) => void }) {
+  return (
+    <div className={cx(cardCls, 'overflow-hidden')}>
+      {/* Tabla escritorio */}
+      <table className="hidden md:table w-full">
+        <thead>
+          <tr className="border-b border-line bg-sunken/50">
+            {['Libro', 'Estado', 'Formato', 'Págs', 'Terminado', 'Valoración', ''].map((h, i) => (
+              <th key={i} className="text-left text-[11px] font-bold uppercase tracking-wider text-ink3 px-4 py-3">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {books.map((book) => (
+            <tr key={book.id} className="border-b border-line/60 last:border-0 hover:bg-sunken/60 transition-colors group">
+              <td className="px-4 py-2.5">
+                <button onClick={() => onEdit(book)} className="flex items-center gap-3 text-left min-w-0">
+                  <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[52px] shadow-book" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink truncate max-w-[320px]">{book.title}</span>
+                    <span className="block text-xs text-ink3 truncate max-w-[320px]">{book.author || 'Autor desconocido'}</span>
+                  </span>
+                </button>
+              </td>
+              <td className="px-4 py-2.5"><StatusBadge status={book.status} /></td>
+              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{FORMAT_META[book.format].label}</td>
+              <td className="px-4 py-2.5 text-xs text-ink2 tabular-nums">{book.pages || '—'}</td>
+              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{book.finishedAt ? formatDate(book.finishedAt) : '—'}</td>
+              <td className="px-4 py-2.5">
+                {book.rating > 0 ? <StarRating value={book.rating} size={12} /> : <span className="text-xs text-ink3">—</span>}
+              </td>
+              <td className="px-4 py-2.5">
+                <span className="flex gap-0.5 justify-end opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <button onClick={() => onEdit(book)} className={cx(iconBtn, 'p-1.5')} aria-label={`Editar ${book.title}`}>
+                    <Pencil size={15} />
+                  </button>
+                  <button onClick={() => onAskDelete(book)} className={cx(iconBtn, 'p-1.5 hover:!text-danger hover:!bg-danger/10')} aria-label={`Eliminar ${book.title}`}>
+                    <Trash2 size={15} />
+                  </button>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Lista móvil */}
+      <div className="md:hidden divide-y divide-line/70">
+        {books.map((book) => (
+          <div key={book.id} className="p-3 flex items-center gap-3">
+            <button onClick={() => onEdit(book)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+              <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-10 h-[60px] shadow-book" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink truncate">{book.title}</span>
+                <span className="block text-xs text-ink3 truncate">{book.author || 'Autor desconocido'}</span>
+                <span className="flex items-center gap-2 mt-1.5">
+                  <StatusBadge status={book.status} />
+                  {book.rating > 0 && <StarRating value={book.rating} size={11} />}
+                </span>
+              </span>
+            </button>
+            <div className="flex gap-0.5 shrink-0">
+              <button onClick={() => onEdit(book)} className={iconBtn} aria-label={`Editar ${book.title}`}>
+                <Pencil size={16} />
+              </button>
+              <button onClick={() => onAskDelete(book)} className={cx(iconBtn, 'hover:!text-danger hover:!bg-danger/10')} aria-label={`Eliminar ${book.title}`}>
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

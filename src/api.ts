@@ -1,4 +1,4 @@
-import type { Book } from './types';
+import type { Book, ThemeId } from './types';
 
 const API_BASE = '/api';
 
@@ -9,6 +9,12 @@ async function api<T>(path: string, opts?: RequestInit): Promise<T> {
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+export interface Settings {
+  goal: number;
+  dark: boolean;
+  theme: ThemeId;
 }
 
 export const apiClient = {
@@ -25,8 +31,8 @@ export const apiClient = {
   addTag: (tag: string) =>
     api<string[]>('/tags', { method: 'POST', body: JSON.stringify({ tag }) }),
   removeTag: (tag: string) =>
-    api<string[]>(`/tags/${tag}`, { method: 'DELETE' }),
-  getSettings: () => api<{ goal: number; dark: boolean }>('/settings'),
-  setSettings: (settings: Partial<{ goal: number; dark: boolean }>) =>
-    api<{ goal: number; dark: boolean }>('/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+    api<string[]>(`/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
+  getSettings: () => api<Settings>('/settings'),
+  setSettings: (settings: Partial<Settings>) =>
+    api<Settings>('/settings', { method: 'PUT', body: JSON.stringify(settings) }),
 };

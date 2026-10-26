@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, Plus, Tag, Trash2 } from 'lucide-react';
+import { Plus, Tag, X } from 'lucide-react';
+import { Modal, btnPrimary, cx, inputCls } from './ui';
 
 interface Props {
   tags: string[];
@@ -8,70 +9,88 @@ interface Props {
   onClose: () => void;
 }
 
+const SUGGESTIONS = ['Favoritos', 'Relectura', 'Prestado', 'Saga', 'Premiado', 'Cómic / Manga', 'No ficción', 'Infantil'];
+
 export function TagManager({ tags, onAdd, onRemove, onClose }: Props) {
   const [input, setInput] = useState('');
+  const duplicated = input.trim() !== '' && tags.some((t) => t.toLowerCase() === input.trim().toLowerCase());
 
   const handleAdd = () => {
     const t = input.trim();
-    if (t && !tags.includes(t)) onAdd(t);
+    if (t && !duplicated) onAdd(t);
     setInput('');
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-y-auto border border-gray-200 dark:border-gray-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Tag size={20} className="text-gray-700 dark:text-gray-300" />
-            Gestionar tags
-          </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
-          </button>
-        </div>
+  const missingSuggestions = SUGGESTIONS.filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()));
 
-        <div className="px-6 py-5 space-y-4">
+  return (
+    <Modal title="Gestionar tags" icon={<Tag size={17} />} onClose={onClose} maxWidth="max-w-md">
+      <div className="space-y-5">
+        <div>
           <div className="flex gap-2">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-              placeholder="Nuevo tag..."
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 outline-none transition-all text-sm"
+              placeholder="Nuevo tag, p. ej. «Favoritos»"
+              className={cx(inputCls, 'flex-1')}
               autoFocus
+              aria-label="Nuevo tag"
             />
-            <button
-              onClick={handleAdd}
-              disabled={!input.trim()}
-              className="inline-flex items-center gap-1 px-4 py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-40"
-            >
-              <Plus size={16} />
-              Añadir
+            <button onClick={handleAdd} disabled={!input.trim() || duplicated} className={btnPrimary}>
+              <Plus size={16} strokeWidth={2.5} /> Añadir
             </button>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium group"
-              >
-                {tag}
-                <button
-                  onClick={() => onRemove(tag)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 size={12} className="text-red-400 hover:text-red-500" />
-                </button>
-              </span>
-            ))}
-            {tags.length === 0 && <p className="text-sm text-gray-400">No hay tags. Añade el primero arriba.</p>}
-          </div>
+          {duplicated && <p className="text-xs font-semibold text-stpending mt-2">Ese tag ya existe.</p>}
         </div>
+
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-ink3 mb-2.5">
+            Tus tags · {tags.length}
+          </h3>
+          {tags.length === 0 ? (
+            <p className="text-sm text-ink3">Todavía no tienes tags. Añade el primero arriba o elige una sugerencia.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1.5 rounded-full bg-sunken text-ink2 text-xs font-bold"
+                >
+                  {tag}
+                  <button
+                    onClick={() => onRemove(tag)}
+                    className="w-[18px] h-[18px] flex items-center justify-center rounded-full shrink-0 text-ink3 hover:text-danger hover:bg-danger/10 transition-colors"
+                    aria-label={`Eliminar tag ${tag}`}
+                  >
+                    <X size={12} strokeWidth={2.5} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-ink3 mt-2.5 leading-relaxed">
+            Eliminar un tag no lo quita de los libros que ya lo tengan; solo deja de ofrecerse al editar.
+          </p>
+        </div>
+
+        {missingSuggestions.length > 0 && (
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-ink3 mb-2.5">Sugerencias</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {missingSuggestions.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => onAdd(s)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-line2 text-xs font-bold text-ink3 hover:text-accent hover:border-accent/50 hover:bg-accent/[0.06] active:scale-95 transition-all"
+                >
+                  <Plus size={12} strokeWidth={2.5} /> {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

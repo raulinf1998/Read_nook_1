@@ -1,7 +1,10 @@
 import { useState, useMemo } from 'react';
-import { BookOpen } from 'lucide-react';
+import { BookMarked } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
 import { STATUS_META } from '../types';
+import { BookCover, EmptyState, cardCls, cx, filterChipCls } from './ui';
+import { StarRating } from './StarRating';
+import { useWindowWidth } from '../hooks';
 
 interface Props {
   books: Book[];
@@ -10,97 +13,105 @@ interface Props {
 
 export function Bookshelf({ books, onEdit }: Props) {
   const [shelfFilter, setShelfFilter] = useState<BookStatus | 'all'>('all');
+  const width = useWindowWidth();
+  // nº de libros por balda según pantalla: 3 móvil · 5 tablet · 7 escritorio
+  const perShelf = width < 640 ? 3 : width < 1280 ? 5 : 7;
 
   const filtered = useMemo(() => {
     if (shelfFilter === 'all') return books;
     return books.filter((b) => b.status === shelfFilter);
   }, [books, shelfFilter]);
 
-  // Group into shelves of 5
   const shelves: Book[][] = [];
-  for (let i = 0; i < filtered.length; i += 5) {
-    shelves.push(filtered.slice(i, i + 5));
+  for (let i = 0; i < filtered.length; i += perShelf) {
+    shelves.push(filtered.slice(i, i + perShelf));
   }
 
   return (
     <div className="space-y-5">
-      {/* Filter */}
+      {/* Filtro */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {(['all', 'reading', 'read', 'pending'] as const).map((s) => {
           const label = s === 'all' ? 'Todos' : STATUS_META[s].label;
+          const count = s === 'all' ? books.length : books.filter((b) => b.status === s).length;
           const active = shelfFilter === s;
           return (
-            <button
-              key={s}
-              onClick={() => setShelfFilter(s)}
-              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                active
-                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                  : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-gray-800'
-              }`}
-            >
+            <button key={s} onClick={() => setShelfFilter(s)} className={filterChipCls(active)} aria-pressed={active}>
+              {s !== 'all' && <span className={cx('w-2 h-2 rounded-full', STATUS_META[s].dot)} />}
               {label}
+              <span className={active ? 'text-onprimary/70 text-xs' : 'text-ink3 text-xs'}>{count}</span>
             </button>
           );
         })}
       </div>
 
       {shelves.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mx-auto mb-4">
-            <BookOpen size={28} className="text-gray-300 dark:text-gray-600" />
-          </div>
-          <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">La estantería está vacía</p>
-        </div>
+        <EmptyState
+          icon={<BookMarked size={26} />}
+          title="La estantería está vacía"
+          description="Los libros que añadas se colocarán aquí, balda a balda, como en una librería de verdad."
+        />
       ) : (
-        <div className="space-y-6">
+        <div className={cx(cardCls, 'px-3 sm:px-6 pt-7 pb-5 space-y-8 bg-gradient-to-b from-sunken/40 to-surface')}>
           {shelves.map((shelf, si) => (
             <div key={si}>
-              {/* Books on shelf */}
-              <div className="flex items-end justify-center gap-2 sm:gap-4 px-2 min-h-[180px]">
+              <div
+                className="grid items-end px-1 sm:px-3 gap-x-3 sm:gap-x-5"
+                style={{ gridTemplateColumns: `repeat(${perShelf}, minmax(0, 1fr))` }}
+              >
                 {shelf.map((book) => (
                   <button
                     key={book.id}
                     onClick={() => onEdit(book)}
-                    className="group relative flex-shrink-0"
-                    style={{ width: '18%', maxWidth: 100 }}
+                    className="group relative text-center min-w-0"
+                    aria-label={`Abrir ${book.title}`}
                   >
-                    <div className="relative transition-transform duration-300 group-hover:-translate-y-2 group-hover:rotate-1">
-                      {book.coverUrl ? (
-                        <img
-                          src={book.coverUrl}
-                          alt={book.title}
-                          className="w-full aspect-[2/3] object-cover rounded-md shadow-lg bg-gray-100"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div className="w-full aspect-[2/3] rounded-md bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 shadow-lg flex items-center justify-center p-2">
-                          <span className="text-[10px] text-gray-500 dark:text-gray-400 text-center font-medium leading-tight line-clamp-4">{book.title}</span>
-                        </div>
-                      )}
-                      {/* Status badge */}
-                      <div className="absolute top-1 right-1">
-                        <span className={`block w-2.5 h-2.5 rounded-full ${STATUS_META[book.status].dot} ring-2 ring-white/80 dark:ring-gray-900/80`} />
-                      </div>
-                      {/* Hover tooltip */}
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                        <div className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium px-2.5 py-1 rounded-lg whitespace-nowrap shadow-lg">
-                          {book.title}
-                        </div>
-                      </div>
-                    </div>
+                    <span className="relative block mx-auto w-full max-w-[110px] transition-all duration-300 group-hover:-translate-y-2.5 group-hover:-rotate-1">
+                      <BookCover
+                        title={book.title}
+                        author={book.author}
+                        coverUrl={book.coverUrl}
+                        detail="md"
+                        className="w-full aspect-[2/3] shadow-book"
+                      />
+                      <span
+                        className={cx('absolute top-1.5 right-1.5 block w-2.5 h-2.5 rounded-full ring-2 ring-white/80 shadow', STATUS_META[book.status].dot)}
+                        title={STATUS_META[book.status].label}
+                      />
+                    </span>
+                    <span className="block mt-2 min-h-[2.6em]">
+                      <span className="block text-[11px] sm:text-xs font-semibold text-ink leading-tight line-clamp-2">{book.title}</span>
+                      <span className="block text-[10px] text-ink3 truncate mt-0.5">{book.author}</span>
+                    </span>
+                    {book.rating > 0 && (
+                      <span className="flex justify-center mt-0.5">
+                        <StarRating value={book.rating} size={10} />
+                      </span>
+                    )}
                   </button>
                 ))}
-                {/* Fill empty slots */}
-                {shelf.length < 5 && Array.from({ length: 5 - shelf.length }).map((_, i) => (
-                  <div key={`empty-${i}`} style={{ width: '18%', maxWidth: 100 }} className="flex-shrink-0 aspect-[2/3] rounded-md border-2 border-dashed border-gray-100 dark:border-gray-800 opacity-40" />
-                ))}
+                {/* Huecos vacíos de la última balda */}
+                {shelf.length < perShelf &&
+                  Array.from({ length: perShelf - shelf.length }).map((_, i) => (
+                    <div key={`empty-${i}`} className="hidden sm:flex flex-col items-center opacity-50" aria-hidden>
+                      <div className="w-full max-w-[110px] aspect-[2/3] rounded-[3px_8px_8px_3px] border-2 border-dashed border-line2 flex items-center justify-center">
+                        <BookMarked size={16} className="text-line2" />
+                      </div>
+                      <span className="mt-2 min-h-[2.6em] text-[10px] text-ink3 italic">hueco libre</span>
+                    </div>
+                  ))}
               </div>
-              {/* Shelf board */}
-              <div className="shelf-board h-3 rounded-sm shadow-md" />
-              <div className="h-1 bg-black/10 dark:bg-black/30 rounded-b-sm" />
+              {/* Balda */}
+              <div className="shelf-board h-3.5 rounded-[4px] mt-1" aria-hidden />
+              <div className="flex justify-between px-6" aria-hidden>
+                <span className="w-2.5 h-3 bg-black/15 rounded-b-sm" />
+                <span className="w-2.5 h-3 bg-black/15 rounded-b-sm" />
+              </div>
             </div>
           ))}
+          <p className="text-center text-xs text-ink3 pt-1">
+            {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'} en {shelves.length} {shelves.length === 1 ? 'balda' : 'baldas'} · toca un libro para editarlo
+          </p>
         </div>
       )}
     </div>

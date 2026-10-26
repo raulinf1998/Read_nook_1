@@ -1,16 +1,26 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="calido">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Read Nook — tu rincón de lectura: sigue tus libros, tu progreso, tus retos y tus estadísticas." />
+    <script>
+      // Aplica tema/modo guardados antes del primer pintado (evita parpadeos)
+      try {
+        var t = localStorage.getItem('readnook-theme') || 'calido';
+        var d = localStorage.getItem('readnook-dark') === '1' || t === 'nocturno';
+        document.documentElement.dataset.theme = t;
+        if (d) document.documentElement.classList.add('dark');
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>Biblioteca — Rastreador de Libros</title>
-    <meta property="og:image" content="https://bolt.new/static/og_default.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&family=Nunito:wght@600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <title>Read Nook — Tu rincón de lectura</title>
   </head>
   <body>
     <div id="root"></div>

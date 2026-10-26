@@ -1,6 +1,5 @@
 import express from 'express';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -11,25 +10,27 @@ const STATIC_DIR = join(__dirname, 'dist');
 
 mkdirSync(DATA_DIR, { recursive: true });
 
-interface DB {
-  books: any[];
-  tags: string[];
-  goal: number;
-  dark: boolean;
-}
+const VALID_THEMES = ['calido', 'minimal', 'nocturno', 'vibrante'];
 
-function loadDB(): DB {
+function loadDB() {
   if (existsSync(DATA_FILE)) {
     try {
-      return JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+      const parsed = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+      return {
+        books: Array.isArray(parsed.books) ? parsed.books : [],
+        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+        goal: typeof parsed.goal === 'number' ? parsed.goal : 24,
+        dark: Boolean(parsed.dark),
+        theme: VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'calido',
+      };
     } catch {
       // corrupted, start fresh
     }
   }
-  return { books: [], tags: [], goal: 24, dark: false };
+  return { books: [], tags: [], goal: 24, dark: false, theme: 'calido' };
 }
 
-function saveDB(db: DB) {
+function saveDB(db) {
   writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
@@ -65,7 +66,7 @@ app.delete('/api/books/:id', (req, res) => {
 });
 
 app.post('/api/books/import', (req, res) => {
-  const newBooks = (req.body.books || []).map((b: any) => ({
+  const newBooks = (req.body.books || []).map((b) => ({
     ...b,
     id: crypto.randomUUID(),
     createdAt: Date.now(),
@@ -92,24 +93,33 @@ app.delete('/api/tags/:tag', (req, res) => {
 });
 
 // --- Settings ---
+const publicSettings = () => ({ goal: db.goal, dark: db.dark, theme: db.theme });
+
 app.get('/api/settings', (req, res) => {
-  res.json({ goal: db.goal, dark: db.dark });
+  res.json(publicSettings());
 });
 app.put('/api/settings', (req, res) => {
   if (typeof req.body.goal === 'number') db.goal = req.body.goal;
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;
+  if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
   saveDB(db);
-  res.json({ goal: db.goal, dark: db.dark });
+  res.json(publicSettings());
 });
 
 const PORT = process.env.PORT || 3001;
 
-// Serve static frontend
-app.use(express.static(STATIC_DIR));
-app.get('*', (req, res) => {
-  res.sendFile(join(STATIC_DIR, 'index.html'));
-});
+// Serve static frontend (solo en producción, cuando existe dist/)
+if (existsSync(join(STATIC_DIR, 'index.html'))) {
+  app.use(express.static(STATIC_DIR));
+  app.get('*', (req, res) => {
+    res.sendFile(join(STATIC_DIR, 'index.html'));
+  });
+} else {
+  app.get('*', (req, res) => {
+    res.status(404).json({ error: 'Not found' });
+  });
+}
 
-app.listen(PORT, () => {
-  console.log(`Book tracker running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Read Nook server running on port ${PORT}`);
 });
