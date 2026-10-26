@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, FileText, Star, Globe, BarChart3 } from 'lucide-react';
+import { Activity, BookOpen, CalendarDays, Clock3, FileText, Flame, Star, Globe, BarChart3 } from 'lucide-react';
 import type { Book } from '../types';
 import { BarChart, DonutChart, HBarChart } from './Charts';
 import { EmptyState, cardCls, cx, selectCls } from './ui';
@@ -19,6 +19,46 @@ type FilterMode = 'global' | 'year' | 'month';
 
 interface Props {
   books: Book[];
+}
+
+function localDateKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function daySerial(dateKey: string): number {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+}
+
+function formatDateKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day, 12).toLocaleDateString('es', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function calculateStreaks(activeDays: Set<string>): { longest: number; current: number } {
+  if (!activeDays.size) return { longest: 0, current: 0 };
+  const serials = new Set([...activeDays].map(daySerial));
+  const sorted = [...serials].sort((a, b) => a - b);
+  let longest = 1;
+  let run = 1;
+  for (let i = 1; i < sorted.length; i += 1) {
+    run = sorted[i] === sorted[i - 1] + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  }
+
+  const today = daySerial(localDateKey(Date.now()));
+  let cursor = serials.has(today) ? today : today - 1;
+  let current = 0;
+  while (serials.has(cursor)) {
+    current += 1;
+    cursor -= 1;
+  }
+  return { longest, current };
 }
 
 export function Statistics({ books }: Props) {
@@ -43,9 +83,107 @@ export function Statistics({ books }: Props) {
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     allRead.forEach((b) => { if (b.finishedAt) years.add(new Date(b.finishedAt).getFullYear()); });
+    books.forEach((book) => {
+      (book.journal || []).forEach((entry) => {
+        if (Number.isFinite(entry.date)) years.add(new Date(entry.date).getFullYear());
+      });
+    });
     years.add(new Date().getFullYear());
     return Array.from(years).sort((a, b) => b - a);
-  }, [allRead]);
+  }, [allRead, books]);
+
+  const allJournalSessions = useMemo(
+    () => books.flatMap((book) => (book.journal || [])
+      .filter((entry) => Number.isFinite(entry.date) && ((entry.pages || 0) > 0 || (entry.minutes || 0) > 0))
+      .map((entry) => ({ book, entry }))),
+    [books],
+  );
+
+  const currentStreak = useMemo(
+    () => calculateStreaks(new Set(allJournalSessions.map(({ entry }) => localDateKey(entry.date)))).current,
+    [allJournalSessions],
+  );
+
+  const journalActivity = useMemo(() => {
+    const inPeriod = allJournalSessions.filter(({ entry }) => {
+      if (filterMode === 'global') return true;
+      const date = new Date(entry.date);
+      if (date.getFullYear() !== year) return false;
+      return filterMode === 'year' || date.getMonth() === month;
+    });
+
+    const pagesByDay = new Map<string, number>();
+    const pagesByBook = new Map<string, { label: string; value: number; sessions: number }>();
+    let totalPages = 0;
+    let totalMinutes = 0;
+
+    for (const { book, entry } of inPeriod) {
+      const pages = Math.max(0, entry.pages || 0);
+      totalPages += pages;
+      totalMinutes += Math.max(0, entry.minutes || 0);
+      const key = localDateKey(entry.date);
+      pagesByDay.set(key, (pagesByDay.get(key) || 0) + pages);
+      const currentBook = pagesByBook.get(book.id) || { label: book.title, value: 0, sessions: 0 };
+      currentBook.value += pages;
+      currentBook.sessions += 1;
+      pagesByBook.set(book.id, currentBook);
+    }
+
+    const activeDays = new Set(pagesByDay.keys());
+    const bestDay = [...pagesByDay.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+    let timeline: { label: string; value: number }[];
+    let timelineLabel: string;
+    if (filterMode === 'month') {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      timeline = Array.from({ length: daysInMonth }, (_, index) => {
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(index + 1).padStart(2, '0')}`;
+        return { label: String(index + 1), value: pagesByDay.get(key) || 0 };
+      });
+      timelineLabel = 'Páginas por día';
+    } else if (filterMode === 'year') {
+      timeline = MONTHS.map((item) => ({ label: item.label, value: 0 }));
+      for (const { entry } of inPeriod) {
+        timeline[new Date(entry.date).getMonth()].value += Math.max(0, entry.pages || 0);
+      }
+      timelineLabel = 'Páginas por mes';
+    } else {
+      const byYear = new Map<number, number>();
+      for (const { entry } of inPeriod) {
+        const entryYear = new Date(entry.date).getFullYear();
+        byYear.set(entryYear, (byYear.get(entryYear) || 0) + Math.max(0, entry.pages || 0));
+      }
+      timeline = [...byYear.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .slice(-12)
+        .map(([entryYear, value]) => ({ label: String(entryYear), value }));
+      timelineLabel = 'Páginas por año';
+    }
+
+    const topBooks = [...pagesByBook.values()]
+      .filter((item) => item.value > 0)
+      .sort((a, b) => b.value - a.value || b.sessions - a.sessions)
+      .slice(0, 8)
+      .map((item, index) => ({
+        ...item,
+        color: `linear-gradient(90deg, rgb(var(--chart-${(index % 4) + 1}) / 0.7), rgb(var(--chart-${(index % 4) + 1})))`,
+      }));
+
+    return {
+      sessions: inPeriod.length,
+      totalPages,
+      totalMinutes,
+      activeDays: activeDays.size,
+      averagePerActiveDay: activeDays.size ? totalPages / activeDays.size : 0,
+      booksWithActivity: pagesByBook.size,
+      bestDay: bestDay ? { date: bestDay[0], pages: bestDay[1] } : null,
+      longestStreak: calculateStreaks(activeDays).longest,
+      timeline,
+      timelineLabel,
+      topBooks,
+    };
+  }, [allJournalSessions, filterMode, month, year]);
 
   const stats = useMemo(() => {
     const totalPages = readBooks.reduce((s, b) => s + b.pages, 0);
@@ -128,7 +266,7 @@ export function Statistics({ books }: Props) {
   const periodLabel =
     filterMode === 'global' ? 'Histórico' : filterMode === 'year' ? `Año ${year}` : `${MONTHS[month].label} ${year}`;
 
-  if (allRead.length === 0) {
+  if (allRead.length === 0 && allJournalSessions.length === 0) {
     return (
       <EmptyState
         icon={<BarChart3 size={26} />}
@@ -173,6 +311,81 @@ export function Statistics({ books }: Props) {
         <MetricCard icon={<FileText size={16} />} label="Páginas leídas" value={stats.totalPages.toLocaleString('es')} />
         <MetricCard icon={<Star size={16} />} label="Nota media" value={avgRating} />
       </div>
+
+      <Card
+        title="Ritmo del diario"
+        subtitle={journalActivity.sessions > 0
+          ? `${journalActivity.timelineLabel} · ${periodLabel} · ${journalActivity.booksWithActivity} libros con sesiones`
+          : `Sesiones por fecha · ${periodLabel}`}
+      >
+        {journalActivity.sessions > 0 ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              <ActivityStat
+                icon={<FileText size={15} />}
+                label="Páginas registradas"
+                value={journalActivity.totalPages.toLocaleString('es')}
+              />
+              <ActivityStat
+                icon={<CalendarDays size={15} />}
+                label="Días activos"
+                value={journalActivity.activeDays.toLocaleString('es')}
+              />
+              <ActivityStat
+                icon={<Activity size={15} />}
+                label="Media / día activo"
+                value={`${journalActivity.averagePerActiveDay.toLocaleString('es', { maximumFractionDigits: 1 })} págs`}
+              />
+              <ActivityStat
+                icon={<BookOpen size={15} />}
+                label="Sesiones"
+                value={journalActivity.sessions.toLocaleString('es')}
+              />
+            </div>
+
+            <BarChart data={journalActivity.timeline} height={165} formatValue={(value) => value ? value.toLocaleString('es') : '0'} />
+
+            <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink2">
+              {journalActivity.bestDay && (
+                <span>
+                  <strong className="text-ink">Mejor día:</strong>{' '}
+                  {formatDateKey(journalActivity.bestDay.date)} · {journalActivity.bestDay.pages.toLocaleString('es')} págs
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5">
+                <Flame size={14} className="text-accent" />
+                Racha más larga: <strong className="text-ink">{journalActivity.longestStreak}</strong>
+                {journalActivity.longestStreak === 1 ? 'día' : 'días'}
+              </span>
+              <span>
+                Racha actual: <strong className="text-ink">{currentStreak}</strong> {currentStreak === 1 ? 'día' : 'días'}
+              </span>
+              {journalActivity.totalMinutes > 0 && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock3 size={14} className="text-accent" />
+                  {journalActivity.totalMinutes.toLocaleString('es')} minutos registrados
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-6 text-center">
+            <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-card bg-accent/10 text-accent">
+              <Activity size={21} />
+            </span>
+            <p className="max-w-lg text-sm leading-relaxed text-ink2">
+              Todavía no hay sesiones con páginas en este periodo. Importa el JSON del diario de StoryGraph o
+              registra avances en el diario de un libro para ver tus páginas por día y tus rachas.
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {journalActivity.topBooks.length > 0 && (
+        <Card title="Libros con más actividad" subtitle={`Páginas registradas en el diario · ${periodLabel}`}>
+          <HBarChart data={journalActivity.topBooks} formatValue={(value) => `${value.toLocaleString('es')} págs`} maxItems={8} />
+        </Card>
+      )}
 
       {filterMode === 'month' ? (
         <Card title="Libros por día" subtitle={`${MONTHS[month].label} ${year}`}>
@@ -262,6 +475,18 @@ function MetricCard({ icon, label, value }: { icon: React.ReactNode; label: stri
       <span className="w-8 h-8 rounded-btn bg-accent/10 text-accent flex items-center justify-center mb-2">{icon}</span>
       <span className="font-display text-2xl font-semibold text-ink leading-none tabular-nums">{value}</span>
       <span className="text-[11px] font-medium text-ink3 mt-1.5">{label}</span>
+    </div>
+  );
+}
+
+function ActivityStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string | number }) {
+  return (
+    <div className="rounded-btn bg-sunken/70 px-3 py-3">
+      <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink3">
+        <span className="text-accent">{icon}</span>
+        {label}
+      </span>
+      <span className="mt-1.5 block font-display text-xl font-semibold tabular-nums text-ink">{value}</span>
     </div>
   );
 }

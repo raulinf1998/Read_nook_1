@@ -2,11 +2,27 @@ export type BookStatus = 'pending' | 'reading' | 'read';
 export type BookFormat = 'hardcover' | 'paperback' | 'ebook';
 export type BookLanguage = 'es' | 'en';
 
+export type JournalEntryKind =
+  | 'progress'
+  | 'started'
+  | 'finished'
+  | 'paused'
+  | 'resumed'
+  | 'dnf'
+  | 'to_read'
+  | 'note';
+
 export interface JournalEntry {
   id: string;
   date: number; // timestamp
   pages: number; // pages read in this session
   note: string;
+  minutes?: number;
+  percent?: number | null;
+  cumulativePages?: number | null;
+  kind?: JournalEntryKind;
+  source?: 'storygraph';
+  sourceEntryId?: string;
 }
 
 export interface Book {
@@ -26,6 +42,7 @@ export interface Book {
   description: string;
   tags: string[];
   isbn: string;
+  storyGraphId?: string;
   startedAt: number | null;
   finishedAt: number | null;
   journal: JournalEntry[];

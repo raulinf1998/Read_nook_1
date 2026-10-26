@@ -159,10 +159,11 @@ export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguag
     const cols = parseCsvLine(lines[line]);
     if (iTitle < 0 || !cols[iTitle]) continue;
 
-    const statusRaw = iStatus >= 0 ? (cols[iStatus] || '').toLowerCase() : '';
+    const statusRaw = iStatus >= 0 ? (cols[iStatus] || '').toLowerCase().replace(/[_\s]+/g, '-') : '';
     let status: BookStatus = 'pending';
-    if (statusRaw.includes('read') || statusRaw.includes('finished')) status = 'read';
-    else if (statusRaw.includes('reading') || statusRaw.includes('currently')) status = 'reading';
+    // El orden importa: "currently-reading" y "to-read" también contienen "read".
+    if (statusRaw.includes('currently') || statusRaw.includes('reading') || statusRaw.includes('paused')) status = 'reading';
+    else if (statusRaw === 'read' || statusRaw.includes('finished') || statusRaw.includes('completed')) status = 'read';
 
     const ratingStr = iRating >= 0 ? cols[iRating] : '';
     const rating = ratingStr ? Math.round(parseFloat(ratingStr) * 2) / 2 : 0;
@@ -215,7 +216,8 @@ export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguag
         startedAt = parseDate(firstDate);
       }
     }
-    const isbn = iIsbn >= 0 ? (cols[iIsbn] || '').replace(/[-\s]/g, '') : '';
+    const isbnRaw = iIsbn >= 0 ? (cols[iIsbn] || '').trim() : '';
+    const isbn = /^none$|^n\/a$/i.test(isbnRaw) ? '' : isbnRaw.replace(/[-\s]/g, '');
 
     books.push({
       title: cols[iTitle] || '',

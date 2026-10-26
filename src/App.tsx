@@ -34,7 +34,7 @@ function greeting() {
 }
 
 export default function App() {
-  const { books, loading, addBook, updateBook, deleteBook, importBooks } = useBooks();
+  const { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal } = useBooks();
   const { tags, addTag, removeTag } = useServerTags();
   const { goal, setGoal, dark, setDark, theme, setTheme } = useServerSettings();
 
@@ -205,7 +205,14 @@ export default function App() {
           onUpdateBook={updateBook}
         />
       )}
-      {showImport && <ImportModal onImport={importBooks} onClose={() => setShowImport(false)} />}
+      {showImport && (
+        <ImportModal
+          existingBooks={books}
+          onImport={importBooks}
+          onMergeJournal={mergeExistingStoryGraphJournal}
+          onClose={() => setShowImport(false)}
+        />
+      )}
       {showTagManager && (
         <TagManager tags={tags} onAdd={addTag} onRemove={removeTag} onClose={() => setShowTagManager(false)} />
       )}

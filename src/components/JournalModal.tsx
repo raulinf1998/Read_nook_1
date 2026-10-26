@@ -1,8 +1,32 @@
 import { useState } from 'react';
-import { NotebookPen, Plus, Trash2 } from 'lucide-react';
-import type { Book, JournalEntry } from '../types';
+import { Clock3, NotebookPen, Plus, Trash2 } from 'lucide-react';
+import type { Book, JournalEntry, JournalEntryKind } from '../types';
 import { makeJournalEntry } from '../lib';
-import { BookCover, Modal, ProgressBar, btnPrimary, cx, iconBtn, inputCls } from './ui';
+import { calculateJournalCurrentPage } from '../storyGraphJournal';
+import { BookCover, Modal, ProgressBar, btnGhost, btnPrimary, cx, iconBtn, inputCls } from './ui';
+
+const KIND_LABELS: Record<JournalEntryKind, string> = {
+  progress: 'Avance',
+  started: 'Inicio',
+  finished: 'Terminado',
+  paused: 'Pausa',
+  resumed: 'Reanudado',
+  dnf: 'Abandonado',
+  to_read: 'Por leer',
+  note: 'Nota',
+};
+
+const VISIBLE_ENTRIES = 80;
+
+function formatPercent(value: number): string {
+  return `${Number.isInteger(value) ? value : value.toFixed(1).replace('.', ',')}%`;
+}
+
+function localNoonFromDateInput(value: string): number {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return Date.now();
+  return new Date(year, month - 1, day, 12).getTime();
+}
 
 interface Props {
   book: Book;
@@ -19,14 +43,16 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
   const [note, setNote] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [entries, setEntries] = useState<JournalEntry[]>(byDateDesc(book.journal || []));
+  const [showAllEntries, setShowAllEntries] = useState(false);
 
   const pushUpdate = (newEntries: JournalEntry[]) => {
-    const totalRead = newEntries.reduce((s, e) => s + e.pages, 0);
-    const newCurrentPage = Math.min(totalRead, book.pages || totalRead);
+    const newCurrentPage = calculateJournalCurrentPage(newEntries, book.pages);
     const patch: Partial<Book> = { journal: newEntries, currentPage: newCurrentPage };
     if (book.pages > 0 && newCurrentPage >= book.pages && book.status !== 'read') {
       patch.status = 'read';
-      patch.finishedAt = new Date(date).getTime();
+      patch.finishedAt = newEntries.length
+        ? Math.max(...newEntries.map((entry) => entry.date))
+        : localNoonFromDateInput(date);
     }
     onUpdate(book.id, patch);
   };
@@ -34,8 +60,29 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
   const handleAdd = () => {
     const p = parseInt(pages) || 0;
     if (p <= 0 && !note.trim()) return;
-    // La entrada guarda la fecha elegida en el selector (antes siempre era "hoy")
-    const entry: JournalEntry = { ...makeJournalEntry(p, note.trim()), date: new Date(date).getTime() || Date.now() };
+    // La entrada guarda la fecha elegida en el selector (antes siempre era "hoy").
+    // Se usa mediodía local para que el día no cambie según la zona horaria.
+    const entryDate = localNoonFromDateInput(date);
+    const latestEntryDate = entries.length ? Math.max(...entries.map((entry) => entry.date)) : 0;
+    const isLatestEntry = entryDate >= latestEntryDate;
+    const nextCumulative = isLatestEntry && p > 0
+      ? calculateJournalCurrentPage(entries, book.pages) + p
+      : null;
+    const cumulativePages = nextCumulative === null
+      ? undefined
+      : book.pages > 0
+        ? Math.min(nextCumulative, book.pages)
+        : nextCumulative;
+
+    const entry: JournalEntry = {
+      ...makeJournalEntry(p, note.trim()),
+      date: entryDate,
+      kind: p > 0 ? 'progress' : 'note',
+      ...(cumulativePages !== undefined ? {
+        cumulativePages,
+        percent: book.pages > 0 ? Math.round((cumulativePages / book.pages) * 1000) / 10 : null,
+      } : {}),
+    };
     const newEntries = byDateDesc([entry, ...entries]);
     setEntries(newEntries);
     pushUpdate(newEntries);
@@ -49,8 +96,16 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
     pushUpdate(newEntries);
   };
 
-  const totalPagesRead = entries.reduce((s, e) => s + e.pages, 0);
-  const pct = book.pages > 0 ? Math.min((totalPagesRead / book.pages) * 100, 100) : 0;
+  const currentPage = entries.length ? calculateJournalCurrentPage(entries, book.pages) : (book.currentPage || 0);
+  const recordedPages = entries.reduce((sum, entry) => sum + Math.max(0, entry.pages || 0), 0);
+  const recordedMinutes = entries.reduce((sum, entry) => sum + Math.max(0, entry.minutes || 0), 0);
+  const latestPercent = [...entries]
+    .sort((a, b) => b.date - a.date)
+    .find((entry) => typeof entry.percent === 'number')?.percent;
+  const pct = book.pages > 0
+    ? Math.min((currentPage / book.pages) * 100, 100)
+    : Math.min(Math.max(latestPercent || 0, 0), 100);
+  const visibleEntries = showAllEntries ? entries : entries.slice(0, VISIBLE_ENTRIES);
 
   return (
     <Modal title="Diario lector" icon={<NotebookPen size={17} />} onClose={onClose} maxWidth="max-w-md">
@@ -62,10 +117,25 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
             <p className="font-display text-sm font-semibold text-ink truncate">{book.title}</p>
             <p className="text-xs text-ink3 truncate">{book.author}</p>
             <div className="flex items-center gap-2 mt-2 text-xs">
-              <span className="font-semibold text-ink2 tabular-nums">{totalPagesRead} / {book.pages || '?'} págs</span>
-              <span className="font-extrabold text-accent tabular-nums">{pct.toFixed(0)}%</span>
+              <span className="font-semibold text-ink2 tabular-nums">
+                Página {currentPage.toLocaleString('es')} de {book.pages ? book.pages.toLocaleString('es') : '?'}
+              </span>
+              <span className="font-extrabold text-accent tabular-nums">{formatPercent(Math.round(pct * 10) / 10)}</span>
             </div>
             <ProgressBar pct={pct} className="h-2 mt-1.5" />
+            {entries.length > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink3">
+                <span>{entries.length} {entries.length === 1 ? 'sesión registrada' : 'sesiones registradas'}</span>
+                <span aria-hidden>·</span>
+                <span>{recordedPages.toLocaleString('es')} págs. en sesiones</span>
+                {recordedMinutes > 0 && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {recordedMinutes.toLocaleString('es')} min</span>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         </div>
 
@@ -113,8 +183,9 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
           {entries.length === 0 ? (
             <p className="text-sm text-ink3 text-center py-5">Aún no has registrado avances. Tu próxima sesión empieza arriba.</p>
           ) : (
-            <ol className="relative space-y-2.5 max-h-72 overflow-y-auto pr-1 before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-line">
-              {entries.map((entry) => (
+            <>
+              <ol className="relative space-y-2.5 max-h-72 overflow-y-auto pr-1 before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-line">
+                {visibleEntries.map((entry) => (
                 <li key={entry.id} className="relative flex items-start gap-3 group">
                   <span className="relative z-10 shrink-0 w-[35px] h-[35px] rounded-full bg-accent/10 ring-4 ring-surface flex flex-col items-center justify-center text-accent">
                     <span className="text-[11px] font-extrabold leading-none tabular-nums">{new Date(entry.date).getDate()}</span>
@@ -123,15 +194,35 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
                     </span>
                   </span>
                   <div className="flex-1 min-w-0 bg-sunken/60 rounded-btn px-3 py-2.5">
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-ink capitalize">
                         {new Date(entry.date).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                       {entry.pages > 0 && (
                         <span className="text-[10px] font-extrabold bg-accent/15 text-accent px-1.5 py-0.5 rounded-full">+{entry.pages} págs</span>
                       )}
+                      {entry.kind && (entry.kind !== 'progress' || entry.pages === 0) && (
+                        <span className="text-[10px] font-extrabold bg-surface text-ink2 px-1.5 py-0.5 rounded-full ring-1 ring-line">
+                          {KIND_LABELS[entry.kind]}
+                        </span>
+                      )}
+                      {entry.source === 'storygraph' && (
+                        <span className="text-[10px] font-extrabold bg-streading/10 text-streading px-1.5 py-0.5 rounded-full">
+                          StoryGraph
+                        </span>
+                      )}
                     </div>
-                    {entry.note && <p className="text-xs text-ink2 mt-1 leading-relaxed">{entry.note}</p>}
+
+                    {(entry.cumulativePages != null || entry.percent != null || entry.minutes) && (
+                      <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] font-medium text-ink3">
+                        {entry.cumulativePages != null && <span>Hasta la pág. {entry.cumulativePages.toLocaleString('es')}</span>}
+                        {entry.percent != null && <span>{formatPercent(entry.percent)} del libro</span>}
+                        {entry.minutes ? (
+                          <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {entry.minutes.toLocaleString('es')} min</span>
+                        ) : null}
+                      </div>
+                    )}
+                    {entry.note && <p className="text-xs text-ink2 mt-1.5 leading-relaxed whitespace-pre-line break-words">{entry.note}</p>}
                   </div>
                   <button
                     onClick={() => handleDelete(entry.id)}
@@ -143,6 +234,12 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
                 </li>
               ))}
             </ol>
+            {entries.length > VISIBLE_ENTRIES && !showAllEntries && (
+              <button onClick={() => setShowAllEntries(true)} className={cx(btnGhost, 'mt-3 w-full')}>
+                Mostrar las {entries.length.toLocaleString('es')} sesiones
+              </button>
+            )}
+            </>
           )}
         </div>
       </div>
