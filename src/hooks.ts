@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Book, ThemeId } from './types';
 import { apiClient } from './api';
+import { mergeStoryGraphJournal } from './storyGraphJournal';
+import type { StoryGraphJournalEntry } from './storyGraphJournal';
 
 export function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -72,7 +74,28 @@ export function useBooks() {
     return result.imported;
   }, []);
 
-  return { books, loading, addBook, updateBook, deleteBook, importBooks };
+  const mergeExistingStoryGraphJournal = useCallback(async (entries: StoryGraphJournalEntry[]) => {
+    const result = mergeStoryGraphJournal(books, entries);
+    setBooks(result.books);
+
+    // El servidor actualiza libro a libro; limitamos la concurrencia para no
+    // disparar más de cien escrituras simultáneas sobre db.json.
+    const changed = result.patches
+      .map(({ index, patch }) => ({ id: books[index]?.id, patch }))
+      .filter((item): item is { id: string; patch: Partial<Book> } => Boolean(item.id));
+    const queue = [...changed];
+    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        if (!item) break;
+        await apiClient.updateBook(item.id, item.patch);
+      }
+    });
+    await Promise.all(workers);
+    return result.report;
+  }, [books]);
+
+  return { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal };
 }
 
 const VALID_THEMES: ThemeId[] = ['calido', 'minimal', 'nocturno', 'vibrante'];
