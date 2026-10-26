@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Book } from './types';
+import type { Book, ThemeId } from './types';
 import { apiClient } from './api';
 
 export function useLocalStorage<T>(key: string, initial: T) {
@@ -21,6 +21,17 @@ export function useLocalStorage<T>(key: string, initial: T) {
   }, [key, value]);
 
   return [value, setValue] as const;
+}
+
+// Ancho de ventana reactivo (para la estantería: nº de libros por balda)
+export function useWindowWidth() {
+  const [width, setWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1024));
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return width;
 }
 
 export function useBooks() {
@@ -64,17 +75,46 @@ export function useBooks() {
   return { books, loading, addBook, updateBook, deleteBook, importBooks };
 }
 
+const VALID_THEMES: ThemeId[] = ['calido', 'minimal', 'nocturno', 'vibrante'];
+
+function storedTheme(): ThemeId {
+  try {
+    const t = localStorage.getItem('readnook-theme') as ThemeId | null;
+    return t && VALID_THEMES.includes(t) ? t : 'calido';
+  } catch {
+    return 'calido';
+  }
+}
+function storedDark(): boolean {
+  try {
+    return localStorage.getItem('readnook-dark') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function useServerSettings() {
   const [goal, setGoalState] = useState(24);
-  const [dark, setDarkState] = useState(false);
+  // Se inicializa desde localStorage para aplicar el tema sin esperar al servidor
+  const [dark, setDarkState] = useState<boolean>(storedDark);
+  const [theme, setThemeState] = useState<ThemeId>(storedTheme);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     apiClient.getSettings().then((s) => {
       setGoalState(s.goal);
       setDarkState(s.dark);
+      if (s.theme && VALID_THEMES.includes(s.theme)) setThemeState(s.theme);
     }).catch(() => {}).finally(() => setLoaded(true));
   }, []);
+
+  // Reflejo en localStorage: el script de index.html lo usa antes del primer pintado
+  useEffect(() => {
+    try {
+      localStorage.setItem('readnook-theme', theme);
+      localStorage.setItem('readnook-dark', dark ? '1' : '0');
+    } catch { /* ignore */ }
+  }, [theme, dark]);
 
   const setGoal = useCallback((g: number) => {
     setGoalState(g);
@@ -86,7 +126,14 @@ export function useServerSettings() {
     apiClient.setSettings({ dark: d }).catch(() => {});
   }, []);
 
-  return { goal, setGoal, dark, setDark, loaded };
+  const setTheme = useCallback((t: ThemeId) => {
+    setThemeState(t);
+    // El modo oscuro es una preferencia aparte: «Nocturno» lo fuerza mientras
+    // está activo (ver App), pero al cambiar de tema vuelve el modo previo.
+    apiClient.setSettings({ theme: t }).catch(() => {});
+  }, []);
+
+  return { goal, setGoal, dark, setDark, theme, setTheme, loaded };
 }
 
 export function useServerTags() {

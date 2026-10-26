@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, BookOpen, Search, Loader2, NotebookPen, AlertCircle } from 'lucide-react';
+import { BookOpen, Search, Loader2, NotebookPen, AlertCircle, ScanBarcode } from 'lucide-react';
 import type { Book, BookFormat, BookLanguage, BookStatus } from '../types';
 import { STATUS_META, FORMAT_META, LANGUAGE_META } from '../types';
 import { StarRating } from './StarRating';
 import { JournalModal } from './JournalModal';
 import { fetchByIsbn } from '../lib';
+import { BookCover, Modal, btnGhost, btnPrimary, btnSoft, cx, inputCls, labelCls, selectCls } from './ui';
 
 interface Props {
   onSubmit: (book: Omit<Book, 'id' | 'createdAt'>) => void;
@@ -43,7 +44,7 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
     const result = await fetchByIsbn(isbnInput);
     setLoading(false);
     if (!result) {
-      setIsbnError('No se encontró el libro. Verifica el ISBN.');
+      setIsbnError('No se encontró el libro. Revisa el ISBN e inténtalo de nuevo.');
       return;
     }
     setTitle(result.title);
@@ -57,7 +58,7 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
   };
 
   const toggleTag = (tag: string) => {
-    setTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,127 +94,102 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-800"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 rounded-t-2xl z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen size={20} className="text-gray-700 dark:text-gray-300" />
-            {editingBook ? 'Editar libro' : 'Añadir libro'}
-          </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <X size={20} className="text-gray-500 dark:text-gray-400" />
-          </button>
-        </div>
+  const sliderPct = pages > 0 ? Math.min((currentPage / pages) * 100, 100) : 0;
 
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          {/* ISBN lookup */}
+  return (
+    <>
+      <Modal
+        title={editingBook ? 'Editar libro' : 'Añadir libro'}
+        icon={<BookOpen size={17} />}
+        onClose={onClose}
+        maxWidth="max-w-2xl"
+        footer={
+          <div className="flex gap-2.5">
+            <button type="button" onClick={onClose} className={cx(btnGhost, 'flex-1 bg-surface border border-line')}>
+              Cancelar
+            </button>
+            <button type="submit" form="book-form" disabled={!title.trim() || submitting} className={cx(btnPrimary, 'flex-1')}>
+              {submitting ? (
+                <span className="inline-flex items-center gap-2"><Loader2 size={15} className="animate-spin" /> Guardando…</span>
+              ) : editingBook ? 'Guardar cambios' : 'Añadir libro'}
+            </button>
+          </div>
+        }
+      >
+        <form id="book-form" onSubmit={handleSubmit} className="space-y-5">
+          {/* Búsqueda por ISBN */}
           {!editingBook && (
-            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Buscar por ISBN</label>
+            <div className="rounded-card bg-accent/[0.07] border border-accent/20 p-4">
+              <label className={cx(labelCls, 'flex items-center gap-1.5')} htmlFor="isbn-input">
+                <ScanBarcode size={15} className="text-accent" /> ¿Tienes el ISBN? Lo rellenamos por ti
+              </label>
               <div className="flex gap-2">
                 <input
+                  id="isbn-input"
                   value={isbnInput}
                   onChange={(e) => setIsbnInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
-                  placeholder="9788408..."
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); handleIsbnLookup(); }
+                  }}
+                  placeholder="978-84-…"
+                  inputMode="numeric"
+                  className={cx(inputCls, 'flex-1 bg-surface')}
                 />
-                <button
-                  type="button"
-                  onClick={handleIsbnLookup}
-                  disabled={loading || !isbnInput.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
+                <button type="button" onClick={handleIsbnLookup} disabled={loading || !isbnInput.trim()} className={btnPrimary}>
                   {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                   {loading ? 'Buscando' : 'Buscar'}
                 </button>
               </div>
-              {isbnError && <p className="text-xs text-red-500">{isbnError}</p>}
-              <p className="text-xs text-gray-400">Consulta la API de Google Books para autocompletar los datos.</p>
+              {isbnError && <p className="text-xs font-semibold text-danger mt-2">{isbnError}</p>}
+              <p className="text-xs text-ink3 mt-2">Consultamos Google Books y Open Library para traer portada, páginas y sinopsis.</p>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Título *</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="El nombre del viento"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
-              autoFocus={!loading}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Autor</label>
-            <input
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-              placeholder="Patrick Rothfuss"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">URL de la portada</label>
-            <div className="flex gap-3 items-start">
-              <input
-                value={coverUrl}
-                onChange={(e) => setCoverUrl(e.target.value)}
-                placeholder="https://..."
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
+          {/* Portada + datos esenciales */}
+          <div className="flex gap-4">
+            <div className="shrink-0 hidden sm:block">
+              <BookCover
+                title={title || 'Tu libro'}
+                author={author}
+                coverUrl={coverUrl}
+                detail="lg"
+                className="w-24 h-36 shadow-book"
               />
-              {coverUrl.trim() && (
-                <img
-                  src={coverUrl.trim()}
-                  alt="Vista previa"
-                  className="w-12 h-16 object-cover rounded-md border border-gray-200 dark:border-gray-700 flex-shrink-0 bg-gray-100 dark:bg-gray-800"
-                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
-                />
-              )}
+              <p className="text-[10px] text-ink3 text-center mt-1.5 w-24">Vista previa</p>
             </div>
-            <p className="text-xs text-gray-400 mt-1">Pega una URL para corregir la portada si la búsqueda ISBN trajo la edición equivocada.</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Páginas</label>
-              <input
-                type="number"
-                value={pages || ''}
-                onChange={(e) => setPages(parseInt(e.target.value) || 0)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Fecha publicación</label>
-              <input
-                value={publishDate}
-                onChange={(e) => setPublishDate(e.target.value)}
-                placeholder="2007-03-01"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm"
-              />
+            <div className="flex-1 min-w-0 space-y-3.5">
+              <div>
+                <label className={labelCls} htmlFor="f-title">Título *</label>
+                <input id="f-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="El nombre del viento" className={inputCls} autoFocus={Boolean(editingBook)} />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="f-author">Autor</label>
+                <input id="f-author" value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="Patrick Rothfuss" className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="f-cover">URL de la portada</label>
+                <input id="f-cover" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://…" className={inputCls} />
+                <p className="text-[11px] text-ink3 mt-1">Si la dejas vacía, generaremos una portada tipográfica con el título.</p>
+              </div>
             </div>
           </div>
 
+          {/* Estado segmentado */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Estado</label>
-            <div className="flex gap-2">
+            <span className={labelCls}>Estado</span>
+            <div className="flex gap-1 bg-sunken rounded-btn p-1" role="group" aria-label="Estado de lectura">
               {(Object.keys(STATUS_META) as BookStatus[]).map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setStatus(s)}
-                  className={`flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                    status === s
-                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                  aria-pressed={status === s}
+                  className={cx(
+                    'flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-[calc(var(--r-btn)_-_4px)] text-sm font-bold transition-all active:scale-[0.97]',
+                    status === s ? cx('bg-surface shadow-card', STATUS_META[s].activeBtn) : 'text-ink3 hover:text-ink'
+                  )}
                 >
+                  <span className={cx('w-2 h-2 rounded-full', STATUS_META[s].dot)} />
                   {STATUS_META[s].label}
                 </button>
               ))}
@@ -221,41 +197,44 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
           </div>
 
           {status === 'reading' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                Página actual: {currentPage} / {pages || '?'}
+            <div className="rounded-card bg-sunken/70 p-4">
+              <label className={cx(labelCls, 'flex justify-between')} htmlFor="f-page">
+                <span>Página actual</span>
+                <span className="text-ink tabular-nums">{currentPage} / {pages || '?'}{pages > 0 ? ` · ${sliderPct.toFixed(0)}%` : ''}</span>
               </label>
               <input
+                id="f-page"
                 type="range"
                 min={0}
                 max={pages || 100}
                 value={currentPage}
                 onChange={(e) => setCurrentPage(parseInt(e.target.value))}
-                className="w-full"
+                className="book-slider w-full"
+                style={{ background: `linear-gradient(to right, rgb(var(--primary)) ${sliderPct}%, rgb(var(--line)) ${sliderPct}%)` }}
               />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Formato</label>
-              <select
-                value={format}
-                onChange={(e) => setFormat(e.target.value as BookFormat)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 outline-none transition-all text-sm"
-              >
+              <label className={labelCls} htmlFor="f-pages">Páginas totales</label>
+              <input id="f-pages" type="number" min={0} value={pages || ''} onChange={(e) => setPages(parseInt(e.target.value) || 0)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="f-date">Fecha de publicación</label>
+              <input id="f-date" value={publishDate} onChange={(e) => setPublishDate(e.target.value)} placeholder="2007" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="f-format">Formato</label>
+              <select id="f-format" value={format} onChange={(e) => setFormat(e.target.value as BookFormat)} className={cx(selectCls, 'w-full')}>
                 {(Object.keys(FORMAT_META) as BookFormat[]).map((f) => (
                   <option key={f} value={f}>{FORMAT_META[f].label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Idioma</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as BookLanguage)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 outline-none transition-all text-sm"
-              >
+              <label className={labelCls} htmlFor="f-lang">Idioma</label>
+              <select id="f-lang" value={language} onChange={(e) => setLanguage(e.target.value as BookLanguage)} className={cx(selectCls, 'w-full')}>
                 {(Object.keys(LANGUAGE_META) as BookLanguage[]).map((l) => (
                   <option key={l} value={l}>{LANGUAGE_META[l].label}</option>
                 ))}
@@ -264,23 +243,26 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Puntuación</label>
-            <StarRating value={rating} onChange={setRating} size={24} />
+            <span className={labelCls}>Tu puntuación</span>
+            <StarRating value={rating} onChange={setRating} size={26} />
+            <p className="text-[11px] text-ink3 mt-1">Toca una estrella; toca otra vez para medias estrellas.</p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Tags / Géneros</label>
+            <span className={labelCls}>Tags / géneros</span>
             <div className="flex flex-wrap gap-1.5">
               {availableTags.map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  aria-pressed={tags.includes(tag)}
+                  className={cx(
+                    'px-2.5 py-1.5 rounded-full text-xs font-bold transition-all active:scale-95',
                     tags.includes(tag)
-                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
+                      ? 'bg-primary text-onprimary shadow-card'
+                      : 'bg-sunken text-ink2 hover:bg-line/60 hover:text-ink'
+                  )}
                 >
                   {tag}
                 </button>
@@ -289,65 +271,58 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, onUpda
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Notas personales</label>
+            <label className={labelCls} htmlFor="f-desc">Sinopsis</label>
             <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Impresiones, citas favoritas..."
-              rows={2}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:border-gray-900 dark:focus:border-gray-500 focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 outline-none transition-all text-sm resize-none"
+              id="f-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="De qué va el libro…"
+              rows={3}
+              className={cx(inputCls, 'resize-none')}
             />
           </div>
 
-          {submitError && (
-            <div className="flex items-center gap-2 bg-red-50 dark:bg-red-500/10 rounded-xl p-3">
-              <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-600 dark:text-red-400">{submitError}</p>
-            </div>
-          )}
+          <div>
+            <label className={labelCls} htmlFor="f-notes">Notas personales</label>
+            <textarea
+              id="f-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Impresiones, citas favoritas, a quién se lo prestaste…"
+              rows={2}
+              className={cx(inputCls, 'resize-none')}
+            />
+          </div>
 
-          {/* Journal button (only when editing) */}
+          {/* Diario lector */}
           {editingBook && onUpdateBook && (
             <button
               type="button"
               onClick={() => setShowJournal(true)}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium text-sm hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+              className={cx(btnSoft, 'w-full py-3 text-sm')}
             >
               <NotebookPen size={16} />
-              Diario lector
+              Abrir diario lector
               {editingBook.journal && editingBook.journal.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
-                  {editingBook.journal.length}
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-accent/20 text-[10px] font-extrabold">
+                  {editingBook.journal.length} {editingBook.journal.length === 1 ? 'avance' : 'avances'}
                 </span>
               )}
             </button>
           )}
 
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || submitting}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-medium text-sm hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {submitting ? 'Guardando...' : editingBook ? 'Guardar cambios' : 'Añadir libro'}
-            </button>
-          </div>
+          {submitError && (
+            <div className="flex items-center gap-2 bg-danger/10 border border-danger/25 rounded-btn p-3">
+              <AlertCircle size={18} className="text-danger shrink-0" />
+              <p className="text-sm font-semibold text-danger">{submitError}</p>
+            </div>
+          )}
         </form>
-      </div>
+      </Modal>
+
       {showJournal && editingBook && onUpdateBook && (
-        <JournalModal
-          book={editingBook}
-          onUpdate={onUpdateBook}
-          onClose={() => setShowJournal(false)}
-        />
+        <JournalModal book={editingBook} onUpdate={onUpdateBook} onClose={() => setShowJournal(false)} />
       )}
-    </div>
+    </>
   );
 }
