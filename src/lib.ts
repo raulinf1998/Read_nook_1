@@ -1,4 +1,11 @@
 import type { Book, BookFormat, BookLanguage, BookStatus, JournalEntry } from './types';
+import {
+  normalizeBookFormat,
+  normalizeBookStatus,
+  normalizeLanguageCode,
+  normalizePublishDate,
+  normalizeSeriesPosition,
+} from './bookMetadata.ts';
 
 export interface IsbnResult {
   title: string;
@@ -20,7 +27,7 @@ async function tryGoogleBooks(isbn: string): Promise<IsbnResult | null> {
     const data = await res.json();
     if (!data.items || data.items.length === 0) return null;
     const info = data.items[0].volumeInfo;
-    const lang: BookLanguage = info.language === 'es' ? 'es' : 'en';
+    const lang: BookLanguage = normalizeLanguageCode(info.language || '') || 'en';
     const coverUrl =
       info.imageLinks?.extraLarge ||
       info.imageLinks?.large ||
@@ -52,7 +59,8 @@ async function tryOpenLibrary(isbn: string): Promise<IsbnResult | null> {
     if (!data[key]) return null;
     const info = data[key];
     const coverUrl = info.cover?.large || info.cover?.medium || info.cover?.small || '';
-    const lang: BookLanguage = (info.languages || []).some((l: { key: string }) => l.key === '/languages/spa') ? 'es' : 'en';
+    const languageKey = (info.languages || [])[0]?.key?.split('/').pop() || '';
+    const lang: BookLanguage = normalizeLanguageCode(languageKey) || 'en';
     return {
       title: info.title || '',
       author: (info.authors || []).map((a: { name: string }) => a.name).join(', '),
@@ -77,7 +85,7 @@ async function tryOpenLibrarySearch(isbn: string): Promise<IsbnResult | null> {
     const doc = data.docs[0];
     const coverId = doc.cover_i;
     const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : '';
-    const lang: BookLanguage = (doc.language || []).includes('spa') || (doc.language || []).includes('Spanish') ? 'es' : 'en';
+    const lang: BookLanguage = normalizeLanguageCode((doc.language || [])[0] || '') || 'en';
     return {
       title: doc.title || '',
       author: (doc.author_name || []).join(', '),
@@ -152,6 +160,10 @@ export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguag
   const iStarted = findIdx(['Started Date', 'Date Started', 'Date Added', 'Date Added to Library']);
   const iTags = findIdx(['Tags', 'Genres']);
   const iCover = findIdx(['Cover']);
+  const iLanguage = findIdx(['Language', 'Idioma']);
+  const iPublishDate = findIdx(['Publication Date', 'Publish Date', 'Published Date', 'Edition Pub Date', 'Fecha de publicación']);
+  const iSeries = findIdx(['Series', 'Series Name', 'Saga']);
+  const iSeriesPosition = findIdx(['Series Position', 'Position in Series', 'Series Number', 'Series Index']);
 
   const books: Omit<Book, 'id' | 'createdAt'>[] = [];
 
@@ -159,21 +171,17 @@ export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguag
     const cols = parseCsvLine(lines[line]);
     if (iTitle < 0 || !cols[iTitle]) continue;
 
-    const statusRaw = iStatus >= 0 ? (cols[iStatus] || '').toLowerCase().replace(/[_\s]+/g, '-') : '';
-    let status: BookStatus = 'pending';
-    // El orden importa: "currently-reading" y "to-read" también contienen "read".
-    if (statusRaw.includes('currently') || statusRaw.includes('reading') || statusRaw.includes('paused')) status = 'reading';
-    else if (statusRaw === 'read' || statusRaw.includes('finished') || statusRaw.includes('completed')) status = 'read';
+    const status: BookStatus = normalizeBookStatus(iStatus >= 0 ? cols[iStatus] || '' : '') || 'pending';
 
     const ratingStr = iRating >= 0 ? cols[iRating] : '';
     const rating = ratingStr ? Math.round(parseFloat(ratingStr) * 2) / 2 : 0;
 
     const pages = iPages >= 0 ? parseInt(cols[iPages] || '0', 10) || 0 : 0;
 
-    const formatRaw = iFormat >= 0 ? (cols[iFormat] || '').toLowerCase() : '';
-    let format: BookFormat = 'paperback';
-    if (formatRaw.includes('hard')) format = 'hardcover';
-    else if (formatRaw.includes('ebook') || formatRaw.includes('electr')) format = 'ebook';
+    const format: BookFormat = normalizeBookFormat(iFormat >= 0 ? cols[iFormat] || '' : '') || 'paperback';
+    const language: BookLanguage = normalizeLanguageCode(iLanguage >= 0 ? cols[iLanguage] || '' : '') || defaultLanguage;
+    const series = iSeries >= 0 ? (cols[iSeries] || '').trim() : '';
+    const seriesPosition = normalizeSeriesPosition(iSeriesPosition >= 0 ? cols[iSeriesPosition] || '' : '');
 
     const tags = iTags >= 0 ? (cols[iTags] || '').split(',').map((t) => t.trim()).filter(Boolean) : [];
 
@@ -223,17 +231,19 @@ export function parseStoryGraphCsv(csvText: string, defaultLanguage: BookLanguag
       title: cols[iTitle] || '',
       author: iAuthor >= 0 ? cols[iAuthor] || '' : '',
       coverUrl: iCover >= 0 ? cols[iCover] || '' : '',
+      coverSourceUrl: iCover >= 0 ? cols[iCover] || '' : '',
       status,
       rating,
       notes: '',
       pages,
       currentPage: status === 'read' ? pages : 0,
       format,
-      language: defaultLanguage,
-      publishDate: '',
+      language,
+      publishDate: normalizePublishDate(iPublishDate >= 0 ? cols[iPublishDate] || '' : ''),
       description: '',
       tags,
       isbn,
+      ...(series ? { series, seriesPosition } : {}),
       startedAt,
       finishedAt,
       journal: [],
@@ -257,6 +267,7 @@ export async function enrichWithCovers(
     const result = await fetchByIsbn(book.isbn);
     if (result?.coverUrl) {
       book.coverUrl = result.coverUrl;
+      book.coverSourceUrl = result.coverUrl;
       if (!book.pages && result.pages) book.pages = result.pages;
       if (!book.description && result.description) book.description = result.description;
       if (!book.publishDate && result.publishDate) book.publishDate = result.publishDate;

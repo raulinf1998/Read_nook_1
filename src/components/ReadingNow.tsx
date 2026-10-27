@@ -1,5 +1,6 @@
 import { BookOpen, Bookmark, ChevronRight, Sparkles, Plus, Library, Target, CheckCircle2 } from 'lucide-react';
 import type { Book } from '../types';
+import { seriesLabel } from '../types';
 import { BookCover, EmptyState, ProgressBar, SectionHeader, bookProgress, btnGhost, btnSoft, cardCls, cx } from './ui';
 
 interface Props {
@@ -137,6 +138,7 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, o
                 <div className="flex-1 min-w-0">
                   <h3 className="font-display font-semibold text-ink text-[15px] leading-snug line-clamp-2">{book.title}</h3>
                   <p className="text-xs text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
+                  {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
                   <div className="flex items-center gap-2 mt-1.5">
                     {book.pages > 0 && <span className="text-[11px] font-medium text-ink3">{book.pages} págs</span>}
                     {book.tags.slice(0, 2).map((t) => (
@@ -199,6 +201,7 @@ function ReadingCard({ book, onUpdate, onEdit }: { book: Book; onUpdate: Props['
             <div className="min-w-0">
               <h3 className="font-display font-semibold text-ink text-base sm:text-lg leading-snug line-clamp-2">{book.title}</h3>
               <p className="text-xs sm:text-sm text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
+              {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
             </div>
             {/* Anillo de progreso */}
             <div className="relative w-12 h-12 shrink-0" title={`${pct.toFixed(0)}% leído`}>

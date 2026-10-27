@@ -5,6 +5,7 @@ import { apiClient } from './api';
 import { sanitizeCustomPalettes } from './themePalettes';
 import { mergeStoryGraphJournal } from './storyGraphJournal';
 import type { StoryGraphBookMetadata, StoryGraphJournalEntry } from './storyGraphJournal';
+import { isExternalCoverUrl, localizeBookCover, localizeBookCovers } from './coverStorage';
 
 export function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -47,14 +48,27 @@ export function useBooks() {
   }, []);
 
   const addBook = useCallback(async (book: Omit<Book, 'id' | 'createdAt'>) => {
-    const created = await apiClient.addBook(book);
+    const localized = await localizeBookCover(book);
+    const created = await apiClient.addBook(localized);
     setBooks((prev) => [created, ...prev]);
   }, []);
 
   const updateBook = useCallback(async (id: string, patch: Partial<Book>) => {
-    setBooks((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    let effectivePatch = patch;
+    if (patch.coverUrl && isExternalCoverUrl(patch.coverUrl)) {
+      const localized = await localizeBookCover({
+        coverUrl: patch.coverUrl,
+        coverSourceUrl: patch.coverSourceUrl,
+      });
+      effectivePatch = {
+        ...patch,
+        coverUrl: localized.coverUrl,
+        coverSourceUrl: localized.coverSourceUrl,
+      };
+    }
+    setBooks((prev) => prev.map((b) => (b.id === id ? { ...b, ...effectivePatch } : b)));
     try {
-      await apiClient.updateBook(id, patch);
+      await apiClient.updateBook(id, effectivePatch);
     } catch {
       /* optimistic update */
     }
@@ -69,11 +83,19 @@ export function useBooks() {
     }
   }, []);
 
-  const importBooks = useCallback(async (newBooks: Omit<Book, 'id' | 'createdAt'>[]) => {
-    const result = await apiClient.importBooks(newBooks);
+  const importBooks = useCallback(async (
+    newBooks: Omit<Book, 'id' | 'createdAt'>[],
+    onCoverProgress?: (done: number, total: number) => void,
+  ) => {
+    const localized = await localizeBookCovers(newBooks, onCoverProgress);
+    const result = await apiClient.importBooks(localized.books);
     const fetched = await apiClient.getBooks();
     setBooks(fetched);
-    return result.imported;
+    return {
+      imported: result.imported,
+      localizedCovers: localized.localizedBooks,
+      coverLocalizationFailures: localized.failures,
+    };
   }, []);
 
   const mergeExistingStoryGraphJournal = useCallback(async (
@@ -81,6 +103,36 @@ export function useBooks() {
     bookMetadata: StoryGraphBookMetadata[] = []
   ) => {
     const result = mergeStoryGraphJournal(books, entries, bookMetadata);
+
+    // Las portadas vinculadas se copian al volumen de datos del servidor. Así,
+    // aunque StoryGraph retire después su CDN, Bilibook conserva la imagen.
+    // Si una descarga falla, se mantiene la URL externa como respaldo.
+    const patchIndexes = [...new Set(result.patches.map((item) => item.index))];
+    const booksToLocalize = patchIndexes
+      .map((index) => result.books[index])
+      .filter((book): book is Book => Boolean(book && isExternalCoverUrl(book.coverUrl)));
+    if (booksToLocalize.length) {
+      const localized = await localizeBookCovers(booksToLocalize);
+      const localizedById = new Map(localized.books.map((book) => [book.id, book]));
+      for (const item of result.patches) {
+        const mergedBook = result.books[item.index];
+        const localizedBook = mergedBook ? localizedById.get(mergedBook.id) : undefined;
+        if (!mergedBook || !localizedBook || localizedBook.coverUrl === mergedBook.coverUrl) continue;
+        result.books[item.index] = {
+          ...mergedBook,
+          coverUrl: localizedBook.coverUrl,
+          coverSourceUrl: localizedBook.coverSourceUrl,
+        };
+        item.patch = {
+          ...item.patch,
+          coverUrl: localizedBook.coverUrl,
+          coverSourceUrl: localizedBook.coverSourceUrl,
+        };
+      }
+      result.report.localizedCovers = localized.localizedBooks;
+      result.report.coverLocalizationFailures = localized.failures;
+    }
+
     setBooks(result.books);
 
     // El servidor actualiza libro a libro; limitamos la concurrencia para no

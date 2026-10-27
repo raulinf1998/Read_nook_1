@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Read Nook · Exportar diario de StoryGraph
 // @namespace    https://read-nook.local/
-// @version      1.0.3
+// @version      1.0.5
 // @description  Exporta localmente el Reading Journal de StoryGraph a JSON/CSV para Bilibook.
 // @author       Bilibook
 // @match        https://app.thestorygraph.com/*
@@ -24,7 +24,7 @@
 
   const HOST = 'app.thestorygraph.com';
   const PANEL_ID = 'read-nook-sg-exporter';
-  const EXTRACTOR_VERSION = '1.0.3';
+  const EXTRACTOR_VERSION = '1.0.5';
   const USERNAME_KEY = 'readnook.storygraph.username';
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const REQUEST_DELAY_MS = 140;
@@ -38,6 +38,20 @@
       unparsedEntryElements: 0,
       booksWithUnparsedEntries: 0,
       booksWithCovers: 0,
+      booksWithoutCovers: 0,
+      bookPanesSeen: 0,
+      coverImagesSeen: 0,
+      coversFromBookPanes: 0,
+      coversFromLinkedImages: 0,
+      coversFromBookPages: 0,
+      booksWithLanguage: 0,
+      booksWithFormat: 0,
+      booksWithPages: 0,
+      booksWithPublishDate: 0,
+      booksWithStatus: 0,
+      booksWithRating: 0,
+      booksInSeries: 0,
+      metadataFromBookPages: 0,
     };
   }
 
@@ -123,7 +137,7 @@
     const intro = createElement(
       'p',
       'margin:12px 0;color:#594f3f;',
-      'Recorre tus libros leídos, en curso y abandonados, descarga su diario y guarda fecha, páginas, porcentaje, minutos, notas y la portada de StoryGraph. Todo ocurre en este navegador.',
+      'Recorre tus libros leídos, en curso, pendientes y abandonados, descarga su diario y guarda portada, idioma, formato, páginas, fecha de publicación, estado, puntuación, saga, porcentaje, minutos y notas. Todo ocurre en este navegador.',
     );
 
     const usernameLabel = createElement('label', 'display:block;font-weight:700;margin:12px 0 6px;', 'Usuario de StoryGraph');
@@ -136,6 +150,7 @@
 
     const options = createElement('div', 'display:grid;gap:8px;margin:12px 0;');
     options.append(
+      makeCheckbox('include-to-read', 'Incluir pendientes y sus datos', true),
       makeCheckbox('include-dnf', 'Incluir libros abandonados', true),
       makeCheckbox('include-notes', 'Incluir notas', true),
       makeCheckbox('edit-fallback', 'Completar páginas faltantes desde “Editar” (recomendado)', true),
@@ -226,6 +241,7 @@
   const panel = buildPanel();
   const els = {
     username: panel.querySelector('[data-role="username"]'),
+    includeToRead: panel.querySelector('[data-role="include-to-read"]'),
     includeDnf: panel.querySelector('[data-role="include-dnf"]'),
     includeNotes: panel.querySelector('[data-role="include-notes"]'),
     editFallback: panel.querySelector('[data-role="edit-fallback"]'),
@@ -361,12 +377,29 @@
       throw new Error('No se encontraron libros. Comprueba el usuario y que la sesión sigue iniciada.');
     }
 
-    state.diagnostics.booksWithCovers = books.filter((book) => book.coverUrl).length;
-    logLine(`Libros localizados: ${books.length} (${state.diagnostics.booksWithCovers} con portada). Leyendo diarios…`);
+    await fillMissingMetadataFromBookPages(books);
+    refreshCoverDiagnostics(books);
+    logLine(
+      `Libros localizados: ${books.length} (${state.diagnostics.booksWithCovers} con portada, `
+      + `${state.diagnostics.booksWithoutCovers} sin portada). Leyendo diarios…`,
+    );
+    logLine(
+      `Datos localizados: idioma ${state.diagnostics.booksWithLanguage}, formato ${state.diagnostics.booksWithFormat}, `
+      + `páginas ${state.diagnostics.booksWithPages}, fecha ${state.diagnostics.booksWithPublishDate}, estado ${state.diagnostics.booksWithStatus}, `
+      + `puntuación ${state.diagnostics.booksWithRating}, saga ${state.diagnostics.booksInSeries}.`,
+    );
+    if (state.diagnostics.booksWithCovers === 0) {
+      logLine('⚠️ Todavía no se ha encontrado ninguna portada de StoryGraph; el diario se exportará, pero Bilibook no podrá sustituir portadas con este archivo.');
+    }
+    const journalBooks = books.filter((book) => book.status !== 'pending');
+    const pendingBooks = books.length - journalBooks.length;
+    if (pendingBooks > 0) {
+      logLine(`${pendingBooks} libros pendientes se exportarán con portada y datos, sin consultar un diario que aún no tienen.`);
+    }
     let completed = 0;
-    for (const book of books) {
+    for (const book of journalBooks) {
       if (state.cancelled) throw cancellationError();
-      setStatus(`Diario ${completed + 1} de ${books.length}: ${book.title}`);
+      setStatus(`Diario ${completed + 1} de ${journalBooks.length}: ${book.title}`);
       try {
         await scrapeBookJournal(book);
       } catch (error) {
@@ -374,9 +407,9 @@
         logLine(`⚠️ ${book.title}: ${error instanceof Error ? error.message : String(error)}`);
       }
       completed += 1;
-      setProgress(completed, books.length);
-      if (completed % 10 === 0 || completed === books.length) {
-        logLine(`Progreso: ${completed}/${books.length} libros · ${state.entries.size} entradas · ${state.requests} peticiones`);
+      setProgress(completed, journalBooks.length);
+      if (completed % 10 === 0 || completed === journalBooks.length) {
+        logLine(`Progreso: ${completed}/${journalBooks.length} libros · ${state.entries.size} entradas · ${state.requests} peticiones`);
       }
     }
 
@@ -385,7 +418,14 @@
     const diagnostics = state.diagnostics;
     logLine(
       `Diagnóstico: ${diagnostics.journalPages} páginas de diario · ${diagnostics.journalPanes} contenedores · `
-      + `${diagnostics.visibleEntryElements} bloques visibles · ${diagnostics.visibleEditLinks} enlaces de edición · ${diagnostics.booksWithCovers} portadas.`,
+      + `${diagnostics.visibleEntryElements} bloques visibles · ${diagnostics.visibleEditLinks} enlaces de edición · `
+      + `${diagnostics.bookPanesSeen} paneles de libro · ${diagnostics.coverImagesSeen} imágenes de portada vistas · `
+      + `${diagnostics.booksWithCovers} libros con portada (${diagnostics.coversFromBookPanes} de listados, `
+      + `${diagnostics.coversFromLinkedImages} de enlaces-imagen, ${diagnostics.coversFromBookPages} de fichas) · `
+      + `${diagnostics.booksWithLanguage} con idioma · ${diagnostics.booksWithFormat} con formato · `
+      + `${diagnostics.booksWithPages} con páginas · ${diagnostics.booksWithPublishDate} con fecha · `
+      + `${diagnostics.booksWithStatus} con estado · ${diagnostics.booksWithRating} con puntuación · `
+      + `${diagnostics.booksInSeries} en saga.`,
     );
 
     if (state.data.entries.length === 0) {
@@ -399,12 +439,16 @@
       return;
     }
 
-    if (diagnostics.booksWithUnparsedEntries > 0 || diagnostics.unparsedEntryElements > 0) {
+    const missingEveryCover = books.length > 0 && diagnostics.booksWithCovers === 0;
+    if (diagnostics.booksWithUnparsedEntries > 0 || diagnostics.unparsedEntryElements > 0 || missingEveryCover) {
       setStatus(`Listo con avisos: ${state.data.entries.length} entradas en ${books.length} libros.`);
       logLine(
         `⚠️ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo. `
         + `No se pudieron interpretar ${diagnostics.unparsedEntryElements} bloques en ${diagnostics.booksWithUnparsedEntries} libros.`,
       );
+      if (missingEveryCover) {
+        logLine('⚠️ El archivo incluirá el diario, pero ninguna URL de portada: Bilibook indicará 0 portadas sustituidas. Copia la línea «Diagnóstico» si necesitas ayuda.');
+      }
     } else {
       setStatus(`Listo: ${state.data.entries.length} entradas en ${books.length} libros.`);
       logLine(`✅ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo.`);
@@ -417,10 +461,11 @@
   async function discoverBooks(username) {
     const encoded = encodeURIComponent(username);
     const sources = [
-      { label: 'leídos', path: `/books-read/${encoded}?year=0` },
-      { label: 'en lectura', path: `/currently-reading/${encoded}` },
+      { label: 'leídos', path: `/books-read/${encoded}?year=0`, status: 'read' },
+      { label: 'en lectura', path: `/currently-reading/${encoded}`, status: 'reading' },
     ];
-    if (els.includeDnf.checked) sources.push({ label: 'abandonados', path: `/books-dnf/${encoded}` });
+    if (els.includeDnf.checked) sources.push({ label: 'abandonados', path: `/books-dnf/${encoded}`, status: 'dnf' });
+    if (els.includeToRead.checked) sources.push({ label: 'pendientes', path: `/to-read/${encoded}`, status: 'pending' });
 
     for (const source of sources) {
       let foundInSource = 0;
@@ -430,7 +475,7 @@
         if (page > 1 || url.searchParams.has('page')) url.searchParams.set('page', String(page));
         const doc = await fetchDocument(url);
         const before = state.books.size;
-        parseBookList(doc, url);
+        parseBookList(doc, url, source.status);
         const added = state.books.size - before;
         foundInSource += added;
         if (page === 1 || page % 5 === 0) logLine(`${source.label}: página ${page}, ${foundInSource} libros nuevos…`);
@@ -475,6 +520,19 @@
     }
   }
 
+  function isLikelyCoverUrl(rawUrl) {
+    if (!rawUrl) return false;
+    try {
+      const url = new URL(rawUrl);
+      const hostAndPath = `${url.hostname}${url.pathname}`.toLowerCase();
+      if (/loading-more-books|spinner|placeholder|no[-_]?cover|missing[-_]?cover/.test(hostAndPath)) return false;
+      if (url.hostname === 'assets.thestorygraph.com' && /loading|logo|icon/.test(url.pathname.toLowerCase())) return false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function imageUrlFromElement(image, pageUrl) {
     if (!image) return '';
     const candidates = [
@@ -482,16 +540,43 @@
       bestSrcsetUrl(image.getAttribute?.('data-srcset')),
       image.getAttribute?.('data-src'),
       image.getAttribute?.('data-original'),
+      image.getAttribute?.('data-lazy-src'),
       image.getAttribute?.('src'),
       image.currentSrc,
       image.src,
     ];
 
+    // StoryGraph puede servir la imagen responsive desde un <source> hermano
+    // dentro de <picture>, no solo desde los atributos del propio <img>.
+    const picture = image.closest?.('picture');
+    if (picture?.querySelectorAll) {
+      for (const source of picture.querySelectorAll('source')) {
+        candidates.unshift(
+          bestSrcsetUrl(source.getAttribute?.('srcset')),
+          bestSrcsetUrl(source.getAttribute?.('data-srcset')),
+          source.getAttribute?.('data-src'),
+          source.getAttribute?.('src'),
+        );
+      }
+    }
+
     for (const candidate of candidates) {
       const url = absoluteHttpUrl(candidate, pageUrl);
-      if (url) return url;
+      if (url && isLikelyCoverUrl(url)) return url;
     }
     return '';
+  }
+
+  function extractStoryGraphBookId(href) {
+    if (!href) return '';
+    let pathname = String(href);
+    try {
+      pathname = new URL(pathname, window.location.origin).pathname;
+    } catch (_) {
+      // Se intenta igualmente con el href textual.
+    }
+    const id = pathname.match(/^\/books\/([^/?#]+)(?:\/|$)/)?.[1] || '';
+    return UUID_RE.test(id) ? id : '';
   }
 
   function findCoverImage(card, anchor, pageUrl, bookId) {
@@ -505,16 +590,39 @@
       const images = root.tagName === 'IMG'
         ? [root]
         : [...(root.querySelectorAll?.('img') || [])];
+      const rootIsBookPane = Boolean(root.classList?.contains?.('book-pane'));
       images.forEach((image, index) => {
         if (seen.has(image)) return;
         seen.add(image);
         const url = imageUrlFromElement(image, pageUrl);
         if (!url) return;
+
         const linkHref = image.closest?.('a[href]')?.getAttribute('href') || '';
-        const score = (linkHref.includes(`/books/${bookId}`) ? 20 : 0)
-          + (image.getAttribute?.('alt') ? 5 : 0)
-          - index;
-        candidates.push({ image, url, score });
+        const linkedBookId = extractStoryGraphBookId(linkHref);
+        const inBookCover = Boolean(image.closest?.('.book-cover'));
+        let hostname = '';
+        try {
+          hostname = new URL(url).hostname;
+        } catch (_) {
+          hostname = '';
+        }
+
+        let source = 'image';
+        let score = -index;
+        if (inBookCover) {
+          source = 'book-pane';
+          score += 100;
+        } else if (linkedBookId === bookId) {
+          source = 'linked-image';
+          score += 80;
+        } else if (rootIsBookPane) {
+          source = 'book-pane';
+          score += 60;
+        }
+        if (hostname === 'cdn.thestorygraph.com') score += 30;
+        if (image.getAttribute?.('alt')) score += 5;
+
+        candidates.push({ image, url, score, source });
       });
     });
 
@@ -522,34 +630,477 @@
     return candidates[0] || {
       image: card?.querySelector?.('img') || null,
       url: '',
+      source: '',
     };
   }
 
-  function parseBookList(doc, pageUrl) {
+  function collectLinkedCoverUrls(doc, pageUrl) {
+    const covers = new Map();
+    for (const anchor of doc.querySelectorAll?.('a[href]') || []) {
+      const bookId = extractStoryGraphBookId(anchor.getAttribute?.('href') || '');
+      if (!bookId) continue;
+      const candidate = findCoverImage(anchor, anchor, pageUrl, bookId);
+      if (!candidate.url) continue;
+      const previous = covers.get(bookId);
+      if (!previous || candidate.score > previous.score) covers.set(bookId, candidate);
+    }
+    return covers;
+  }
+
+  function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function labeledValue(text, label) {
+    const labels = 'ISBN\\/UID|Format|Language|Original Pub Year|Edition Pub Date|Publisher';
+    const match = String(text || '').match(
+      new RegExp(`${escapeRegExp(label)}:\\s*(.+?)(?=\\s+(?:${labels}):|\\s+\\d+\\s+editions?\\b|$)`, 'i'),
+    );
+    const value = cleanText(match?.[1] || '');
+    return /^not specified$|^unknown$|^none$/i.test(value) ? '' : value;
+  }
+
+  const LANGUAGE_NAME_TO_CODE = {
+    arabic: 'ar', basque: 'eu', catalan: 'ca', chinese: 'zh', czech: 'cs',
+    danish: 'da', dutch: 'nl', english: 'en', finnish: 'fi', french: 'fr',
+    galician: 'gl', german: 'de', greek: 'el', hebrew: 'he', hindi: 'hi',
+    hungarian: 'hu', indonesian: 'id', italian: 'it', japanese: 'ja',
+    korean: 'ko', norwegian: 'no', polish: 'pl', portuguese: 'pt',
+    romanian: 'ro', russian: 'ru', spanish: 'es', swedish: 'sv',
+    thai: 'th', turkish: 'tr', ukrainian: 'uk', vietnamese: 'vi',
+  };
+
+  function normalizeLanguageCode(value) {
+    const raw = cleanText(value || '').split(/[,;/]/)[0].replace(/\([^)]*\)/g, ' ').trim();
+    if (!raw) return '';
+    const lower = raw.toLocaleLowerCase('en');
+    if (LANGUAGE_NAME_TO_CODE[lower]) return LANGUAGE_NAME_TO_CODE[lower];
+    const code = lower.replace(/[_-].*$/, '');
+    return /^[a-z]{2}$/.test(code) ? code : lower.replace(/\s+/g, '-');
+  }
+
+  function normalizeBookFormat(value) {
+    const text = cleanText(value || '').toLocaleLowerCase('en').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!text || text === 'not specified' || text === 'unknown') return '';
+    if (/\b(hardcover|hardback|tapa dura)\b/.test(text)) return 'hardcover';
+    if (/\b(paperback|softcover|tapa blanda)\b/.test(text)) return 'paperback';
+    if (/\b(ebook|e book|digital|kindle|epub)\b/.test(text)) return 'ebook';
+    if (/\b(audiobook|audio|audiolibro)\b/.test(text)) return 'audiobook';
+    return 'other';
+  }
+
+  function parsePublishDateValue(editionText, originalYearText, text) {
+    const edition = cleanText(editionText || '');
+    if (edition) {
+      const parsed = parseDate(edition);
+      if (parsed) return parsed;
+      const monthYear = edition.match(/\b([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)\.?\s+(\d{4})\b/i);
+      const month = monthYear ? MONTHS[normalizeMonthName(monthYear[1])] : null;
+      if (monthYear && month) return `${monthYear[2]}-${String(month).padStart(2, '0')}`;
+      const editionYear = edition.match(/\b(\d{4})\b/);
+      if (editionYear) return editionYear[1];
+    }
+
+    const originalYear = cleanText(originalYearText || '').match(/\b(\d{4})\b/)?.[1]
+      || String(text || '').match(/\bfirst pub(?:lished)?\s+(\d{4})\b/i)?.[1]
+      || '';
+    return originalYear;
+  }
+
+  function extractUserRating(card, cardText) {
+    const valueFromText = (value) => {
+      const number = parseNumber(value);
+      return number !== null && number > 0 && number <= 5 ? number : null;
+    };
+
+    if (card?.querySelectorAll) {
+      for (const anchor of card.querySelectorAll('a[href^="/reviews/"]')) {
+        const candidates = [
+          anchor.previousElementSibling?.textContent,
+          anchor.previousSibling?.textContent,
+          anchor.parentElement?.textContent,
+          anchor.getAttribute?.('aria-label'),
+          anchor.getAttribute?.('title'),
+          anchor.getAttribute?.('data-rating'),
+        ];
+        for (const candidate of candidates) {
+          const match = String(candidate || '').match(/(?:^|\s)([0-5](?:[.,]\d{1,2})?)(?:\s|$)/);
+          const value = valueFromText(match?.[1]);
+          if (value !== null) return value;
+        }
+      }
+
+      for (const element of card.querySelectorAll('[data-rating], [data-star-rating]')) {
+        const value = valueFromText(element.getAttribute?.('data-rating') || element.getAttribute?.('data-star-rating'));
+        if (value !== null) return value;
+      }
+    }
+
+    const reviewMatch = String(cardText || '').match(
+      /(?:^|\s)([0-5](?:[.,]\d{1,2})?)\s+[A-Za-z0-9_.-]+(?:'s|’s)\s+review\b/i,
+    );
+    const fromReview = valueFromText(reviewMatch?.[1]);
+    if (fromReview !== null) return fromReview;
+
+    const ownMatch = String(cardText || '').match(
+      /(?:your|my)\s+rating\s*[:#-]?\s*([0-5](?:[.,]\d{1,2})?)/i,
+    );
+    return valueFromText(ownMatch?.[1]);
+  }
+
+  function extractSeriesInfo(card) {
+    const empty = { series: '', seriesPosition: '', seriesId: '', seriesUrl: '' };
+    if (!card?.querySelectorAll) return empty;
+
+    const scopes = [];
+    if (card.querySelector) {
+      scopes.push(...(card.querySelectorAll('.book-title-author-and-series') || []));
+    }
+    if (!scopes.length) scopes.push(card);
+
+    for (const scope of scopes) {
+      const anchors = [...(scope.querySelectorAll?.('a[href^="/series/"]') || [])];
+      let series = '';
+      let seriesPosition = '';
+      let seriesId = '';
+      let seriesUrl = '';
+
+      for (const anchor of anchors) {
+        const text = cleanText(anchor.textContent || '');
+        const href = anchor.getAttribute?.('href') || '';
+        const id = href.match(/\/series\/([^/?#]+)/)?.[1] || '';
+        if (!text) continue;
+        if (text.startsWith('#')) {
+          if (!seriesPosition) seriesPosition = text.replace(/^#\s*/, '');
+          if (!seriesId) seriesId = id;
+          continue;
+        }
+        if (!series) {
+          const combined = text.match(/^(.*?)\s*#([0-9]+(?:[.,][0-9]+)?(?:\s*[-–]\s*[0-9]+(?:[.,][0-9]+)?)?)$/);
+          series = combined ? cleanText(combined[1]) : text;
+          if (combined && !seriesPosition) seriesPosition = combined[2].replace(/\s+/g, '');
+          seriesId = id;
+          try {
+            seriesUrl = new URL(href, window.location.origin).toString();
+          } catch (_) {
+            seriesUrl = href;
+          }
+        }
+      }
+      if (series) return { series, seriesPosition, seriesId, seriesUrl };
+    }
+    return empty;
+  }
+
+  function extractBookMetadata(card, cardText, sourceStatus = '') {
+    const text = cleanText(cardText || card?.textContent || '');
+    const pagesMatch = text.match(/(\d[\d.,]*)\s*(?:pages|páginas|paginas)/i);
+    const summaryMatch = text.match(
+      /(\d[\d.,]*)\s*(?:pages|páginas|paginas)\s*[•·|]\s*([^•·|]+?)\s*[•·|]\s*(?:first pub\s*)?(\d{4})\b/i,
+    );
+    const formatName = labeledValue(text, 'Format') || cleanText(summaryMatch?.[2] || '');
+    const languageName = labeledValue(text, 'Language');
+    const originalPublicationYear = parseNumber(labeledValue(text, 'Original Pub Year'))
+      || parseNumber(summaryMatch?.[3])
+      || parseNumber(text.match(/\bfirst pub(?:lished)?\s+(\d{4})\b/i)?.[1]);
+    const publishDate = parsePublishDateValue(
+      labeledValue(text, 'Edition Pub Date'),
+      originalPublicationYear ? String(Math.round(originalPublicationYear)) : '',
+      text,
+    );
+    const seriesInfo = extractSeriesInfo(card);
+
+    return {
+      language: normalizeLanguageCode(languageName),
+      languageName,
+      format: normalizeBookFormat(formatName),
+      formatName,
+      // El resumen «N pages • formato • año» es el total de la edición; tiene
+      // prioridad sobre cualquier otra mención de páginas dentro de la tarjeta.
+      pageCount: parseNumber(summaryMatch?.[1] || pagesMatch?.[1]),
+      publishDate,
+      originalPublicationYear: originalPublicationYear ? Math.round(originalPublicationYear) : null,
+      status: sourceStatus || '',
+      rating: extractUserRating(card, text),
+      ...seriesInfo,
+    };
+  }
+
+  function mergeBookStatus(previousStatus, candidateStatus) {
+    if (!previousStatus) return candidateStatus || '';
+    if (previousStatus === 'pending' && candidateStatus && candidateStatus !== 'pending') return candidateStatus;
+    return previousStatus;
+  }
+
+  function metaImageUrl(doc, pageUrl) {
+    const selectors = [
+      'meta[property="og:image"]',
+      'meta[property="og:image:url"]',
+      'meta[name="twitter:image"]',
+      'meta[name="twitter:image:src"]',
+      'link[rel="image_src"]',
+    ];
+    for (const selector of selectors) {
+      const element = doc.querySelector?.(selector);
+      const raw = element?.getAttribute?.('content') || element?.getAttribute?.('href') || '';
+      const url = absoluteHttpUrl(raw, pageUrl);
+      if (url && isLikelyCoverUrl(url)) return url;
+    }
+    return '';
+  }
+
+  function coverFromBookPage(doc, pageUrl, book) {
+    const panes = [...(doc.querySelectorAll?.('.book-pane') || [])]
+      .filter((pane) => {
+        const paneId = pane.dataset?.bookId || pane.getAttribute?.('data-book-id') || '';
+        return !paneId || paneId === book.storyGraphId;
+      });
+    for (const pane of panes) {
+      const candidate = findCoverImage(pane, null, pageUrl, book.storyGraphId);
+      if (candidate.url) return { ...candidate, source: 'book-page' };
+    }
+
+    const linked = collectLinkedCoverUrls(doc, pageUrl).get(book.storyGraphId);
+    if (linked?.url) return { ...linked, source: 'book-page' };
+
+    const normalizedTitle = String(book.title || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const images = [...(doc.querySelectorAll?.('img') || [])];
+    for (const image of images) {
+      const alt = String(image.getAttribute?.('alt') || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      if (!normalizedTitle || !alt.startsWith(normalizedTitle)) continue;
+      const url = imageUrlFromElement(image, pageUrl);
+      if (url) return { image, url, source: 'book-page' };
+    }
+
+    const metaUrl = metaImageUrl(doc, pageUrl);
+    if (metaUrl) {
+      try {
+        const hostname = new URL(metaUrl).hostname;
+        if (hostname === 'cdn.thestorygraph.com') return { image: null, url: metaUrl, source: 'book-page' };
+      } catch (_) {
+        // Si no es una URL válida ya se descartó en metaImageUrl.
+      }
+    }
+
+    for (const image of images) {
+      const url = imageUrlFromElement(image, pageUrl);
+      if (!url) continue;
+      try {
+        if (new URL(url).hostname === 'cdn.thestorygraph.com') {
+          return { image, url, source: 'book-page' };
+        }
+      } catch (_) {
+        // Se sigue buscando una imagen válida.
+      }
+    }
+
+    return { image: null, url: '', source: '' };
+  }
+
+  function metadataFromBookPage(doc, book) {
+    const panes = [...(doc.querySelectorAll?.('.book-pane') || [])]
+      .filter((pane) => {
+        const paneId = pane.dataset?.bookId || pane.getAttribute?.('data-book-id') || '';
+        return !paneId || paneId === book.storyGraphId;
+      });
+
+    let combined = extractBookMetadata(null, '', book.status || '');
+    const mergeMissing = (candidate) => {
+      combined = {
+        language: combined.language || candidate.language,
+        languageName: combined.languageName || candidate.languageName,
+        format: combined.format || candidate.format,
+        formatName: combined.formatName || candidate.formatName,
+        pageCount: combined.pageCount || candidate.pageCount,
+        publishDate: combined.publishDate || candidate.publishDate,
+        originalPublicationYear: combined.originalPublicationYear || candidate.originalPublicationYear,
+        status: mergeBookStatus(combined.status, candidate.status),
+        rating: combined.rating ?? candidate.rating,
+        series: combined.series || candidate.series,
+        seriesPosition: combined.seriesPosition || candidate.seriesPosition,
+        seriesId: combined.seriesId || candidate.seriesId,
+        seriesUrl: combined.seriesUrl || candidate.seriesUrl,
+      };
+    };
+
+    for (const pane of panes) mergeMissing(extractBookMetadata(pane, pane.textContent || '', book.status || ''));
+
+    if (!combined.language || !combined.format || !combined.pageCount || !combined.publishDate) {
+      const title = cleanText(book.title || '').toLocaleLowerCase('en');
+      const scope = [...(doc.querySelectorAll?.('.book-title-author-and-series') || [])]
+        .find((element) => !title || cleanText(element.textContent || '').toLocaleLowerCase('en').includes(title));
+      let card = scope || null;
+      for (let depth = 0; card?.parentElement && depth < 8; depth++) {
+        const text = card.textContent || '';
+        if (/ISBN\/UID:/i.test(text) || (/\bFormat:/i.test(text) && /\bLanguage:/i.test(text))) break;
+        card = card.parentElement;
+      }
+      if (card) mergeMissing(extractBookMetadata(card, card.textContent || '', book.status || ''));
+    }
+
+    return combined;
+  }
+
+  function refreshCoverDiagnostics(books = [...state.books.values()]) {
+    state.diagnostics.booksWithCovers = books.filter((book) => book.coverUrl).length;
+    state.diagnostics.booksWithoutCovers = books.length - state.diagnostics.booksWithCovers;
+    state.diagnostics.coversFromBookPanes = books.filter((book) => book.coverSource === 'book-pane').length;
+    state.diagnostics.coversFromLinkedImages = books.filter((book) => book.coverSource === 'linked-image').length;
+    state.diagnostics.coversFromBookPages = books.filter((book) => book.coverSource === 'book-page').length;
+    state.diagnostics.booksWithLanguage = books.filter((book) => book.language).length;
+    state.diagnostics.booksWithFormat = books.filter((book) => book.format).length;
+    state.diagnostics.booksWithPages = books.filter((book) => book.pageCount).length;
+    state.diagnostics.booksWithPublishDate = books.filter((book) => book.publishDate).length;
+    state.diagnostics.booksWithStatus = books.filter((book) => book.status).length;
+    state.diagnostics.booksWithRating = books.filter((book) => book.rating !== null && book.rating !== undefined && book.rating > 0).length;
+    state.diagnostics.booksInSeries = books.filter((book) => book.series).length;
+  }
+
+  async function fillMissingMetadataFromBookPages(books) {
+    const missing = books.filter((book) => (
+      !book.coverUrl
+      || !book.isbn
+      || !book.pageCount
+      || !book.language
+      || !book.format
+      || !book.publishDate
+    ));
+    if (!missing.length) return;
+
+    logLine(`Buscando en la ficha individual la portada o datos que faltan de ${missing.length} libros…`);
+    let foundCovers = 0;
+    let completed = 0;
+    for (const book of missing) {
+      if (state.cancelled) throw cancellationError();
+      completed += 1;
+      setStatus(`Completando datos ${completed} de ${missing.length}: ${book.title}`);
+      const url = new URL(`/books/${book.storyGraphId}`, window.location.origin);
+      try {
+        const doc = await fetchDocument(url);
+        let changed = false;
+
+        if (!book.coverUrl) {
+          const cover = coverFromBookPage(doc, url, book);
+          if (cover.url) {
+            book.coverUrl = cover.url;
+            book.coverSource = 'book-page';
+            foundCovers += 1;
+            changed = true;
+          }
+        }
+
+        const metadata = metadataFromBookPage(doc, book);
+        const assignIfMissing = (field, value) => {
+          if (!book[field] && value) {
+            book[field] = value;
+            changed = true;
+          }
+        };
+        assignIfMissing('language', metadata.language);
+        assignIfMissing('languageName', metadata.languageName);
+        assignIfMissing('format', metadata.format);
+        assignIfMissing('formatName', metadata.formatName);
+        assignIfMissing('pageCount', metadata.pageCount);
+        assignIfMissing('publishDate', metadata.publishDate);
+        assignIfMissing('originalPublicationYear', metadata.originalPublicationYear);
+        assignIfMissing('series', metadata.series);
+        assignIfMissing('seriesPosition', metadata.seriesPosition);
+        assignIfMissing('seriesId', metadata.seriesId);
+        assignIfMissing('seriesUrl', metadata.seriesUrl);
+        if ((book.rating === null || book.rating === undefined) && metadata.rating !== null) {
+          book.rating = metadata.rating;
+          changed = true;
+        }
+
+        const cardText = cleanText(doc.body?.textContent || '');
+        if (!book.isbn) {
+          const isbn = cleanIsbn(cardText.match(/ISBN\/UID:\s*([^A-Za-z0-9]*[A-Za-z0-9][A-Za-z0-9-]*)/i)?.[1] || '');
+          if (isbn) {
+            book.isbn = isbn;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          state.books.set(book.storyGraphId, book);
+          state.diagnostics.metadataFromBookPages += 1;
+        }
+      } catch (error) {
+        if (isCancellation(error)) throw error;
+        if (completed <= 5) {
+          logLine(`⚠️ No se pudo leer la ficha de “${book.title}” para completar sus datos: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      if (completed % 10 === 0 || completed === missing.length) {
+        logLine(`Fichas revisadas: ${completed}/${missing.length} · ${foundCovers} portadas recuperadas…`);
+      }
+    }
+    refreshCoverDiagnostics(books);
+  }
+
+  function parseBookList(doc, pageUrl, sourceStatus = '') {
+    // StoryGraph renderiza cada resultado dentro de un `.book-pane` con
+    // `data-book-id`; la portada está en `.book-cover img`, normalmente como
+    // imagen enlazada a `/books/{id}`. Esta es la vía principal y no depende
+    // de adivinar ancestros desde el enlace del título.
+    const linkedCovers = collectLinkedCoverUrls(doc, pageUrl);
+    state.diagnostics.coverImagesSeen += linkedCovers.size;
+
+    const panes = [...doc.querySelectorAll('.book-pane')];
+    state.diagnostics.bookPanesSeen += panes.length;
+    if (panes.length) {
+      let parsedPanes = 0;
+      for (const pane of panes) {
+        if (upsertBookFromPane(pane, pageUrl, linkedCovers, sourceStatus)) parsedPanes += 1;
+      }
+      if (parsedPanes) return;
+    }
+
     const headings = [...doc.querySelectorAll('h3 a[href^="/books/"]')];
     if (headings.length) {
-      for (const anchor of headings) upsertBookFromAnchor(anchor, pageUrl);
+      for (const anchor of headings) upsertBookFromAnchor(anchor, pageUrl, linkedCovers, sourceStatus);
       return;
     }
 
-    // Respaldo para variantes de listado sin encabezados h3.
+    // Respaldo para variantes de listado sin paneles ni encabezados h3.
     const main = doc.querySelector('main') || doc.body;
     for (const anchor of main?.querySelectorAll('a[href^="/books/"]') || []) {
-      upsertBookFromAnchor(anchor, pageUrl);
+      upsertBookFromAnchor(anchor, pageUrl, linkedCovers, sourceStatus);
     }
   }
 
-  function upsertBookFromAnchor(anchor, pageUrl) {
-    const href = anchor.getAttribute('href') || '';
-    const id = href.match(/^\/books\/([^/?#]+)/)?.[1] || '';
-    if (!UUID_RE.test(id)) return;
+  function upsertBookFromPane(pane, pageUrl, linkedCovers, sourceStatus = '') {
+    const titleAnchor = pane.querySelector('.book-title-author-and-series a[href^="/books/"]')
+      || pane.querySelector('h3 a[href^="/books/"]')
+      || pane.querySelector('.book-cover a[href^="/books/"]')
+      || pane.querySelector('a[href^="/books/"]');
+    const paneId = pane.dataset?.bookId || pane.getAttribute?.('data-book-id') || '';
+    const id = UUID_RE.test(paneId)
+      ? paneId
+      : extractStoryGraphBookId(titleAnchor?.getAttribute?.('href') || '');
+    if (!id) return false;
 
-    const card = findBookCard(anchor);
-    const cardText = cleanText(card?.textContent || anchor.textContent || '');
-    const cover = findCoverImage(card, anchor, pageUrl, id);
-    const image = cover.image || card?.querySelector('img');
+    return upsertBookFromCard(id, pane, titleAnchor || pane, pageUrl, linkedCovers?.get(id), sourceStatus);
+  }
+
+  function upsertBookFromAnchor(anchor, pageUrl, linkedCovers, sourceStatus = '') {
+    const id = extractStoryGraphBookId(anchor.getAttribute('href') || '');
+    if (!id) return;
+
+    const card = anchor.closest?.('.book-pane') || findBookCard(anchor);
+    upsertBookFromCard(id, card, anchor, pageUrl, linkedCovers?.get(id), sourceStatus);
+  }
+
+  function upsertBookFromCard(id, card, anchor, pageUrl, linkedCover, sourceStatus = '') {
+    const cardText = cleanText(card?.textContent || anchor?.textContent || '');
+    let cover = findCoverImage(card, anchor, pageUrl, id);
+    if (linkedCover?.url && (!cover.url || cover.source === 'image')) {
+      cover = linkedCover;
+    }
+
+    const image = cover.image || card?.querySelector?.('img');
     const alt = cleanText(image?.getAttribute('alt') || '');
-    let title = cleanText(anchor.textContent || '');
+    let title = cleanText(anchor?.textContent || '');
     let authorFromAlt = '';
     if (alt) {
       const parts = alt.split(/\s+by\s+/i);
@@ -559,7 +1110,7 @@
     if (!title) title = id;
 
     const authors = [];
-    if (card) {
+    if (card?.querySelectorAll) {
       for (const authorLink of card.querySelectorAll('a[href^="/authors/"]')) {
         const name = cleanText(authorLink.textContent || '');
         if (!name || authors.includes(name)) continue;
@@ -572,8 +1123,8 @@
 
     const isbnMatch = cardText.match(/ISBN\/UID:\s*([^A-Za-z0-9]*[A-Za-z0-9][A-Za-z0-9-]*)/i);
     const isbn = cleanIsbn(isbnMatch?.[1] || '');
-    const pagesMatch = cardText.match(/(\d[\d.,]*)\s*(?:pages|páginas|paginas)/i);
-    const bookPages = parseNumber(pagesMatch?.[1]);
+    const metadata = extractBookMetadata(card, cardText, sourceStatus);
+    const bookPages = metadata.pageCount;
 
     const previous = state.books.get(id);
     const book = {
@@ -582,13 +1133,30 @@
       author: previous?.author || authors.join(', '),
       isbn: previous?.isbn || isbn,
       coverUrl: previous?.coverUrl || cover.url,
+      coverSource: previous?.coverUrl ? (previous.coverSource || '') : (cover.source || ''),
       pageCount: previous?.pageCount || bookPages,
+      language: previous?.language || metadata.language,
+      languageName: previous?.languageName || metadata.languageName,
+      format: previous?.format || metadata.format,
+      formatName: previous?.formatName || metadata.formatName,
+      publishDate: previous?.publishDate || metadata.publishDate,
+      originalPublicationYear: previous?.originalPublicationYear || metadata.originalPublicationYear,
+      status: mergeBookStatus(previous?.status, metadata.status),
+      rating: previous?.rating ?? metadata.rating,
+      series: previous?.series || metadata.series,
+      seriesPosition: previous?.seriesPosition || metadata.seriesPosition,
+      seriesId: previous?.seriesId || metadata.seriesId,
+      seriesUrl: previous?.seriesUrl || metadata.seriesUrl,
       storyGraphUrl: new URL(`/books/${id}`, pageUrl.origin).toString(),
     };
     state.books.set(id, book);
+    return true;
   }
 
   function findBookCard(anchor) {
+    const pane = anchor.closest?.('.book-pane');
+    if (pane) return pane;
+
     let current = anchor;
     let fallback = anchor.parentElement || anchor;
     for (let depth = 0; depth < 9 && current?.parentElement; depth += 1) {
@@ -774,6 +1342,16 @@
       title: book.title,
       author: book.author || '',
       coverUrl: book.coverUrl || '',
+      language: book.language || '',
+      languageName: book.languageName || '',
+      format: book.format || '',
+      formatName: book.formatName || '',
+      publishDate: book.publishDate || '',
+      originalPublicationYear: book.originalPublicationYear || null,
+      status: book.status || '',
+      rating: book.rating ?? null,
+      series: book.series || '',
+      seriesPosition: book.seriesPosition || '',
       date: parseDate(dateSource) || '',
       pagesRead: pages.pagesRead,
       pagesTotal: pages.pagesTotal,
@@ -958,30 +1536,58 @@
 
   function buildExport(exportedAt) {
     const includeNotes = els.includeNotes.checked;
+    const books = [...state.books.values()]
+      .sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    refreshCoverDiagnostics(books);
+    const booksById = new Map(books.map((book) => [book.storyGraphId, book]));
+
+    // La portada y los metadatos canónicos son los del objeto libro al terminar
+    // la extracción. Se copian también a cada entrada por si se recuperaron
+    // después de leer el diario o si Bilibook importa el CSV.
     const entries = [...state.entries.values()]
-      .map((entry) => ({ ...entry, note: includeNotes ? entry.note : '' }))
+      .map((entry) => {
+        const finalBook = booksById.get(entry.storyGraphId);
+        return {
+          ...entry,
+          coverUrl: finalBook?.coverUrl || entry.coverUrl || '',
+          language: finalBook?.language || entry.language || '',
+          languageName: finalBook?.languageName || entry.languageName || '',
+          format: finalBook?.format || entry.format || '',
+          formatName: finalBook?.formatName || entry.formatName || '',
+          publishDate: finalBook?.publishDate || entry.publishDate || '',
+          originalPublicationYear: finalBook?.originalPublicationYear || entry.originalPublicationYear || null,
+          status: finalBook?.status || entry.status || '',
+          rating: finalBook?.rating ?? entry.rating ?? null,
+          series: finalBook?.series || entry.series || '',
+          seriesPosition: finalBook?.seriesPosition || entry.seriesPosition || '',
+          bookPages: entry.bookPages || finalBook?.pageCount || null,
+          note: includeNotes ? entry.note : '',
+        };
+      })
       .sort((a, b) => (
         a.date.localeCompare(b.date)
         || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
         || (a.pagesTotal || 0) - (b.pagesTotal || 0)
         || String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
       ));
+
     return {
       format: 'read-nook-storygraph-journal',
-      version: 1,
+      version: 2,
       extractorVersion: EXTRACTOR_VERSION,
       diagnostics: { ...state.diagnostics },
       exportedAt,
       username: els.username.value.trim().replace(/^@/, ''),
-      books: [...state.books.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })),
+      books,
       entries,
     };
   }
 
   function toCsv(entries) {
     const headers = [
-      'date', 'storygraph_book_id', 'isbn', 'title', 'author', 'cover_url', 'entry_id',
-      'pages_read', 'pages_total', 'book_pages', 'percent',
+      'date', 'storygraph_book_id', 'isbn', 'title', 'author', 'cover_url',
+      'language', 'format', 'publish_date', 'read_status', 'rating', 'series', 'series_position',
+      'entry_id', 'pages_read', 'pages_total', 'book_pages', 'percent',
       'minutes_listened', 'minutes_total', 'kind', 'note',
     ];
     const rows = entries.map((entry) => [
@@ -991,6 +1597,13 @@
       entry.title,
       entry.author,
       entry.coverUrl || '',
+      entry.language || '',
+      entry.format || '',
+      entry.publishDate || '',
+      entry.status || '',
+      entry.rating ?? '',
+      entry.series || '',
+      entry.seriesPosition || '',
       entry.id,
       entry.pagesRead ?? '',
       entry.pagesTotal ?? '',

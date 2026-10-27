@@ -31,7 +31,7 @@ export function Bookshelf({ books, onEdit }: Props) {
     <div className="space-y-5">
       {/* Filtro */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {(['all', 'reading', 'read', 'pending'] as const).map((s) => {
+        {(['all', 'reading', 'read', 'pending', 'dnf'] as const).map((s) => {
           const label = s === 'all' ? 'Todos' : STATUS_META[s].label;
           const count = s === 'all' ? books.length : books.filter((b) => b.status === s).length;
           const active = shelfFilter === s;

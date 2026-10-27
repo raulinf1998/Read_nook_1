@@ -4,11 +4,13 @@ import { describe, test } from 'node:test';
 import {
   calculateJournalCurrentPage,
   mergeStoryGraphJournal,
+  normalizeCoverUrl,
   normalizeIsbnKey,
   parseStoryGraphJournalDate,
   parseStoryGraphJournalExport,
   parseStoryGraphJournalFile,
 } from '../src/storyGraphJournal.ts';
+import { parseStoryGraphCsv } from '../src/lib.ts';
 
 function makeBook(overrides = {}) {
   return {
@@ -51,7 +53,8 @@ describe('parseo del diario de StoryGraph', () => {
   test('acepta el JSON del extractor y completa datos desde books', () => {
     const text = JSON.stringify({
       format: 'read-nook-storygraph-journal',
-      version: 1,
+      version: 2,
+      extractorVersion: '1.0.5',
       books: [{
         storyGraphId: '11111111-1111-4111-8111-111111111111',
         title: 'Ciudad de Jade',
@@ -59,6 +62,13 @@ describe('parseo del diario de StoryGraph', () => {
         isbn: '9780306406157',
         coverUrl: 'https://cdn.thestorygraph.com/covers/ciudad-de-jade.jpg',
         pageCount: 560,
+        language: 'Spanish',
+        format: 'hardcover',
+        publishDate: 'November 14, 2017',
+        status: 'reading',
+        rating: 4.5,
+        series: 'Huesos verdes',
+        seriesPosition: '#1',
       }],
       entries: [{
         id: '123e4567-e89b-12d3-a456-426614174000',
@@ -80,12 +90,75 @@ describe('parseo del diario de StoryGraph', () => {
     assert.equal(parsedExport.books.length, 1);
     assert.equal(parsedExport.books[0].storyGraphBookId, '11111111-1111-4111-8111-111111111111');
     assert.equal(parsedExport.books[0].coverUrl, 'https://cdn.thestorygraph.com/covers/ciudad-de-jade.jpg');
+    assert.equal(parsedExport.books[0].language, 'es');
+    assert.equal(parsedExport.books[0].format, 'hardcover');
+    assert.equal(parsedExport.books[0].publishDate, '2017-11-14');
+    assert.equal(parsedExport.books[0].status, 'reading');
+    assert.equal(parsedExport.books[0].rating, 4.5);
+    assert.equal(parsedExport.books[0].series, 'Huesos verdes');
+    assert.equal(parsedExport.books[0].seriesPosition, '1');
+    assert.deepEqual(parsedExport.metadataStats, {
+      booksInFile: 1,
+      booksWithLanguage: 1,
+      booksWithFormat: 1,
+      booksWithPages: 1,
+      booksWithPublishDate: 1,
+      booksWithStatus: 1,
+      booksWithRating: 1,
+      booksWithSeries: 1,
+    });
     assert.equal(entries[0].sourceEntryId, '123e4567-e89b-12d3-a456-426614174000');
     assert.equal(entries[0].title, 'Ciudad de Jade');
     assert.equal(entries[0].author, 'Fonda Lee');
     assert.equal(entries[0].coverUrl, 'https://cdn.thestorygraph.com/covers/ciudad-de-jade.jpg');
     assert.equal(entries[0].bookPages, 560);
+    assert.equal(entries[0].language, 'es');
+    assert.equal(entries[0].format, 'hardcover');
+    assert.equal(entries[0].status, 'reading');
+    assert.equal(entries[0].seriesPosition, '1');
     assert.equal(entries[0].pagesTotal, 84);
+    assert.deepEqual(parsedExport.coverStats, {
+      booksInFile: 1,
+      booksWithCover: 1,
+      totalEntries: 1,
+      entriesWithCover: 1,
+      extractorVersion: '1.0.5',
+    });
+  });
+
+  test('informa cuando el JSON no trae ninguna portada', () => {
+    const text = JSON.stringify({
+      format: 'read-nook-storygraph-journal',
+      version: 1,
+      extractorVersion: '1.0.3',
+      books: [{
+        storyGraphId: '11111111-1111-4111-8111-111111111111',
+        title: 'Ciudad de Jade',
+        author: 'Fonda Lee',
+        coverUrl: '',
+      }],
+      entries: [{
+        id: '123e4567-e89b-12d3-a456-426614174002',
+        storyGraphId: '11111111-1111-4111-8111-111111111111',
+        date: '2026-02-03',
+        pagesTotal: 84,
+        kind: 'progress',
+      }],
+    });
+
+    const parsedExport = parseStoryGraphJournalExport(text, 'diario-sin-portadas.json');
+    assert.deepEqual(parsedExport.coverStats, {
+      booksInFile: 1,
+      booksWithCover: 0,
+      totalEntries: 1,
+      entriesWithCover: 0,
+      extractorVersion: '1.0.3',
+    });
+
+    const result = mergeStoryGraphJournal([makeBook()], parsedExport.entries, parsedExport.books);
+    assert.equal(result.report.providedCovers, 0);
+    assert.equal(result.report.updatedCovers, 0);
+    assert.equal(result.report.unchangedCovers, 0);
   });
 
   test('conserva un ID UUID al fusionar una entrada', () => {
@@ -103,22 +176,44 @@ describe('parseo del diario de StoryGraph', () => {
 
   test('acepta el CSV gemelo con comas y saltos de línea en la nota', () => {
     const text = [
-      'date,storygraph_book_id,isbn,title,author,cover_url,entry_id,pages_read,pages_total,book_pages,percent,minutes_listened,minutes_total,kind,note',
-      '"2026-03-04","22222222-2222-4222-8222-222222222222","9780306406157","Título, con coma","Ada Autora","https://cdn.thestorygraph.com/covers/prueba.jpg","77","12","50","300","16.7","","","did-not-finish","Primera línea\nSegunda línea"',
+      'date,storygraph_book_id,isbn,title,author,cover_url,language,format,publish_date,read_status,rating,series,series_position,entry_id,pages_read,pages_total,book_pages,percent,minutes_listened,minutes_total,kind,note',
+      '"2026-03-04","22222222-2222-4222-8222-222222222222","9780306406157","Título, con coma","Ada Autora","https://cdn.thestorygraph.com/covers/prueba.jpg","Spanish","Audio CD","November 14, 2017","did-not-finish","4.25","Saga de Ada Autora","#0.5","77","12","50","300","16.7","","","did-not-finish","Primera línea\nSegunda línea"',
     ].join('\r\n');
 
-    const entries = parseStoryGraphJournalFile(text, 'diario.csv');
+    const parsedExport = parseStoryGraphJournalExport(text, 'diario.csv');
+    const entries = parsedExport.entries;
     assert.equal(entries.length, 1);
+    assert.deepEqual(parsedExport.metadataStats, {
+      booksInFile: 1,
+      booksWithLanguage: 1,
+      booksWithFormat: 1,
+      booksWithPages: 1,
+      booksWithPublishDate: 1,
+      booksWithStatus: 1,
+      booksWithRating: 1,
+      booksWithSeries: 1,
+    });
     assert.equal(entries[0].title, 'Título, con coma');
     assert.equal(entries[0].coverUrl, 'https://cdn.thestorygraph.com/covers/prueba.jpg');
     assert.equal(entries[0].kind, 'dnf');
     assert.equal(entries[0].note, 'Primera línea\nSegunda línea');
+    assert.equal(entries[0].language, 'es');
+    assert.equal(entries[0].format, 'audiobook');
+    assert.equal(entries[0].publishDate, '2017-11-14');
+    assert.equal(entries[0].status, 'dnf');
+    assert.equal(entries[0].rating, 4.5);
+    assert.equal(entries[0].series, 'Saga de Ada Autora');
+    assert.equal(entries[0].seriesPosition, '0.5');
   });
 
   test('normaliza fechas e ISBN-10', () => {
     assert.equal(parseStoryGraphJournalDate('January 5, 2026'), '2026-01-05');
     assert.equal(parseStoryGraphJournalDate('5 de enero de 2026'), '2026-01-05');
     assert.equal(normalizeIsbnKey('0-306-40615-2'), '9780306406157');
+    assert.equal(
+      normalizeCoverUrl('//cd-books.b-cdn.net/haoeo4eip2vq8aduh2wxhqctsf85'),
+      'https://cdn.thestorygraph.com/haoeo4eip2vq8aduh2wxhqctsf85',
+    );
   });
 });
 
@@ -176,12 +271,46 @@ describe('fusion del diario', () => {
     const first = mergeStoryGraphJournal([makeBook()], [entry]);
     assert.equal(first.books[0].coverUrl, storyGraphCover);
     assert.equal(first.patches[0].patch.coverUrl, storyGraphCover);
+    assert.equal(first.report.providedCovers, 1);
     assert.equal(first.report.updatedCovers, 1);
+    assert.equal(first.report.unchangedCovers, 0);
+    assert.equal(first.report.unmatchedCovers, 0);
 
     const second = mergeStoryGraphJournal(first.books, [entry]);
     assert.equal(second.books[0].coverUrl, storyGraphCover);
+    assert.equal(second.report.providedCovers, 1);
     assert.equal(second.report.updatedCovers, 0);
+    assert.equal(second.report.unchangedCovers, 1);
     assert.equal(second.patches[0].patch.coverUrl, undefined);
+  });
+
+  test('reconoce como la misma portada el espejo CDN de StoryGraph', () => {
+    const book = makeBook({ coverUrl: 'https://cd-books.b-cdn.net/haoeo4eip2vq8aduh2wxhqctsf85' });
+    const entry = makeEntry({
+      coverUrl: 'https://cdn.thestorygraph.com/haoeo4eip2vq8aduh2wxhqctsf85',
+      pagesTotal: 20,
+    });
+
+    const result = mergeStoryGraphJournal([book], [entry]);
+    assert.equal(result.report.providedCovers, 1);
+    assert.equal(result.report.updatedCovers, 0);
+    assert.equal(result.report.unchangedCovers, 1);
+    assert.equal(result.patches[0].patch.coverUrl, undefined);
+  });
+
+  test('cuenta las portadas cuyo libro no se pudo vincular', () => {
+    const entry = makeEntry({
+      isbn: '9789999999999',
+      title: 'Libro que no está en Bilibook',
+      author: 'Autora Ausente',
+      coverUrl: 'https://cdn.thestorygraph.com/covers/ausente.jpg',
+      pagesRead: 10,
+    });
+
+    const result = mergeStoryGraphJournal([makeBook()], [entry]);
+    assert.equal(result.report.providedCovers, 0);
+    assert.equal(result.report.updatedCovers, 0);
+    assert.equal(result.report.unmatchedCovers, 1);
   });
 
   test('aplica la portada de books aunque ese libro no tenga entradas del diario', () => {
@@ -214,9 +343,11 @@ describe('fusion del diario', () => {
     assert.equal(result.books[1].journal.length, 0);
     assert.deepEqual(
       result.patches.find((item) => item.index === 1)?.patch,
-      { coverUrl: storyGraphCover },
+      { coverUrl: storyGraphCover, coverSourceUrl: storyGraphCover },
     );
+    assert.equal(result.report.providedCovers, 1);
     assert.equal(result.report.updatedCovers, 1);
+    assert.equal(result.report.unchangedCovers, 0);
     assert.equal(result.report.matchedBooks, 1);
   });
 
@@ -268,5 +399,111 @@ describe('fusion del diario', () => {
     assert.equal(result.report.matchedEntries, 0);
     assert.equal(result.report.unmatchedEntries, 1);
     assert.equal(result.report.unmatchedBooks.length, 1);
+  });
+});
+
+describe('metadatos completos de StoryGraph', () => {
+  test('aplica idioma, formato, fecha, estado, puntuación, páginas y saga desde las entradas', () => {
+    const book = makeBook({
+      format: 'paperback',
+      language: 'en',
+      publishDate: '2000',
+      rating: 2,
+      pages: 300,
+      status: 'reading',
+    });
+    const entry = makeEntry({
+      pagesTotal: 20,
+      bookPages: 560,
+      language: 'Spanish',
+      format: 'hardcover',
+      publishDate: 'November 14, 2017',
+      status: 'read',
+      rating: 4.25,
+      series: 'Huesos verdes',
+      seriesPosition: '#1',
+    });
+
+    const result = mergeStoryGraphJournal([book], [entry]);
+    const merged = result.books[0];
+    assert.equal(merged.language, 'es');
+    assert.equal(merged.format, 'hardcover');
+    assert.equal(merged.publishDate, '2017-11-14');
+    assert.equal(merged.status, 'read');
+    assert.equal(merged.rating, 4.5);
+    assert.equal(merged.pages, 560);
+    assert.equal(merged.currentPage, 560);
+    assert.equal(merged.series, 'Huesos verdes');
+    assert.equal(merged.seriesPosition, '1');
+    assert.equal(result.report.providedMetadataBooks, 1);
+    assert.equal(result.report.matchedMetadataBooks, 1);
+    assert.equal(result.report.updatedMetadataBooks, 1);
+  });
+
+  test('rellena un libro pendiente desde books aunque no tenga diario', () => {
+    const storyGraphBookId = '44444444-4444-4444-8444-444444444444';
+    const pending = makeBook({
+      title: 'Libro pendiente',
+      author: 'Otra Autora',
+      isbn: '9781234567897',
+      storyGraphId: storyGraphBookId,
+      status: 'pending',
+      pages: 0,
+    });
+    const result = mergeStoryGraphJournal([pending], [], [{
+      storyGraphBookId,
+      isbn: pending.isbn,
+      title: pending.title,
+      author: pending.author,
+      coverUrl: 'https://cdn.thestorygraph.com/covers/pendiente.jpg',
+      pageCount: 412,
+      language: 'en',
+      format: 'audiobook',
+      publishDate: '2024-05-02',
+      status: 'pending',
+      rating: null,
+      series: 'Saga futura',
+      seriesPosition: '2',
+    }]);
+
+    assert.equal(result.books[0].status, 'pending');
+    assert.equal(result.books[0].pages, 412);
+    assert.equal(result.books[0].currentPage, 0);
+    assert.equal(result.books[0].format, 'audiobook');
+    assert.equal(result.books[0].series, 'Saga futura');
+    assert.equal(result.books[0].seriesPosition, '2');
+    assert.equal(result.books[0].journal.length, 0);
+    assert.equal(result.report.matchedMetadataBooks, 1);
+    assert.equal(result.report.updatedMetadataBooks, 1);
+  });
+
+  test('no vuelve a descargar ni sustituye una copia local cuyo origen ya coincide', () => {
+    const sourceCover = 'https://cdn.thestorygraph.com/covers/local.jpg';
+    const book = makeBook({ coverUrl: '/covers/hash.jpg', coverSourceUrl: sourceCover });
+    const result = mergeStoryGraphJournal(
+      [book],
+      [makeEntry({ coverUrl: sourceCover, pagesTotal: 25 })],
+    );
+
+    assert.equal(result.books[0].coverUrl, '/covers/hash.jpg');
+    assert.equal(result.report.updatedCovers, 0);
+    assert.equal(result.report.unchangedCovers, 1);
+    assert.equal(result.patches[0].patch.coverUrl, undefined);
+  });
+
+  test('el CSV oficial normaliza abandonado, audiolibro, idioma, fecha y saga', () => {
+    const csv = [
+      'Title,Authors,ISBN/UID,Format,Read Status,Star Rating,Number of Pages,Language,Publication Date,Series,Series Position',
+      '"Ciudad de Jade","Fonda Lee","9780306406157","Audio CD","did-not-finish","4.25","560","Spanish","November 14, 2017","Huesos verdes","#1"',
+    ].join('\n');
+    const [book] = parseStoryGraphCsv(csv, 'en');
+
+    assert.equal(book.status, 'dnf');
+    assert.equal(book.format, 'audiobook');
+    assert.equal(book.language, 'es');
+    assert.equal(book.publishDate, '2017-11-14');
+    assert.equal(book.rating, 4.5);
+    assert.equal(book.series, 'Huesos verdes');
+    assert.equal(book.seriesPosition, '1');
   });
 });

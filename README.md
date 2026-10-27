@@ -21,8 +21,13 @@ estadísticas de lectura.
   tipo de dato lo permite. Si hay sesiones en el diario, también muestra
   páginas por día/mes/año, días activos, media diaria, sesiones, rachas y
   libros con más actividad.
-- **Ficha completa de libro**: portada, estado, puntuación con medias estrellas,
-  formato, idioma, tags, sinopsis, notas y **diario lector** por sesiones.
+- **Ficha completa de libro**: portada, estado (incluido «Abandonado»),
+  puntuación con medias estrellas, formato, idioma amplio, páginas, fecha de
+  publicación, saga y número dentro de la saga, tags, sinopsis, notas y
+  **diario lector** por sesiones. La portada puede subirse desde el
+  ordenador/móvil o copiarse desde una URL; en ambos casos se guarda el
+  archivo en el servidor de Bilibook para que siga viéndose aunque la URL
+  original desaparezca.
 - **Alta por ISBN** con autocompletado desde Google Books y Open Library.
 - **Importación desde TheStoryGraph**: CSV oficial de la biblioteca y, si se
   quiere recuperar el avance por fechas, JSON/CSV del Reading Journal generado
@@ -46,7 +51,11 @@ mano:
    en la consola del navegador) y ábrelo en StoryGraph con tu sesión iniciada.
    El script trabaja solo en tu navegador: hace peticiones GET a StoryGraph,
    no pide contraseña ni cookies y no envía tus datos a Bilibook.
-4. Ejecuta la exportación y descarga el **JSON** (recomendado) o el CSV gemelo.
+4. Ejecuta la exportación (extractor **1.0.5 o posterior**) y descarga el
+   **JSON** (recomendado) o el CSV gemelo. Deja activada la opción de
+   pendientes si también quieres traer los datos de tu lista *to read*. Antes
+   de descargarlo, el registro indica cuántos libros traen portada, idioma,
+   formato, páginas, fecha de publicación, estado, puntuación y saga.
 5. Vuelve a Bilibook → **Importar**. Sube el CSV oficial, el diario, o ambos.
    Si la biblioteca ya está importada, sube solo el diario para no duplicar
    libros.
@@ -54,12 +63,24 @@ mano:
 Bilibook vincula cada sesión por ID de StoryGraph, ISBN/UID o título y autor.
 Convierte páginas acumuladas y porcentajes en páginas de cada sesión, conserva
 las entradas manuales, separa las relecturas y usa el ID original de cada
-avance para que reimportar el mismo archivo actualice sin duplicar. El extractor
-también guarda la URL de la portada mostrada por StoryGraph; al importar, esa
-portada sustituye a la que el libro tuviera en Bilibook, incluidos los libros
-presentes en los metadatos del JSON aunque no tengan avances exportables. Si
-StoryGraph no aporta ninguna, se conserva la actual. El informe final muestra entradas
-nuevas/actualizadas, portadas sustituidas y libros sin coincidencia.
+avance para que reimportar el mismo archivo actualice sin duplicar. Para las
+portadas y datos, el extractor lee el panel de cada libro en StoryGraph
+(`.book-pane[data-book-id]` → `.book-cover img`), con respaldo en la imagen
+enlazada a `/books/{id}` y, si aún falta portada, ISBN, idioma, formato,
+páginas o fecha de publicación, en la ficha individual del libro (visita que
+también puede completar puntuación o saga si allí aparecen).
+El estado se decide por la lista de origen (leídos, en lectura, abandonados o
+pendientes), no por los botones de acción de StoryGraph. Guarda la portada
+en `books[].coverUrl`, en cada entrada y en la columna `cover_url` del CSV;
+los demás datos viajan también en `books[]`, entradas y columnas
+`language`, `format`, `publish_date`, `read_status`, `rating`, `series` y
+`series_position`. Al importar, un valor no vacío de StoryGraph actualiza el
+libro vinculado (incluida la portada), también si el libro solo aparece en
+los metadatos del JSON sin avances exportables, como un pendiente. Los
+valores vacíos no borran datos introducidos a mano. La vista previa y el
+informe final distinguen portadas recibidas, sustituidas, ya coincidentes,
+no vinculadas, copias guardadas en el servidor y libros cuyos datos se han
+completado; si el JSON trae `0` portadas, Bilibook lo avisa antes de importar.
 
 > El extractor solo puede recuperar avances que realmente se registraron en
 > StoryGraph. Si un libro se marcó como leído retrospectivamente, puede que
@@ -124,7 +145,9 @@ docker compose up --build
 ```
 
 Sirve la app en http://localhost:8080. Los datos persisten en un volumen
-(`book-tracker-data`) con un único `db.json` (libros, tags, objetivo y tema).
+(`book-tracker-data`): `db.json` guarda libros, tags, objetivo y tema, y la
+carpeta `covers/` guarda las imágenes subidas o copiadas desde una URL
+(nombre = hash SHA-256, sin duplicar la misma portada).
 
 ## Estructura
 
@@ -137,7 +160,9 @@ src/
   hooks.ts           Libros, ajustes (objetivo, tema, paletas, modo) y tags
   api.ts             Cliente de la API REST
   lib.ts             ISBN (Google Books/Open Library) y parser CSV StoryGraph
+  bookMetadata.ts    Normalización de idioma, formato, fecha, estado y saga
   storyGraphJournal.ts Parser JSON/CSV y fusión idempotente del diario
+  coverStorage.ts    Copia de portadas externas en el servidor
   demo.ts            Biblioteca de ejemplo
   components/
     ui.tsx           Primitivas: Modal, BookCover, badges, botones…
@@ -150,6 +175,7 @@ tests/
   storyGraphJournal.test.mjs           Pruebas del importador del diario
   storygraphExtractor.test.mjs         Pruebas del extractor local
   themePalettes.test.mjs               Pruebas de paletas personalizadas
+  coverStorage.test.mjs                Subida y servido de portadas (requiere `npm --prefix server install`)
 server/
-  index.js           API Express + servido del build en producción
+  index.js           API Express, portadas guardadas y servido del build
 ```

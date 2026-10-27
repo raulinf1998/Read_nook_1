@@ -15,6 +15,7 @@ import {
   Star,
 } from 'lucide-react';
 import type { Book } from '../types';
+import { FORMAT_META, formatLabel, languageLabel } from '../types';
 import { useLocalStorage } from '../hooks';
 import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
 import { EmptyState, cardCls, cx, selectCls } from './ui';
@@ -260,13 +261,13 @@ export function Statistics({ books }: Props) {
 
     const formatMap = new Map<string, number>();
     readBooks.forEach((b) => {
-      const key = b.format === 'hardcover' ? 'Tapa dura' : b.format === 'ebook' ? 'Ebook' : 'Tapa blanda';
+      const key = formatLabel(b.format);
       formatMap.set(key, (formatMap.get(key) || 0) + 1);
     });
-    const formatOrder = ['Tapa dura', 'Tapa blanda', 'Ebook'];
+    const formatOrder = Object.values(FORMAT_META).map((meta) => meta.label);
     const formatData = Array.from(formatMap.entries())
       .sort((a, b) => formatOrder.indexOf(a[0]) - formatOrder.indexOf(b[0]))
-      .map(([label, value]) => ({ label, value, color: CH(formatOrder.indexOf(label) + 1) }));
+      .map(([label, value], index) => ({ label, value, color: PALETTE[index % PALETTE.length] }));
 
     const authorMap = new Map<string, number>();
     readBooks.forEach((b) => { if (b.author) authorMap.set(b.author, (authorMap.get(b.author) || 0) + 1); });
@@ -276,11 +277,12 @@ export function Statistics({ books }: Props) {
 
     const langMap = new Map<string, number>();
     readBooks.forEach((b) => {
-      const key = b.language === 'es' ? 'Español' : 'Inglés';
+      const key = languageLabel(b.language);
       langMap.set(key, (langMap.get(key) || 0) + 1);
     });
     const langData = Array.from(langMap.entries())
-      .map(([label, value]) => ({ label, value, color: label === 'Español' ? CH(1) : CH(4) }));
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'))
+      .map(([label, value], index) => ({ label, value, color: PALETTE[index % PALETTE.length] }));
 
     const ratingBuckets = Array.from({ length: 11 }, (_, i) => ({ label: String(i / 2), value: 0 }));
     readBooks.forEach((b) => {
