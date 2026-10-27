@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Read Nook · Exportar diario de StoryGraph
 // @namespace    https://read-nook.local/
-// @version      1.0.0
+// @version      1.0.1
 // @description  Exporta localmente el Reading Journal de StoryGraph a JSON/CSV para Read Nook.
 // @author       Read Nook
 // @match        https://app.thestorygraph.com/*
@@ -24,9 +24,21 @@
 
   const HOST = 'app.thestorygraph.com';
   const PANEL_ID = 'read-nook-sg-exporter';
+  const EXTRACTOR_VERSION = '1.0.1';
   const USERNAME_KEY = 'readnook.storygraph.username';
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const REQUEST_DELAY_MS = 140;
+
+  function createDiagnostics() {
+    return {
+      journalPages: 0,
+      journalPanes: 0,
+      visibleEntryElements: 0,
+      visibleEditLinks: 0,
+      unparsedEntryElements: 0,
+      booksWithUnparsedEntries: 0,
+    };
+  }
 
   if (window.location.hostname !== HOST) {
     window.alert('Abre StoryGraph con tu sesión iniciada y vuelve a ejecutar el exportador.');
@@ -47,6 +59,7 @@
     books: new Map(),
     entries: new Map(),
     requests: 0,
+    diagnostics: createDiagnostics(),
   };
 
   const MONTHS = {
@@ -325,6 +338,7 @@
     state.books.clear();
     state.entries.clear();
     state.requests = 0;
+    state.diagnostics = createDiagnostics();
     els.log.textContent = '';
     setProgress(0, 1);
     setButtonDisabled(els.json, true);
@@ -338,6 +352,7 @@
       // No es imprescindible recordar el usuario.
     }
 
+    logLine(`Extractor v${EXTRACTOR_VERSION}`);
     logLine(`Usuario: ${username}`);
     await discoverBooks(username);
     const books = [...state.books.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
@@ -365,8 +380,33 @@
 
     state.data = buildExport(new Date().toISOString());
     const pages = state.data.entries.reduce((sum, entry) => sum + (Number(entry.pagesRead) || 0), 0);
-    setStatus(`Listo: ${state.data.entries.length} entradas en ${books.length} libros.`);
-    logLine(`✅ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo.`);
+    const diagnostics = state.diagnostics;
+    logLine(
+      `Diagnóstico: ${diagnostics.journalPages} páginas de diario · ${diagnostics.journalPanes} contenedores · `
+      + `${diagnostics.visibleEntryElements} bloques visibles · ${diagnostics.visibleEditLinks} enlaces de edición.`,
+    );
+
+    if (state.data.entries.length === 0) {
+      setStatus('No se pudo extraer ninguna entrada del diario.');
+      logLine('❌ No se generó un diario válido: se encontraron libros, pero ninguna entrada interpretable.');
+      if (diagnostics.visibleEntryElements > 0 || diagnostics.visibleEditLinks > 0) {
+        logLine('StoryGraph sí devolvió bloques/enlaces del diario; probablemente cambió su HTML y hay que actualizar el extractor.');
+      } else {
+        logLine('Comprueba en StoryGraph que esos libros tienen entradas en View journal entries y que la sesión sigue iniciada.');
+      }
+      return;
+    }
+
+    if (diagnostics.booksWithUnparsedEntries > 0 || diagnostics.unparsedEntryElements > 0) {
+      setStatus(`Listo con avisos: ${state.data.entries.length} entradas en ${books.length} libros.`);
+      logLine(
+        `⚠️ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo. `
+        + `No se pudieron interpretar ${diagnostics.unparsedEntryElements} bloques en ${diagnostics.booksWithUnparsedEntries} libros.`,
+      );
+    } else {
+      setStatus(`Listo: ${state.data.entries.length} entradas en ${books.length} libros.`);
+      logLine(`✅ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo.`);
+    }
     logLine('Descarga JSON (recomendado) y súbelo después a Read Nook → Importar.');
     setButtonDisabled(els.json, false);
     setButtonDisabled(els.csv, false);
@@ -481,6 +521,9 @@
     nextUrl.searchParams.set('book_id', book.storyGraphId);
     let pageNumber = 1;
     const bookEntries = [];
+    let visibleEntryElements = 0;
+    let visibleEditLinks = 0;
+    let unparsedEntryElements = 0;
 
     while (nextUrl && pageNumber <= 150) {
       if (state.cancelled) throw cancellationError();
@@ -490,15 +533,25 @@
 
       const doc = await fetchDocument(nextUrl);
       const parsed = parseJournalDocument(doc, book);
+      const parsedEntries = parsed.entries;
+      visibleEntryElements += parsed.entryElements;
+      visibleEditLinks += parsed.editLinks;
+      unparsedEntryElements += parsed.unparsedEntryElements;
+      state.diagnostics.journalPages += 1;
+      state.diagnostics.journalPanes += parsed.panes;
+      state.diagnostics.visibleEntryElements += parsed.entryElements;
+      state.diagnostics.visibleEditLinks += parsed.editLinks;
+      state.diagnostics.unparsedEntryElements += parsed.unparsedEntryElements;
+
       let newCount = 0;
-      for (const entry of parsed) {
+      for (const entry of parsedEntries) {
         if (!state.entries.has(entry.id)) newCount += 1;
         state.entries.set(entry.id, entry);
         if (!bookEntries.some((item) => item.id === entry.id)) bookEntries.push(entry);
       }
 
       let candidate = findNextJournalUrl(doc, nextUrl, book.storyGraphId, visited);
-      if (!candidate && parsed.length >= 20) {
+      if (!candidate && parsedEntries.length >= 20) {
         candidate = new URL(nextUrl.toString());
         candidate.searchParams.set('page', String(pageNumber + 1));
         if (visited.has(candidate.toString())) candidate = null;
@@ -507,6 +560,16 @@
       if (!candidate) break;
       nextUrl = candidate;
       pageNumber += 1;
+    }
+
+    if (unparsedEntryElements > 0 || (bookEntries.length === 0 && visibleEditLinks > 0)) {
+      state.diagnostics.booksWithUnparsedEntries += 1;
+      if (state.diagnostics.booksWithUnparsedEntries <= 5) {
+        logLine(
+          `⚠️ “${book.title}”: StoryGraph mostró ${visibleEntryElements} bloques y ${visibleEditLinks} enlaces de edición, `
+          + `pero no se pudieron interpretar ${Math.max(unparsedEntryElements, visibleEditLinks - bookEntries.length)} entradas.`,
+        );
+      }
     }
 
     if (!els.editFallback.checked) return;
@@ -561,17 +624,47 @@
   }
 
   function parseJournalDocument(doc, book) {
-    const panes = doc.querySelector('.journal-entry-panes');
-    if (!panes) return [];
-    return [...panes.querySelectorAll(':scope > div')]
+    const panes = [...doc.querySelectorAll('.journal-entry-panes')];
+    const entryElements = panes.flatMap((pane) => [...pane.querySelectorAll(':scope > div')]);
+    const entries = entryElements
       .map((element) => parseJournalEntry(element, book))
       .filter(Boolean);
+
+    return {
+      entries,
+      panes: panes.length,
+      entryElements: entryElements.length,
+      editLinks: doc.querySelectorAll('a[href*="/journal_entries/"][href*="/edit"]').length,
+      unparsedEntryElements: Math.max(0, entryElements.length - entries.length),
+    };
+  }
+
+  function extractJournalEntryId(href) {
+    if (!href) return '';
+
+    let pathname = href;
+    try {
+      pathname = new URL(href, window.location.origin).pathname;
+    } catch (_) {
+      // Si el href no es una URL resoluble, se intenta igualmente con el texto recibido.
+    }
+
+    // StoryGraph ha usado ID numéricos y actualmente usa UUID. Se captura el
+    // segmento completo para no descartar identificadores con guiones.
+    const match = pathname.match(/^\/journal_entries\/([^/]+)\/edit\/?$/i);
+    if (!match) return '';
+
+    try {
+      return decodeURIComponent(match[1]);
+    } catch (_) {
+      return match[1];
+    }
   }
 
   function parseJournalEntry(element, book) {
     const editLink = element.querySelector('a[href*="/journal_entries/"][href*="/edit"]');
     const href = editLink?.getAttribute('href') || '';
-    const id = href.match(/\/journal_entries\/(\d+)\/edit/)?.[1];
+    const id = extractJournalEntryId(href);
     if (!id) return null;
 
     const rawText = cleanText(element.textContent || '');
@@ -781,11 +874,13 @@
         a.date.localeCompare(b.date)
         || a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
         || (a.pagesTotal || 0) - (b.pagesTotal || 0)
-        || Number(a.id) - Number(b.id)
+        || String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
       ));
     return {
       format: 'read-nook-storygraph-journal',
       version: 1,
+      extractorVersion: EXTRACTOR_VERSION,
+      diagnostics: { ...state.diagnostics },
       exportedAt,
       username: els.username.value.trim().replace(/^@/, ''),
       books: [...state.books.values()].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })),
