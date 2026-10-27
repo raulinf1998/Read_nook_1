@@ -1,0 +1,19 @@
+{
+  "name": "Bilibook",
+  "short_name": "Bilibook",
+  "description": "Tu biblioteca, tu progreso, tus retos y tus estadísticas de lectura.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#A9DDF7",
+  "theme_color": "#A9DDF7",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

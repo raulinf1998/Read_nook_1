@@ -1,4 +1,4 @@
-# 📚 Read Nook — Tu rincón de lectura
+# 📚 Bilibook — Tu rincón de lectura
 
 Aplicación web de seguimiento de lecturas: registra tus libros, sigue tu progreso
 página a página, ponte un reto anual, mira crecer tu estantería y explora tus
@@ -11,19 +11,23 @@ estadísticas de lectura.
 - **Biblioteca**: búsqueda (título, autor y géneros), filtros por estado,
   ordenación y vista en rejilla o lista.
 - **Estantería**: tu colección en baldas, como una librería de verdad.
+- **Descubrir**: recomendación de próxima lectura según tus autores y géneros
+  favoritos, ruleta lectora, joyas para releer y pendientes olvidados.
 - **Reto anual**: objetivo editable, anillo de progreso, hitos (25/50/75/100 %),
   indicador de ritmo y vitrina de libros completados.
 - **Estadísticas**: páginas, nota media, libros por mes/día, géneros, formatos,
   idiomas, autores y distribución de puntuaciones (global, por año o por mes).
-  Si hay sesiones en el diario, también muestra páginas por día/mes/año, días
-  activos, media diaria, sesiones, rachas y libros con más actividad.
+  Cada gráfico puede verse como columnas, línea, área, filas o donut cuando el
+  tipo de dato lo permite. Si hay sesiones en el diario, también muestra
+  páginas por día/mes/año, días activos, media diaria, sesiones, rachas y
+  libros con más actividad.
 - **Ficha completa de libro**: portada, estado, puntuación con medias estrellas,
   formato, idioma, tags, sinopsis, notas y **diario lector** por sesiones.
 - **Alta por ISBN** con autocompletado desde Google Books y Open Library.
 - **Importación desde TheStoryGraph**: CSV oficial de la biblioteca y, si se
   quiere recuperar el avance por fechas, JSON/CSV del Reading Journal generado
   localmente con el extractor incluido. Se pueden subir juntos o aplicar el
-  diario sobre libros que ya estén en Read Nook.
+  diario sobre libros que ya estén en Bilibook.
 - **Libros sin portada**: se genera una portada tipográfica automática.
 - **Biblioteca de ejemplo** con un clic si empiezas de cero.
 
@@ -34,45 +38,59 @@ avances del Reading Journal. Para recuperarlo sin introducir las sesiones a
 mano:
 
 1. Exporta la biblioteca desde StoryGraph (**Manage Account → Export**) si esos
-   libros todavía no están en Read Nook.
-2. Abre **Importar** en Read Nook y despliega «¿Aún no tienes el JSON? Prepara
+   libros todavía no están en Bilibook.
+2. Abre **Importar** en Bilibook y despliega «¿Aún no tienes el JSON? Prepara
    el extractor». Desde ahí puedes instalar o descargar
    `public/tools/storygraph-journal-exporter.user.js`.
 3. Instala el userscript con Tampermonkey/Violentmonkey (o copia su contenido
    en la consola del navegador) y ábrelo en StoryGraph con tu sesión iniciada.
    El script trabaja solo en tu navegador: hace peticiones GET a StoryGraph,
-   no pide contraseña ni cookies y no envía tus datos a Read Nook.
+   no pide contraseña ni cookies y no envía tus datos a Bilibook.
 4. Ejecuta la exportación y descarga el **JSON** (recomendado) o el CSV gemelo.
-5. Vuelve a Read Nook → **Importar**. Sube el CSV oficial, el diario, o ambos.
+5. Vuelve a Bilibook → **Importar**. Sube el CSV oficial, el diario, o ambos.
    Si la biblioteca ya está importada, sube solo el diario para no duplicar
    libros.
 
-Read Nook vincula cada sesión por ID de StoryGraph, ISBN/UID o título y autor.
+Bilibook vincula cada sesión por ID de StoryGraph, ISBN/UID o título y autor.
 Convierte páginas acumuladas y porcentajes en páginas de cada sesión, conserva
 las entradas manuales, separa las relecturas y usa el ID original de cada
-avance para que reimportar el mismo archivo actualice sin duplicar. El informe
-final muestra entradas nuevas/actualizadas y libros sin coincidencia.
+avance para que reimportar el mismo archivo actualice sin duplicar. El extractor
+también guarda la URL de la portada mostrada por StoryGraph; al importar, esa
+portada sustituye a la que el libro tuviera en Bilibook, incluidos los libros
+presentes en los metadatos del JSON aunque no tengan avances exportables. Si
+StoryGraph no aporta ninguna, se conserva la actual. El informe final muestra entradas
+nuevas/actualizadas, portadas sustituidas y libros sin coincidencia.
 
 > El extractor solo puede recuperar avances que realmente se registraron en
 > StoryGraph. Si un libro se marcó como leído retrospectivamente, puede que
 > solo existan la fecha de inicio/fin o una única entrada; en ese caso no es
 > posible reconstruir con exactitud cuántas páginas se leyeron cada día.
 
-## 🎨 Los 4 temas
+## 🎨 Paletas y temas
 
-Toda la interfaz usa *tokens* de diseño (variables CSS), así que cambiar de tema
-recolorea la app entera —incluidos gráficos, estantería y portadas generadas—.
-Se elige desde **Apariencia** (icono de paleta) o desde las muestras de la barra
-lateral, y queda guardado en el servidor:
+Toda la interfaz usa *tokens* de diseño (variables CSS), así que cambiar de
+paleta recolorea la app entera —incluidos gráficos, estantería y portadas
+generadas—. Se elige desde **Apariencia** (icono de paleta) o desde las muestras
+de la barra lateral, y queda guardado en el servidor:
 
-| Tema | Descripción |
+| Paleta | Descripción |
 |---|---|
 | **Rincón cálido** | Papel crema, terracota y verde salvia, serif editorial (Fraunces). |
 | **Minimal** | Neutros limpios, acento índigo, radios pequeños. Tipo Notion/Linear. |
 | **Nocturno** | Tinta y dorado, siempre oscuro. Para leer de noche. |
 | **Vibrante** | Violeta y rosa, formas muy redondeadas, tipografía Nunito. |
+| **Océano** | Azul claro, espuma y turquesa. |
+| **Bosque** | Verdes botánicos y dorados suaves. |
+| **Atardecer** | Coral, ámbar y ciruela. |
+| **Lavanda** | Lilas suaves con rosa y menta. |
 
-Todos (excepto Nocturno, oscuro por definición) tienen modo claro y oscuro.
+También puedes crear paletas personalizadas: nombre, estilo base y seis colores
+para los modos claro y oscuro. Bilibook deriva automáticamente bordes, textos
+secundarios, estados, series de gráficos y baldas. Las paletas guardadas pueden
+aplicarse, editarse y borrarse desde **Apariencia**.
+
+Todos los temas integrados (excepto Nocturno, oscuro por definición) tienen
+modo claro y oscuro.
 El diseño es responsive: **barra lateral en PC** y **navegación inferior flotante
 en móvil**, con modales que se convierten en hojas inferiores en pantallas pequeñas.
 
@@ -97,7 +115,7 @@ Abre http://localhost:5173 — si la biblioteca está vacía, usa
 | `npm run build` | Build de producción en `dist/` |
 | `npm run typecheck` | Comprobación de tipos |
 | `npm run lint` | ESLint |
-| `npm test` | Pruebas del parser y la fusión del diario de StoryGraph |
+| `npm test` | Pruebas del diario de StoryGraph, extractor y paletas personalizadas |
 
 ## Producción (Docker)
 
@@ -113,9 +131,10 @@ Sirve la app en http://localhost:8080. Los datos persisten en un volumen
 ```
 src/
   App.tsx            Shell: sidebar (PC) + cabecera y barra inferior (móvil)
-  index.css          Tokens de los 4 temas (claro/oscuro) y estilos base
+  index.css          Tokens de las 8 paletas (claro/oscuro) y estilos base
   types.ts           Tipos y metadatos de estado/tema
-  hooks.ts           Libros, ajustes (objetivo, tema, modo) y tags
+  themePalettes.ts   Validación y generación de paletas personalizadas
+  hooks.ts           Libros, ajustes (objetivo, tema, paletas, modo) y tags
   api.ts             Cliente de la API REST
   lib.ts             ISBN (Google Books/Open Library) y parser CSV StoryGraph
   storyGraphJournal.ts Parser JSON/CSV y fusión idempotente del diario
@@ -123,12 +142,14 @@ src/
   components/
     ui.tsx           Primitivas: Modal, BookCover, badges, botones…
     ThemePicker.tsx  Selector de apariencia con vistas previas
-    ReadingNow · Library · Bookshelf · ReadingChallenge · Statistics
+    ReadingNow · Library · Bookshelf · Discover · ReadingChallenge · Statistics
     BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
 public/tools/
   storygraph-journal-exporter.user.js  Extractor local del Reading Journal
 tests/
   storyGraphJournal.test.mjs           Pruebas del importador del diario
+  storygraphExtractor.test.mjs         Pruebas del extractor local
+  themePalettes.test.mjs               Pruebas de paletas personalizadas
 server/
   index.js           API Express + servido del build en producción
 ```

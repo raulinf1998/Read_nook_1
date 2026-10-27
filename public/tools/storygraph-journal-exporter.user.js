@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Read Nook · Exportar diario de StoryGraph
 // @namespace    https://read-nook.local/
-// @version      1.0.1
-// @description  Exporta localmente el Reading Journal de StoryGraph a JSON/CSV para Read Nook.
-// @author       Read Nook
+// @version      1.0.3
+// @description  Exporta localmente el Reading Journal de StoryGraph a JSON/CSV para Bilibook.
+// @author       Bilibook
 // @match        https://app.thestorygraph.com/*
 // @run-at       document-idle
 // @grant        none
@@ -11,11 +11,11 @@
 // ==/UserScript==
 
 /*
- * Exportador local del Reading Journal de StoryGraph para Read Nook.
+ * Exportador local del Reading Journal de StoryGraph para Bilibook.
  *
  * - Solo realiza peticiones GET al propio dominio de StoryGraph.
  * - Usa la sesión ya iniciada en este navegador.
- * - No envía datos ni credenciales a Read Nook ni a terceros.
+ * - No envía datos ni credenciales a Bilibook ni a terceros.
  * - Genera un archivo JSON o CSV en local.
  */
 
@@ -24,7 +24,7 @@
 
   const HOST = 'app.thestorygraph.com';
   const PANEL_ID = 'read-nook-sg-exporter';
-  const EXTRACTOR_VERSION = '1.0.1';
+  const EXTRACTOR_VERSION = '1.0.3';
   const USERNAME_KEY = 'readnook.storygraph.username';
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const REQUEST_DELAY_MS = 140;
@@ -37,6 +37,7 @@
       visibleEditLinks: 0,
       unparsedEntryElements: 0,
       booksWithUnparsedEntries: 0,
+      booksWithCovers: 0,
     };
   }
 
@@ -104,12 +105,12 @@
     ].join(';'));
     panel.id = PANEL_ID;
     panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', 'Exportador de diario de StoryGraph para Read Nook');
+    panel.setAttribute('aria-label', 'Exportador de diario de StoryGraph para Bilibook');
 
     const header = createElement('div', 'display:flex;align-items:flex-start;gap:12px;justify-content:space-between;');
     const headingWrap = createElement('div');
     headingWrap.append(
-      createElement('div', 'font-size:18px;font-weight:800;line-height:1.2;', '📚 Read Nook'),
+      createElement('div', 'font-size:18px;font-weight:800;line-height:1.2;', '📚 Bilibook'),
       createElement('div', 'font-size:13px;color:#6f6250;margin-top:2px;', 'Exportar diario de StoryGraph'),
     );
     const close = createElement('button', buttonStyle('#efe5d3', '#3c3428', '#cbbd9f'), '✕');
@@ -122,7 +123,7 @@
     const intro = createElement(
       'p',
       'margin:12px 0;color:#594f3f;',
-      'Recorre tus libros leídos, en curso y abandonados, descarga su diario y guarda fecha, páginas, porcentaje, minutos y notas. Todo ocurre en este navegador.',
+      'Recorre tus libros leídos, en curso y abandonados, descarga su diario y guarda fecha, páginas, porcentaje, minutos, notas y la portada de StoryGraph. Todo ocurre en este navegador.',
     );
 
     const usernameLabel = createElement('label', 'display:block;font-weight:700;margin:12px 0 6px;', 'Usuario de StoryGraph');
@@ -184,7 +185,7 @@
     const privacy = createElement(
       'p',
       'font-size:12px;color:#746652;margin:12px 0 0;',
-      'Privacidad: solo hace peticiones GET a StoryGraph desde tu sesión. No pide ni guarda contraseña, cookies ni envía nada a Read Nook automáticamente.',
+      'Privacidad: solo hace peticiones GET a StoryGraph desde tu sesión. No pide ni guarda contraseña, cookies ni envía nada a Bilibook automáticamente.',
     );
 
     panel.append(header, intro, usernameLabel, username, options, run, progressTrack, status, log, downloads, privacy);
@@ -256,7 +257,7 @@
         logLine('Exportación cancelada.');
         setStatus('Exportación cancelada.');
       } else {
-        console.error('[Read Nook] StoryGraph exporter', error);
+        console.error('[Bilibook] StoryGraph exporter', error);
         logLine(`❌ ${error instanceof Error ? error.message : String(error)}`);
         setStatus('La exportación terminó con un error.');
       }
@@ -360,7 +361,8 @@
       throw new Error('No se encontraron libros. Comprueba el usuario y que la sesión sigue iniciada.');
     }
 
-    logLine(`Libros localizados: ${books.length}. Leyendo diarios…`);
+    state.diagnostics.booksWithCovers = books.filter((book) => book.coverUrl).length;
+    logLine(`Libros localizados: ${books.length} (${state.diagnostics.booksWithCovers} con portada). Leyendo diarios…`);
     let completed = 0;
     for (const book of books) {
       if (state.cancelled) throw cancellationError();
@@ -383,7 +385,7 @@
     const diagnostics = state.diagnostics;
     logLine(
       `Diagnóstico: ${diagnostics.journalPages} páginas de diario · ${diagnostics.journalPanes} contenedores · `
-      + `${diagnostics.visibleEntryElements} bloques visibles · ${diagnostics.visibleEditLinks} enlaces de edición.`,
+      + `${diagnostics.visibleEntryElements} bloques visibles · ${diagnostics.visibleEditLinks} enlaces de edición · ${diagnostics.booksWithCovers} portadas.`,
     );
 
     if (state.data.entries.length === 0) {
@@ -407,7 +409,7 @@
       setStatus(`Listo: ${state.data.entries.length} entradas en ${books.length} libros.`);
       logLine(`✅ ${state.data.entries.length} entradas exportables · ${pages.toLocaleString()} páginas con valor directo.`);
     }
-    logLine('Descarga JSON (recomendado) y súbelo después a Read Nook → Importar.');
+    logLine('Descarga JSON (recomendado) y súbelo después a Bilibook → Importar.');
     setButtonDisabled(els.json, false);
     setButtonDisabled(els.csv, false);
   }
@@ -438,6 +440,91 @@
     }
   }
 
+  function bestSrcsetUrl(srcset) {
+    if (!srcset) return '';
+    let bestUrl = '';
+    let bestScore = -1;
+
+    for (const part of String(srcset).split(',')) {
+      const tokens = part.trim().split(/\s+/).filter(Boolean);
+      if (!tokens.length) continue;
+      const descriptor = tokens[1] || '';
+      let score = 0;
+      if (/^\d+(?:\.\d+)?w$/i.test(descriptor)) {
+        score = Number.parseFloat(descriptor);
+      } else if (/^\d+(?:\.\d+)?x$/i.test(descriptor)) {
+        score = Number.parseFloat(descriptor) * 1000;
+      }
+      if (score >= bestScore) {
+        bestUrl = tokens[0];
+        bestScore = score;
+      }
+    }
+
+    return bestUrl;
+  }
+
+  function absoluteHttpUrl(raw, baseUrl) {
+    const value = String(raw || '').trim();
+    if (!value || /^data:/i.test(value)) return '';
+    try {
+      const url = new URL(value, baseUrl);
+      return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function imageUrlFromElement(image, pageUrl) {
+    if (!image) return '';
+    const candidates = [
+      bestSrcsetUrl(image.getAttribute?.('srcset')),
+      bestSrcsetUrl(image.getAttribute?.('data-srcset')),
+      image.getAttribute?.('data-src'),
+      image.getAttribute?.('data-original'),
+      image.getAttribute?.('src'),
+      image.currentSrc,
+      image.src,
+    ];
+
+    for (const candidate of candidates) {
+      const url = absoluteHttpUrl(candidate, pageUrl);
+      if (url) return url;
+    }
+    return '';
+  }
+
+  function findCoverImage(card, anchor, pageUrl, bookId) {
+    const roots = [];
+    if (card) roots.push(card);
+    if (anchor && anchor !== card) roots.push(anchor);
+
+    const candidates = [];
+    const seen = new Set();
+    roots.forEach((root) => {
+      const images = root.tagName === 'IMG'
+        ? [root]
+        : [...(root.querySelectorAll?.('img') || [])];
+      images.forEach((image, index) => {
+        if (seen.has(image)) return;
+        seen.add(image);
+        const url = imageUrlFromElement(image, pageUrl);
+        if (!url) return;
+        const linkHref = image.closest?.('a[href]')?.getAttribute('href') || '';
+        const score = (linkHref.includes(`/books/${bookId}`) ? 20 : 0)
+          + (image.getAttribute?.('alt') ? 5 : 0)
+          - index;
+        candidates.push({ image, url, score });
+      });
+    });
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0] || {
+      image: card?.querySelector?.('img') || null,
+      url: '',
+    };
+  }
+
   function parseBookList(doc, pageUrl) {
     const headings = [...doc.querySelectorAll('h3 a[href^="/books/"]')];
     if (headings.length) {
@@ -459,7 +546,8 @@
 
     const card = findBookCard(anchor);
     const cardText = cleanText(card?.textContent || anchor.textContent || '');
-    const image = card?.querySelector('img');
+    const cover = findCoverImage(card, anchor, pageUrl, id);
+    const image = cover.image || card?.querySelector('img');
     const alt = cleanText(image?.getAttribute('alt') || '');
     let title = cleanText(anchor.textContent || '');
     let authorFromAlt = '';
@@ -493,6 +581,7 @@
       title: previous?.title && previous.title !== id ? previous.title : title,
       author: previous?.author || authors.join(', '),
       isbn: previous?.isbn || isbn,
+      coverUrl: previous?.coverUrl || cover.url,
       pageCount: previous?.pageCount || bookPages,
       storyGraphUrl: new URL(`/books/${id}`, pageUrl.origin).toString(),
     };
@@ -684,6 +773,7 @@
       isbn: book.isbn || '',
       title: book.title,
       author: book.author || '',
+      coverUrl: book.coverUrl || '',
       date: parseDate(dateSource) || '',
       pagesRead: pages.pagesRead,
       pagesTotal: pages.pagesTotal,
@@ -890,7 +980,7 @@
 
   function toCsv(entries) {
     const headers = [
-      'date', 'storygraph_book_id', 'isbn', 'title', 'author', 'entry_id',
+      'date', 'storygraph_book_id', 'isbn', 'title', 'author', 'cover_url', 'entry_id',
       'pages_read', 'pages_total', 'book_pages', 'percent',
       'minutes_listened', 'minutes_total', 'kind', 'note',
     ];
@@ -900,6 +990,7 @@
       entry.isbn,
       entry.title,
       entry.author,
+      entry.coverUrl || '',
       entry.id,
       entry.pagesRead ?? '',
       entry.pagesTotal ?? '',

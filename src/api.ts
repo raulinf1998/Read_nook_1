@@ -1,4 +1,4 @@
-import type { Book, ThemeId } from './types';
+import type { Book, CustomPalette, ThemeId } from './types';
 
 const API_BASE = '/api';
 
@@ -15,6 +15,8 @@ export interface Settings {
   goal: number;
   dark: boolean;
   theme: ThemeId;
+  customPalettes: CustomPalette[];
+  customPaletteId: string | null;
 }
 
 export const apiClient = {

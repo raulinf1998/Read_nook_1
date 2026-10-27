@@ -1,7 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Activity, BookOpen, CalendarDays, Clock3, FileText, Flame, Star, Globe, BarChart3 } from 'lucide-react';
+import {
+  Activity,
+  AreaChart,
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  Clock3,
+  FileText,
+  Flame,
+  Globe,
+  LineChart,
+  PieChart,
+  Rows3,
+  Star,
+} from 'lucide-react';
 import type { Book } from '../types';
-import { BarChart, DonutChart, HBarChart } from './Charts';
+import { useLocalStorage } from '../hooks';
+import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
 import { EmptyState, cardCls, cx, selectCls } from './ui';
 
 // Colores desde los tokens del tema: los gráficos se tiñen solos al cambiar de tema
@@ -16,6 +31,33 @@ const MONTHS = [
 ];
 
 type FilterMode = 'global' | 'year' | 'month';
+type TrendChartType = 'bars' | 'line' | 'area';
+type RankingChartType = 'horizontal' | 'columns' | 'donut';
+type DistributionChartType = 'donut' | 'horizontal' | 'columns';
+
+interface ChartPreferences {
+  journal: TrendChartType;
+  books: TrendChartType;
+  extension: TrendChartType;
+  ratings: TrendChartType;
+  topBooks: RankingChartType;
+  authors: RankingChartType;
+  tags: DistributionChartType;
+  format: DistributionChartType;
+  language: DistributionChartType;
+}
+
+const DEFAULT_CHART_PREFERENCES: ChartPreferences = {
+  journal: 'bars',
+  books: 'bars',
+  extension: 'bars',
+  ratings: 'bars',
+  topBooks: 'horizontal',
+  authors: 'horizontal',
+  tags: 'donut',
+  format: 'donut',
+  language: 'donut',
+};
 
 interface Props {
   books: Book[];
@@ -65,6 +107,14 @@ export function Statistics({ books }: Props) {
   const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const [storedChartPreferences, setStoredChartPreferences] = useLocalStorage<Partial<ChartPreferences>>(
+    'bilibook-stats-chart-types',
+    {},
+  );
+  const chartPreferences: ChartPreferences = { ...DEFAULT_CHART_PREFERENCES, ...storedChartPreferences };
+  const setChartPreference = <K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => {
+    setStoredChartPreferences((prev) => ({ ...DEFAULT_CHART_PREFERENCES, ...prev, [key]: value }));
+  };
 
   const allRead = useMemo(() => books.filter((b) => b.status === 'read'), [books]);
 
@@ -266,6 +316,71 @@ export function Statistics({ books }: Props) {
   const periodLabel =
     filterMode === 'global' ? 'Histórico' : filterMode === 'year' ? `Año ${year}` : `${MONTHS[month].label} ${year}`;
 
+  const renderTrendChart = (
+    data: { label: string; value: number; color?: string }[],
+    chartType: TrendChartType,
+    height = 150,
+    formatValue?: (value: number) => string,
+    color = CH(1),
+  ) => (
+    chartType === 'bars'
+      ? <BarChart data={data} height={height} formatValue={formatValue} />
+      : (
+        <TrendChart
+          data={data}
+          height={height}
+          formatValue={formatValue}
+          variant={chartType}
+          color={color}
+        />
+      )
+  );
+
+  const withSolidColors = <T extends { label: string; value: number; color?: string }>(data: T[]) => data.map((item, index) => ({
+    ...item,
+    color: PALETTE[index % PALETTE.length],
+  }));
+
+  const renderRankingChart = (
+    data: { label: string; value: number; color?: string }[],
+    chartType: RankingChartType,
+    formatValue?: (value: number) => string,
+    maxItems = 10,
+    centerLabel = 'en el top',
+  ) => {
+    const shown = data.slice(0, maxItems);
+    const solid = withSolidColors(shown);
+    if (chartType === 'donut') {
+      return (
+        <DonutChart
+          data={solid}
+          centerLabel={centerLabel}
+          centerValue={shown.reduce((sum, item) => sum + item.value, 0).toLocaleString('es')}
+        />
+      );
+    }
+    if (chartType === 'columns') {
+      return <BarChart data={solid} height={165} formatValue={formatValue} />;
+    }
+    return <HBarChart data={data} formatValue={formatValue} maxItems={maxItems} />;
+  };
+
+  const renderDistributionChart = (
+    data: { label: string; value: number; color: string }[],
+    chartType: DistributionChartType,
+    centerLabel: string,
+    centerValue?: string,
+    size = 140,
+  ) => {
+    if (chartType === 'horizontal') {
+      return <HBarChart data={data.slice(0, 10)} maxItems={10} />;
+    }
+    if (chartType === 'columns') {
+      return <BarChart data={data.slice(0, 10)} height={155} />;
+    }
+    return <DonutChart data={data} size={size} centerLabel={centerLabel} centerValue={centerValue} />;
+  };
+
   if (allRead.length === 0 && allJournalSessions.length === 0) {
     return (
       <EmptyState
@@ -303,6 +418,9 @@ export function Statistics({ books }: Props) {
             </select>
           )}
         </div>
+        <p className="basis-full px-1 text-[11px] font-medium leading-relaxed text-ink3">
+          Personaliza cada gráfico con los botones de su esquina: barras, línea, área, filas o donut. Tu elección queda guardada.
+        </p>
       </div>
 
       {/* Métricas principales */}
@@ -317,6 +435,12 @@ export function Statistics({ books }: Props) {
         subtitle={journalActivity.sessions > 0
           ? `${journalActivity.timelineLabel} · ${periodLabel} · ${journalActivity.booksWithActivity} libros con sesiones`
           : `Sesiones por fecha · ${periodLabel}`}
+        action={(
+          <TrendTypeControl
+            value={chartPreferences.journal}
+            onChange={(value) => setChartPreference('journal', value)}
+          />
+        )}
       >
         {journalActivity.sessions > 0 ? (
           <div className="space-y-5">
@@ -343,7 +467,13 @@ export function Statistics({ books }: Props) {
               />
             </div>
 
-            <BarChart data={journalActivity.timeline} height={165} formatValue={(value) => value ? value.toLocaleString('es') : '0'} />
+            {renderTrendChart(
+              journalActivity.timeline,
+              chartPreferences.journal,
+              165,
+              (value) => value ? value.toLocaleString('es') : '0',
+              CH(1),
+            )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink2">
               {journalActivity.bestDay && (
@@ -382,61 +512,158 @@ export function Statistics({ books }: Props) {
       </Card>
 
       {journalActivity.topBooks.length > 0 && (
-        <Card title="Libros con más actividad" subtitle={`Páginas registradas en el diario · ${periodLabel}`}>
-          <HBarChart data={journalActivity.topBooks} formatValue={(value) => `${value.toLocaleString('es')} págs`} maxItems={8} />
+        <Card
+          title="Libros con más actividad"
+          subtitle={`Páginas registradas en el diario · ${periodLabel}`}
+          action={(
+            <RankingTypeControl
+              value={chartPreferences.topBooks}
+              onChange={(value) => setChartPreference('topBooks', value)}
+            />
+          )}
+        >
+          {renderRankingChart(
+            journalActivity.topBooks,
+            chartPreferences.topBooks,
+            (value) => `${value.toLocaleString('es')} págs`,
+            8,
+            'págs en el top',
+          )}
         </Card>
       )}
 
       {filterMode === 'month' ? (
-        <Card title="Libros por día" subtitle={`${MONTHS[month].label} ${year}`}>
-          <BarChart data={stats.daily} height={150} />
+        <Card
+          title="Libros por día"
+          subtitle={`${MONTHS[month].label} ${year}`}
+          action={(
+            <TrendTypeControl
+              value={chartPreferences.books}
+              onChange={(value) => setChartPreference('books', value)}
+            />
+          )}
+        >
+          {renderTrendChart(stats.daily, chartPreferences.books, 150, undefined, CH(4))}
         </Card>
       ) : (
-        <Card title="Libros por mes" subtitle={`Año ${year}`}>
-          <BarChart data={stats.monthly} height={150} />
+        <Card
+          title="Libros por mes"
+          subtitle={`Año ${year}`}
+          action={(
+            <TrendTypeControl
+              value={chartPreferences.books}
+              onChange={(value) => setChartPreference('books', value)}
+            />
+          )}
+        >
+          {renderTrendChart(stats.monthly, chartPreferences.books, 150, undefined, CH(4))}
         </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-        <Card title="Géneros y tags" subtitle={`Distribución · ${periodLabel}`}>
+        <Card
+          title="Géneros y tags"
+          subtitle={`Distribución · ${periodLabel}`}
+          action={(
+            <DistributionTypeControl
+              value={chartPreferences.tags}
+              onChange={(value) => setChartPreference('tags', value)}
+            />
+          )}
+        >
           {stats.tagData.length > 0 ? (
-            <DonutChart data={stats.tagData} centerLabel="tags" centerValue={stats.tagData.length.toString()} />
+            renderDistributionChart(stats.tagData, chartPreferences.tags, 'tags', stats.tagData.length.toString())
           ) : (
             <EmptyChart />
           )}
         </Card>
 
-        <Card title="Extensión de los libros" subtitle={`Páginas por rango · ${periodLabel}`}>
-          <BarChart
-            data={stats.pageRanges.map((p, i) => ({
+        <Card
+          title="Extensión de los libros"
+          subtitle={`Páginas por rango · ${periodLabel}`}
+          action={(
+            <TrendTypeControl
+              value={chartPreferences.extension}
+              onChange={(value) => setChartPreference('extension', value)}
+            />
+          )}
+        >
+          {renderTrendChart(
+            stats.pageRanges.map((p, i) => ({
               ...p,
               color: `linear-gradient(180deg, rgb(var(--chart-${i + 1})), rgb(var(--chart-${i + 1}) / 0.55))`,
-            }))}
-            height={150}
-          />
+            })),
+            chartPreferences.extension,
+            150,
+            undefined,
+            CH(2),
+          )}
         </Card>
 
-        <Card title="Formato" subtitle={`Físico vs ebook · ${periodLabel}`}>
-          {stats.formatData.length > 0 ? <DonutChart data={stats.formatData} size={124} centerLabel="libros" /> : <EmptyChart />}
+        <Card
+          title="Formato"
+          subtitle={`Físico vs ebook · ${periodLabel}`}
+          action={(
+            <DistributionTypeControl
+              value={chartPreferences.format}
+              onChange={(value) => setChartPreference('format', value)}
+            />
+          )}
+        >
+          {stats.formatData.length > 0
+            ? renderDistributionChart(stats.formatData, chartPreferences.format, 'libros', undefined, 124)
+            : <EmptyChart />}
         </Card>
 
-        <Card title="Idioma" subtitle={`Español vs inglés · ${periodLabel}`}>
-          {stats.langData.length > 0 ? <DonutChart data={stats.langData} size={124} centerLabel="libros" /> : <EmptyChart />}
+        <Card
+          title="Idioma"
+          subtitle={`Español vs inglés · ${periodLabel}`}
+          action={(
+            <DistributionTypeControl
+              value={chartPreferences.language}
+              onChange={(value) => setChartPreference('language', value)}
+            />
+          )}
+        >
+          {stats.langData.length > 0
+            ? renderDistributionChart(stats.langData, chartPreferences.language, 'libros', undefined, 124)
+            : <EmptyChart />}
         </Card>
       </div>
 
-      <Card title="Autores más leídos" subtitle={`Top 10 · ${periodLabel}`}>
-        <HBarChart data={stats.authorData} />
+      <Card
+        title="Autores más leídos"
+        subtitle={`Top 10 · ${periodLabel}`}
+        action={(
+          <RankingTypeControl
+            value={chartPreferences.authors}
+            onChange={(value) => setChartPreference('authors', value)}
+          />
+        )}
+      >
+        {renderRankingChart(stats.authorData, chartPreferences.authors, undefined, 10, 'libros en el top')}
       </Card>
 
-      <Card title="Distribución de puntuaciones" subtitle={`De 0 a 5 estrellas · ${periodLabel}`}>
-        <BarChart
-          data={stats.ratingBuckets.map((r, i) => ({
+      <Card
+        title="Distribución de puntuaciones"
+        subtitle={`De 0 a 5 estrellas · ${periodLabel}`}
+        action={(
+          <TrendTypeControl
+            value={chartPreferences.ratings}
+            onChange={(value) => setChartPreference('ratings', value)}
+          />
+        )}
+      >
+        {renderTrendChart(
+          stats.ratingBuckets.map((r, i) => ({
             ...r,
             color: `linear-gradient(180deg, rgb(var(--gold)), rgb(var(--gold) / ${0.45 + (i / 10) * 0.5}))`,
-          }))}
-          height={130}
-        />
+          })),
+          chartPreferences.ratings,
+          130,
+          undefined,
+          'rgb(var(--gold))',
+        )}
       </Card>
     </div>
   );
@@ -457,15 +684,107 @@ function SegBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Card({ title, subtitle, action, children }: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className={cx(cardCls, 'p-4 sm:p-5')}>
-      <header className="mb-4">
-        <h3 className="font-display font-semibold text-ink text-base">{title}</h3>
-        {subtitle && <p className="text-xs text-ink3 mt-0.5">{subtitle}</p>}
+      <header className="mb-4 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display font-semibold text-ink text-base">{title}</h3>
+          {subtitle && <p className="text-xs text-ink3 mt-0.5">{subtitle}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </header>
       {children}
     </section>
+  );
+}
+
+function ChartTypeControl<T extends string>({ value, onChange, options, label }: {
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string; icon: React.ReactNode }[];
+  label: string;
+}) {
+  return (
+    <div className="flex rounded-full bg-sunken p-1 shadow-inner" role="group" aria-label={label}>
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            aria-pressed={active}
+            aria-label={option.label}
+            title={option.label}
+            className={cx(
+              'flex h-7 w-7 items-center justify-center rounded-full transition-all active:scale-90',
+              active ? 'bg-primary text-onprimary shadow-card' : 'text-ink3 hover:bg-surface hover:text-ink',
+            )}
+          >
+            {option.icon}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TrendTypeControl({ value, onChange }: {
+  value: TrendChartType;
+  onChange: (value: TrendChartType) => void;
+}) {
+  return (
+    <ChartTypeControl
+      value={value}
+      onChange={onChange}
+      label="Tipo de gráfico de tendencia"
+      options={[
+        { value: 'bars', label: 'Columnas', icon: <BarChart3 size={13} /> },
+        { value: 'line', label: 'Línea', icon: <LineChart size={13} /> },
+        { value: 'area', label: 'Área', icon: <AreaChart size={13} /> },
+      ]}
+    />
+  );
+}
+
+function RankingTypeControl({ value, onChange }: {
+  value: RankingChartType;
+  onChange: (value: RankingChartType) => void;
+}) {
+  return (
+    <ChartTypeControl
+      value={value}
+      onChange={onChange}
+      label="Tipo de gráfico de clasificación"
+      options={[
+        { value: 'horizontal', label: 'Filas', icon: <Rows3 size={13} /> },
+        { value: 'columns', label: 'Columnas', icon: <BarChart3 size={13} /> },
+        { value: 'donut', label: 'Donut', icon: <PieChart size={13} /> },
+      ]}
+    />
+  );
+}
+
+function DistributionTypeControl({ value, onChange }: {
+  value: DistributionChartType;
+  onChange: (value: DistributionChartType) => void;
+}) {
+  return (
+    <ChartTypeControl
+      value={value}
+      onChange={onChange}
+      label="Tipo de gráfico de distribución"
+      options={[
+        { value: 'donut', label: 'Donut', icon: <PieChart size={13} /> },
+        { value: 'horizontal', label: 'Filas', icon: <Rows3 size={13} /> },
+        { value: 'columns', label: 'Columnas', icon: <BarChart3 size={13} /> },
+      ]}
+    />
   );
 }
 

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ============================================================
-   READ NOOK · Sistema de temas
+   BILIBOOK · Sistema de temas
    Cada tema define los mismos tokens (RGB separados por espacios
    para poder usar opacidad: rgb(var(--accent) / 0.1)).
    Los componentes solo usan tokens: bg-surface, text-ink, etc.
@@ -293,6 +293,326 @@
   --shadow-book: 0 2px 4px rgb(0 0 0 / 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.65);
 }
 
+/* ---------- 5 · OCÉANO ---------- */
+[data-theme='oceano'] {
+  color-scheme: light;
+  --bg: 238 248 255;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --sunken: 224 242 253;
+  --line: 203 232 247;
+  --line-2: 170 213 236;
+  --ink: 18 50 74;
+  --ink-2: 74 111 139;
+  --ink-3: 126 166 190;
+  --primary: 2 132 199;
+  --primary-hover: 3 105 161;
+  --on-primary: 255 255 255;
+  --on-grad: 255 255 255;
+  --accent: 15 118 110;
+  --accent-2: 245 158 11;
+  --gold: 217 164 65;
+  --glow: 125 211 252;
+  --st-pending: 217 119 6;
+  --st-reading: 2 132 199;
+  --st-read: 15 118 110;
+  --danger: 220 38 38;
+  --chart-1: 2 132 199;
+  --chart-2: 15 118 110;
+  --chart-3: 245 158 11;
+  --chart-4: 99 102 241;
+  --chart-5: 236 72 153;
+  --chart-6: 71 85 105;
+  --shelf-1: #8fb8d8;
+  --shelf-2: #6e9cc4;
+  --shelf-3: #527fa8;
+  --font-body: 'Inter';
+  --font-display: 'Inter';
+  --r-card: 19px;
+  --r-btn: 13px;
+  --shadow-card: 0 1px 2px rgb(8 83 126 / 0.06), 0 12px 30px -18px rgb(8 83 126 / 0.28);
+  --shadow-lift: 0 2px 4px rgb(8 83 126 / 0.07), 0 22px 42px -18px rgb(8 83 126 / 0.36);
+  --shadow-pop: 0 24px 60px -12px rgb(5 55 88 / 0.38);
+  --shadow-book: 0 2px 4px rgb(5 55 88 / 0.18), 0 14px 28px -10px rgb(5 55 88 / 0.38);
+}
+[data-theme='oceano'].dark {
+  color-scheme: dark;
+  --bg: 6 25 40;
+  --surface: 11 42 64;
+  --raised: 16 55 83;
+  --sunken: 8 34 54;
+  --line: 30 75 105;
+  --line-2: 48 102 137;
+  --ink: 232 246 255;
+  --ink-2: 174 207 229;
+  --ink-3: 116 158 188;
+  --primary: 56 189 248;
+  --primary-hover: 125 211 252;
+  --on-primary: 4 35 55;
+  --on-grad: 4 35 55;
+  --accent: 45 212 191;
+  --accent-2: 251 191 36;
+  --gold: 231 189 100;
+  --glow: 14 116 180;
+  --st-pending: 251 191 36;
+  --st-reading: 56 189 248;
+  --st-read: 45 212 191;
+  --danger: 248 113 113;
+  --chart-1: 56 189 248;
+  --chart-2: 45 212 191;
+  --chart-3: 251 191 36;
+  --chart-4: 129 140 248;
+  --chart-5: 244 114 182;
+  --chart-6: 148 184 210;
+  --shelf-1: #365f7d;
+  --shelf-2: #2a4c66;
+  --shelf-3: #1e394f;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 30px -18px rgb(0 0 0 / 0.55);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.35), 0 22px 42px -18px rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.75);
+  --shadow-book: 0 2px 4px rgb(0 0 0 / 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.65);
+}
+
+/* ---------- 6 · BOSQUE ---------- */
+[data-theme='bosque'] {
+  color-scheme: light;
+  --bg: 242 247 237;
+  --surface: 252 254 249;
+  --raised: 255 255 255;
+  --sunken: 230 240 218;
+  --line: 212 228 195;
+  --line-2: 186 207 165;
+  --ink: 35 53 31;
+  --ink-2: 95 116 88;
+  --ink-3: 145 164 132;
+  --primary: 63 122 58;
+  --primary-hover: 52 104 48;
+  --on-primary: 255 255 255;
+  --on-grad: 255 255 255;
+  --accent: 47 118 110;
+  --accent-2: 183 121 31;
+  --gold: 190 147 58;
+  --glow: 168 204 138;
+  --st-pending: 183 121 31;
+  --st-reading: 47 118 110;
+  --st-read: 63 122 58;
+  --danger: 190 62 48;
+  --chart-1: 63 122 58;
+  --chart-2: 47 118 110;
+  --chart-3: 201 158 66;
+  --chart-4: 100 143 72;
+  --chart-5: 176 102 63;
+  --chart-6: 105 119 91;
+  --shelf-1: #9b7d55;
+  --shelf-2: #806341;
+  --shelf-3: #644a2f;
+  --font-body: 'Inter';
+  --font-display: 'Fraunces';
+  --r-card: 19px;
+  --r-btn: 13px;
+  --shadow-card: 0 1px 2px rgb(50 78 35 / 0.06), 0 12px 30px -18px rgb(50 78 35 / 0.28);
+  --shadow-lift: 0 2px 4px rgb(50 78 35 / 0.07), 0 22px 42px -18px rgb(50 78 35 / 0.36);
+  --shadow-pop: 0 24px 60px -12px rgb(35 58 24 / 0.38);
+  --shadow-book: 0 2px 4px rgb(35 58 24 / 0.18), 0 14px 28px -10px rgb(35 58 24 / 0.38);
+}
+[data-theme='bosque'].dark {
+  color-scheme: dark;
+  --bg: 14 27 16;
+  --surface: 24 43 27;
+  --raised: 32 56 36;
+  --sunken: 19 35 22;
+  --line: 48 73 52;
+  --line-2: 69 98 74;
+  --ink: 238 247 232;
+  --ink-2: 187 206 176;
+  --ink-3: 128 151 117;
+  --primary: 134 192 108;
+  --primary-hover: 156 209 132;
+  --on-primary: 17 35 13;
+  --on-grad: 17 35 13;
+  --accent: 94 199 181;
+  --accent-2: 226 176 92;
+  --gold: 216 178 96;
+  --glow: 63 122 58;
+  --st-pending: 226 176 92;
+  --st-reading: 94 199 181;
+  --st-read: 134 192 108;
+  --danger: 235 128 108;
+  --chart-1: 134 192 108;
+  --chart-2: 94 199 181;
+  --chart-3: 221 185 105;
+  --chart-4: 168 204 138;
+  --chart-5: 218 155 108;
+  --chart-6: 164 180 149;
+  --shelf-1: #5f4a31;
+  --shelf-2: #4c3a25;
+  --shelf-3: #392b1b;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 30px -18px rgb(0 0 0 / 0.55);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.35), 0 22px 42px -18px rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.75);
+  --shadow-book: 0 2px 4px rgb(0 0 0 / 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.65);
+}
+
+/* ---------- 7 · ATARDECER ---------- */
+[data-theme='atardecer'] {
+  color-scheme: light;
+  --bg: 255 244 232;
+  --surface: 255 251 245;
+  --raised: 255 255 255;
+  --sunken: 252 231 211;
+  --line: 246 215 195;
+  --line-2: 232 188 160;
+  --ink: 74 39 24;
+  --ink-2: 138 99 81;
+  --ink-3: 184 145 123;
+  --primary: 228 87 46;
+  --primary-hover: 203 72 35;
+  --on-primary: 255 255 255;
+  --on-grad: 255 255 255;
+  --accent: 190 57 105;
+  --accent-2: 217 119 6;
+  --gold: 219 156 45;
+  --glow: 252 186 132;
+  --st-pending: 217 119 6;
+  --st-reading: 190 57 105;
+  --st-read: 77 145 89;
+  --danger: 205 52 56;
+  --chart-1: 228 87 46;
+  --chart-2: 217 119 6;
+  --chart-3: 219 156 45;
+  --chart-4: 190 57 105;
+  --chart-5: 126 86 164;
+  --chart-6: 138 99 81;
+  --shelf-1: #c48a64;
+  --shelf-2: #a96f4b;
+  --shelf-3: #875437;
+  --font-body: 'Inter';
+  --font-display: 'Fraunces';
+  --r-card: 21px;
+  --r-btn: 14px;
+  --shadow-card: 0 1px 2px rgb(122 58 28 / 0.06), 0 12px 30px -18px rgb(122 58 28 / 0.3);
+  --shadow-lift: 0 2px 4px rgb(122 58 28 / 0.07), 0 22px 42px -18px rgb(122 58 28 / 0.38);
+  --shadow-pop: 0 24px 60px -12px rgb(91 38 18 / 0.4);
+  --shadow-book: 0 2px 4px rgb(91 38 18 / 0.19), 0 14px 28px -10px rgb(91 38 18 / 0.4);
+}
+[data-theme='atardecer'].dark {
+  color-scheme: dark;
+  --bg: 39 21 31;
+  --surface: 58 30 42;
+  --raised: 73 40 54;
+  --sunken: 48 26 38;
+  --line: 92 52 67;
+  --line-2: 120 72 88;
+  --ink: 255 240 230;
+  --ink-2: 225 190 174;
+  --ink-3: 176 132 122;
+  --primary: 251 146 60;
+  --primary-hover: 253 166 92;
+  --on-primary: 54 24 8;
+  --on-grad: 54 24 8;
+  --accent: 244 114 182;
+  --accent-2: 252 211 77;
+  --gold: 246 186 74;
+  --glow: 190 72 55;
+  --st-pending: 252 211 77;
+  --st-reading: 244 114 182;
+  --st-read: 134 202 145;
+  --danger: 251 113 133;
+  --chart-1: 251 146 60;
+  --chart-2: 252 211 77;
+  --chart-3: 244 114 182;
+  --chart-4: 192 132 252;
+  --chart-5: 134 202 145;
+  --chart-6: 216 169 151;
+  --shelf-1: #75503f;
+  --shelf-2: #5d3d30;
+  --shelf-3: #452b21;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 30px -18px rgb(0 0 0 / 0.55);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.35), 0 22px 42px -18px rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.78);
+  --shadow-book: 0 2px 4px rgb(0 0 0 / 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.65);
+}
+
+/* ---------- 8 · LAVANDA ---------- */
+[data-theme='lavanda'] {
+  color-scheme: light;
+  --bg: 245 241 255;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --sunken: 236 229 252;
+  --line: 222 210 250;
+  --line-2: 198 178 239;
+  --ink: 53 36 94;
+  --ink-2: 116 101 143;
+  --ink-3: 164 150 191;
+  --primary: 124 92 219;
+  --primary-hover: 109 76 204;
+  --on-primary: 255 255 255;
+  --on-grad: 255 255 255;
+  --accent: 219 111 165;
+  --accent-2: 76 167 160;
+  --gold: 226 169 55;
+  --glow: 205 187 253;
+  --st-pending: 217 144 24;
+  --st-reading: 124 92 219;
+  --st-read: 54 154 118;
+  --danger: 225 61 104;
+  --chart-1: 124 92 219;
+  --chart-2: 219 111 165;
+  --chart-3: 245 177 66;
+  --chart-4: 76 167 160;
+  --chart-5: 96 145 224;
+  --chart-6: 132 117 164;
+  --shelf-1: #9a7ed6;
+  --shelf-2: #7f62bd;
+  --shelf-3: #654a9e;
+  --font-body: 'Nunito';
+  --font-display: 'Nunito';
+  --r-card: 23px;
+  --r-btn: 15px;
+  --shadow-card: 0 1px 2px rgb(88 64 160 / 0.06), 0 12px 30px -18px rgb(88 64 160 / 0.28);
+  --shadow-lift: 0 2px 4px rgb(88 64 160 / 0.08), 0 22px 42px -18px rgb(88 64 160 / 0.36);
+  --shadow-pop: 0 24px 60px -12px rgb(62 42 120 / 0.38);
+  --shadow-book: 0 2px 4px rgb(62 42 120 / 0.18), 0 14px 28px -10px rgb(62 42 120 / 0.38);
+}
+[data-theme='lavanda'].dark {
+  color-scheme: dark;
+  --bg: 23 17 39;
+  --surface: 36 27 61;
+  --raised: 47 37 77;
+  --sunken: 29 22 50;
+  --line: 67 53 104;
+  --line-2: 91 74 134;
+  --ink: 245 242 255;
+  --ink-2: 199 188 230;
+  --ink-3: 145 133 184;
+  --primary: 173 148 250;
+  --primary-hover: 190 169 255;
+  --on-primary: 33 20 67;
+  --on-grad: 33 20 67;
+  --accent: 244 143 195;
+  --accent-2: 94 216 201;
+  --gold: 246 196 91;
+  --glow: 124 92 219;
+  --st-pending: 251 198 92;
+  --st-reading: 173 148 250;
+  --st-read: 94 216 201;
+  --danger: 251 113 153;
+  --chart-1: 173 148 250;
+  --chart-2: 244 143 195;
+  --chart-3: 251 198 92;
+  --chart-4: 94 216 201;
+  --chart-5: 117 177 250;
+  --chart-6: 177 165 210;
+  --shelf-1: #57417e;
+  --shelf-2: #443164;
+  --shelf-3: #32234d;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 30px -18px rgb(0 0 0 / 0.55);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.35), 0 22px 42px -18px rgb(0 0 0 / 0.65);
+  --shadow-pop: 0 24px 60px -12px rgb(0 0 0 / 0.75);
+  --shadow-book: 0 2px 4px rgb(0 0 0 / 0.45), 0 14px 28px -10px rgb(0 0 0 / 0.65);
+}
+
 /* ---------- Base ---------- */
 html {
   scroll-behavior: smooth;
@@ -328,14 +648,18 @@ body {
   letter-spacing: -0.01em;
 }
 [data-theme='calido'] .font-display,
-[data-theme='nocturno'] .font-display {
+[data-theme='nocturno'] .font-display,
+[data-theme='bosque'] .font-display,
+[data-theme='atardecer'] .font-display {
   font-optical-sizing: auto;
 }
-[data-theme='minimal'] .font-display {
+[data-theme='minimal'] .font-display,
+[data-theme='oceano'] .font-display {
   letter-spacing: -0.03em;
   font-weight: 700;
 }
-[data-theme='vibrante'] .font-display {
+[data-theme='vibrante'] .font-display,
+[data-theme='lavanda'] .font-display {
   font-weight: 900;
   letter-spacing: -0.015em;
 }
@@ -463,8 +787,14 @@ input[type='range'].book-slider::-moz-range-thumb {
 
 /* ---------- Estantería ---------- */
 .shelf-board {
-  background: linear-gradient(180deg, var(--shelf-1) 0%, var(--shelf-2) 55%, var(--shelf-3) 100%);
-  box-shadow: 0 10px 18px -8px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.25);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.28) 0, transparent 3px),
+    repeating-linear-gradient(90deg, transparent 0 92px, rgb(0 0 0 / 0.045) 92px 94px),
+    linear-gradient(180deg, var(--shelf-1) 0%, var(--shelf-2) 55%, var(--shelf-3) 100%);
+  box-shadow:
+    0 12px 20px -9px rgb(0 0 0 / 0.42),
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -2px 3px rgb(0 0 0 / 0.18);
 }
 
 /* ---------- Portada con relieve (lomo + brillo) ---------- */

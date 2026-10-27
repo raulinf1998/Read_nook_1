@@ -48,7 +48,7 @@ export interface Book {
   journal: JournalEntry[];
 }
 
-/** Clases basadas en tokens del tema (ver index.css): funcionan en los 4 temas y en modo oscuro. */
+/** Clases basadas en tokens del tema (ver index.css): funcionan en todas las paletas y en modo oscuro. */
 export const STATUS_META: Record<
   BookStatus,
   { label: string; badge: string; dot: string; activeBtn: string }
@@ -92,7 +92,15 @@ export const DEFAULT_TAGS = [
 
 /* ---------- Temas de apariencia ---------- */
 
-export type ThemeId = 'calido' | 'minimal' | 'nocturno' | 'vibrante';
+export type ThemeId =
+  | 'calido'
+  | 'minimal'
+  | 'nocturno'
+  | 'vibrante'
+  | 'oceano'
+  | 'bosque'
+  | 'atardecer'
+  | 'lavanda';
 
 export interface ThemeMeta {
   id: ThemeId;
@@ -112,6 +120,26 @@ export interface ThemeMeta {
     radius: number;
     fontDisplay: string;
   };
+}
+
+/** Colores semilla de una paleta personalizada. El resto de tokens se derivan. */
+export interface PaletteColors {
+  bg: string;
+  surface: string;
+  ink: string;
+  primary: string;
+  accent: string;
+  accent2: string;
+}
+
+export interface CustomPalette {
+  id: string;
+  name: string;
+  /** Tema integrado que aporta tipografía, radios y sombras. */
+  baseTheme: ThemeId;
+  light: PaletteColors;
+  dark: PaletteColors;
+  createdAt: number;
 }
 
 export const THEMES: ThemeMeta[] = [
@@ -150,6 +178,42 @@ export const THEMES: ThemeMeta[] = [
     preview: {
       bg: '#F7F5FF', surface: '#FFFFFF', line: '#E2DBFF', ink: '#2E2254', ink2: '#685C8C',
       primary: '#7C3AED', onPrimary: '#FFFFFF', accent2: '#DB2777', radius: 18, fontDisplay: 'Nunito, system-ui, sans-serif',
+    },
+  },
+  {
+    id: 'oceano',
+    label: 'Océano',
+    tagline: 'Azul claro, espuma y turquesa. Fresco como leer frente al mar.',
+    preview: {
+      bg: '#EEF8FF', surface: '#FFFFFF', line: '#CBE8F7', ink: '#12324A', ink2: '#527A94',
+      primary: '#0284C7', onPrimary: '#FFFFFF', accent2: '#0F766E', radius: 17, fontDisplay: 'Inter, system-ui, sans-serif',
+    },
+  },
+  {
+    id: 'bosque',
+    label: 'Bosque',
+    tagline: 'Verdes botánicos y dorados suaves para perderse entre páginas.',
+    preview: {
+      bg: '#F2F7ED', surface: '#FCFEF9', line: '#D4E4C3', ink: '#23351F', ink2: '#5F7458',
+      primary: '#3F7A3A', onPrimary: '#FFFFFF', accent2: '#B7791F', radius: 16, fontDisplay: 'Fraunces, Georgia, serif',
+    },
+  },
+  {
+    id: 'atardecer',
+    label: 'Atardecer',
+    tagline: 'Coral, ámbar y ciruela. Cálido, expresivo y muy lector.',
+    preview: {
+      bg: '#FFF4E8', surface: '#FFFBF5', line: '#F6D7C3', ink: '#4A2718', ink2: '#8A6351',
+      primary: '#E4572E', onPrimary: '#FFFFFF', accent2: '#D97706', radius: 19, fontDisplay: 'Fraunces, Georgia, serif',
+    },
+  },
+  {
+    id: 'lavanda',
+    label: 'Lavanda',
+    tagline: 'Lilas suaves con rosa y menta. Delicado, luminoso y tranquilo.',
+    preview: {
+      bg: '#F5F1FF', surface: '#FFFFFF', line: '#DED2FA', ink: '#35245E', ink2: '#74658F',
+      primary: '#7C5CDB', onPrimary: '#FFFFFF', accent2: '#DB6FA5', radius: 21, fontDisplay: 'Nunito, system-ui, sans-serif',
     },
   },
 ];

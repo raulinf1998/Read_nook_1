@@ -17,9 +17,10 @@ import {
 import { enrichWithCovers, parseStoryGraphCsv } from '../lib';
 import {
   mergeStoryGraphJournal,
-  parseStoryGraphJournalFile,
+  parseStoryGraphJournalExport,
 } from '../storyGraphJournal';
 import type {
+  StoryGraphBookMetadata,
   StoryGraphJournalEntry,
   StoryGraphJournalMergeReport,
 } from '../storyGraphJournal';
@@ -33,7 +34,10 @@ type DropTarget = 'library' | 'journal' | null;
 interface Props {
   existingBooks: Book[];
   onImport: (books: NewBook[]) => Promise<number | void> | number | void;
-  onMergeJournal: (entries: StoryGraphJournalEntry[]) => Promise<StoryGraphJournalMergeReport>;
+  onMergeJournal: (
+    entries: StoryGraphJournalEntry[],
+    bookMetadata?: StoryGraphBookMetadata[]
+  ) => Promise<StoryGraphJournalMergeReport>;
   onClose: () => void;
 }
 
@@ -76,6 +80,7 @@ function formatJournalDate(isoDate: string): string {
 export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }: Props) {
   const [libraryPreview, setLibraryPreview] = useState<NewBook[] | null>(null);
   const [journalEntries, setJournalEntries] = useState<StoryGraphJournalEntry[] | null>(null);
+  const [journalBooks, setJournalBooks] = useState<StoryGraphBookMetadata[]>([]);
   const [libraryFileName, setLibraryFileName] = useState('');
   const [journalFileName, setJournalFileName] = useState('');
   const [libraryError, setLibraryError] = useState('');
@@ -94,12 +99,12 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
     if (!journalEntries) return null;
     try {
       return libraryPreview
-        ? mergeStoryGraphJournal(libraryPreview, journalEntries).report
-        : mergeStoryGraphJournal(existingBooks, journalEntries).report;
+        ? mergeStoryGraphJournal(libraryPreview, journalEntries, journalBooks).report
+        : mergeStoryGraphJournal(existingBooks, journalEntries, journalBooks).report;
     } catch {
       return null;
     }
-  }, [existingBooks, journalEntries, libraryPreview]);
+  }, [existingBooks, journalBooks, journalEntries, libraryPreview]);
 
   const journalSummary = useMemo(() => {
     if (!journalEntries?.length) return null;
@@ -159,11 +164,13 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
       if (looksLikeLibraryCsv(text)) {
         throw new Error('Este CSV parece la biblioteca oficial. Súbelo en el apartado 1; el diario debe ser el JSON/CSV del extractor.');
       }
-      const entries = parseStoryGraphJournalFile(text, file.name);
-      setJournalEntries(entries);
+      const parsedExport = parseStoryGraphJournalExport(text, file.name);
+      setJournalEntries(parsedExport.entries);
+      setJournalBooks(parsedExport.books);
     } catch (error) {
       setJournalError(error instanceof Error ? error.message : 'No se pudo leer el archivo del diario.');
       setJournalEntries(null);
+      setJournalBooks([]);
     }
   };
 
@@ -182,6 +189,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
 
   const clearJournal = () => {
     setJournalEntries(null);
+    setJournalBooks([]);
     setJournalFileName('');
     setJournalError('');
     if (journalFileRef.current) journalFileRef.current.value = '';
@@ -216,7 +224,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
         let report: StoryGraphJournalMergeReport | undefined;
 
         if (journalEntries?.length) {
-          const merged = mergeStoryGraphJournal(booksToImport, journalEntries);
+          const merged = mergeStoryGraphJournal(booksToImport, journalEntries, journalBooks);
           booksToImport = merged.books;
           report = merged.report;
         }
@@ -231,9 +239,9 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
         });
       } else if (journalEntries?.length) {
         if (!existingBooks.length) {
-          throw new Error('Todavía no hay libros en Read Nook. Importa también el CSV oficial de la biblioteca.');
+          throw new Error('Todavía no hay libros en Bilibook. Importa también el CSV oficial de la biblioteca.');
         }
-        const report = await onMergeJournal(journalEntries);
+        const report = await onMergeJournal(journalEntries, journalBooks);
         setSuccess({ booksImported: 0, report });
       }
     } catch (error) {
@@ -246,7 +254,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
   const hasSelection = Boolean(libraryPreview?.length || journalEntries?.length);
   const journalOnlyWithoutMatches = !libraryPreview?.length
     && Boolean(journalEntries?.length)
-    && (!existingBooks.length || journalPreviewReport?.matchedEntries === 0);
+    && (!existingBooks.length
+      || (journalPreviewReport?.matchedEntries === 0 && journalPreviewReport?.updatedCovers === 0));
   const confirmDisabled = importing || (!success && (!hasSelection || journalOnlyWithoutMatches));
   const confirmLabel = success
     ? 'Hecho'
@@ -295,7 +304,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                 <h3 className="font-display text-lg font-semibold text-ink">Importación completada</h3>
                 {success.booksImported > 0 && (
                   <p className="text-sm text-ink2 mt-1">
-                    Se han añadido <strong>{success.booksImported}</strong> libros a Read Nook.
+                    Se han añadido <strong>{success.booksImported}</strong> libros a Bilibook.
                   </p>
                 )}
                 {success.report ? (
@@ -304,7 +313,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                     en <strong>Estadísticas</strong> y las sesiones dentro del diario de cada libro.
                   </p>
                 ) : (
-                  <p className="text-sm text-ink2 mt-1">La biblioteca ya está disponible en Read Nook.</p>
+                  <p className="text-sm text-ink2 mt-1">La biblioteca ya está disponible en Bilibook.</p>
                 )}
               </div>
             </div>
@@ -325,10 +334,10 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                 <p>
                   Puedes importar solo la biblioteca, solo el diario sobre libros que ya tengas, o ambos archivos a
                   la vez. El diario conserva el ID de cada avance de StoryGraph, así que volver a importar el mismo
-                  JSON actualiza las entradas sin duplicarlas.
+                  JSON actualiza las entradas y las portadas sin duplicar sesiones.
                 </p>
                 <p>
-                  Read Nook nunca necesita tu contraseña ni tus cookies: el extractor se ejecuta localmente en tu
+                  Bilibook nunca necesita tu contraseña ni tus cookies: el extractor se ejecuta localmente en tu
                   navegador, dentro de tu sesión.
                 </p>
               </div>
@@ -393,7 +402,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                   </div>
                   {existingBooks.length > 0 && (
                     <div className="rounded-btn border border-gold/30 bg-gold/10 p-3 text-xs leading-relaxed text-ink2">
-                      <strong>Ojo:</strong> este CSV crea libros nuevos. Si esos libros ya están en Read Nook,
+                      <strong>Ojo:</strong> este CSV crea libros nuevos. Si esos libros ya están en Bilibook,
                       aparecerán duplicados. Para actualizar únicamente el diario, quita este CSV y sube solo el
                       archivo del apartado 2.
                     </div>
@@ -427,8 +436,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                   Diario de avances <span className="text-xs font-sans font-medium text-ink3">(JSON recomendado o CSV del extractor)</span>
                 </h3>
                 <p className="text-xs text-ink3 leading-relaxed mt-0.5">
-                  Aporta la fecha de cada sesión, páginas leídas, página acumulada, porcentaje, minutos y notas.
-                  Se vincula por ID de StoryGraph, ISBN o título y autor.
+                  Aporta la fecha de cada sesión, páginas leídas, página acumulada, porcentaje, minutos, notas y la
+                  portada de StoryGraph, que sustituirá a la existente. Se vincula por ID de StoryGraph, ISBN o título y autor.
                 </p>
               </div>
               <NotebookPen size={20} className="text-accent shrink-0 mt-1" />
@@ -451,7 +460,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                       rel="noreferrer"
                       className="font-bold text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
                     >
-                      el extractor de Read Nook
+                      el extractor de Bilibook
                     </a>{' '}
                     para instalarlo. También puedes{' '}
                     <a href={USERSCRIPT_URL} download className="font-bold text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent">
@@ -459,7 +468,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                     </a>
                     .
                   </li>
-                  <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Read Nook · Exportar diario».</li>
+                  <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Bilibook · Exportar diario».</li>
                   <li>Confirma tu usuario, pulsa <strong>Exportar mi diario</strong> y espera sin cerrar la pestaña.</li>
                   <li>
                     Descarga el <strong>JSON</strong> y súbelo justo debajo. El CSV es una alternativa equivalente.
@@ -653,12 +662,19 @@ function ReportSummary({ report, final = false }: { report: StoryGraphJournalMer
         <ReportMetric label="Sin vincular" value={report.unmatchedEntries} />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-ink2">{entriesLabel}.</p>
+      {report.updatedCovers > 0 && (
+        <p className="mt-1 text-xs text-ink2">
+          {final
+            ? 'Portadas sustituidas por las de StoryGraph'
+            : 'Portadas que se sustituirán por las de StoryGraph'}: {report.updatedCovers}.
+        </p>
+      )}
       {report.importedMinutes > 0 && (
         <p className="mt-1 text-xs text-ink2">
           También se han detectado {report.importedMinutes.toLocaleString('es')} minutos de escucha/lectura.
         </p>
       )}
-      {!final && report.addedEntries === 0 && report.updatedEntries === 0 && report.unchangedEntries > 0 && (
+      {!final && report.addedEntries === 0 && report.updatedEntries === 0 && report.updatedCovers === 0 && report.unchangedEntries > 0 && (
         <p className="mt-1 text-xs font-semibold text-stread">
           Este diario ya estaba importado: volver a ejecutarlo no duplicará sesiones.
         </p>
@@ -687,7 +703,7 @@ function ReportSummary({ report, final = false }: { report: StoryGraphJournalMer
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-ink3">
             Suele resolverse importando el CSV oficial o corrigiendo el ISBN/título del libro correspondiente en
-            Read Nook y volviendo a subir el diario.
+            Bilibook y volviendo a subir el diario.
           </p>
         </details>
       )}

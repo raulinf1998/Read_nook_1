@@ -1,16 +1,17 @@
 import {
-  BookOpen, BarChart3, Target, Library, BookMarked, Plus, Upload, Tag, Palette, Moon, Sun,
+  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Plus, Upload, Tag, Palette, Moon, Sun,
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
-import { cx, btnPrimary } from './ui';
+import { BrandMark, cx, btnPrimary } from './ui';
 
-export type TabId = 'reading' | 'stats' | 'challenge' | 'library' | 'shelf';
+export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf';
 
 const TABS: { id: TabId; label: string; short: string; icon: typeof BookOpen }[] = [
   { id: 'reading', label: 'Inicio', short: 'Inicio', icon: BookOpen },
   { id: 'library', label: 'Biblioteca', short: 'Libros', icon: Library },
   { id: 'shelf', label: 'Estantería', short: 'Balda', icon: BookMarked },
+  { id: 'discover', label: 'Descubrir', short: 'Ideas', icon: Compass },
   { id: 'challenge', label: 'Reto anual', short: 'Reto', icon: Target },
   { id: 'stats', label: 'Estadísticas', short: 'Datos', icon: BarChart3 },
 ];
@@ -27,24 +28,23 @@ interface SidebarProps {
   onAppearance: () => void;
   theme: ThemeId;
   onSetTheme: (t: ThemeId) => void;
+  activePaletteName?: string | null;
   dark: boolean;
   onToggleDark: () => void;
 }
 
 export function Sidebar({
   active, onChange, counts, onAdd, onImport, onTags, onAppearance,
-  theme, onSetTheme, dark, onToggleDark,
+  theme, onSetTheme, activePaletteName, dark, onToggleDark,
 }: SidebarProps) {
   return (
-    <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 w-[272px] z-40 border-r border-line bg-surface/80 backdrop-blur-xl px-4 py-5">
+    <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 w-[272px] z-40 overflow-y-auto border-r border-line bg-surface/80 backdrop-blur-xl px-4 py-5">
       {/* Marca */}
       <div className="flex items-center gap-3 px-2">
-        <div className="w-11 h-11 rounded-btn bg-grad-primary text-ongrad flex items-center justify-center shadow-lift shrink-0">
-          <BookOpen size={21} strokeWidth={2.2} />
-        </div>
+        <BrandMark className="h-11 w-11 shadow-lift" />
         <div>
-          <p className="font-display text-xl font-semibold text-ink leading-none">Read Nook</p>
-          <p className="text-[11px] text-ink3 mt-1 font-medium">Tu rincón de lectura</p>
+          <p className="font-display text-xl font-semibold text-ink leading-none">Bilibook</p>
+          <p className="text-[11px] text-ink3 mt-1 font-medium">Tu biblioteca, a tu manera</p>
         </div>
       </div>
 
@@ -115,8 +115,8 @@ export function Sidebar({
             <button
               onClick={onAppearance}
               className="p-1.5 rounded-lg text-ink3 hover:text-ink hover:bg-sunken transition-colors"
-              aria-label="Abrir selector de temas"
-              title="Ver los 4 temas"
+              aria-label="Abrir selector de paletas"
+              title="Ver y crear paletas"
             >
               <Palette size={15} />
             </button>
@@ -144,8 +144,8 @@ export function Sidebar({
             </button>
           ))}
         </div>
-        <p className="px-2 mt-2 text-[11px] font-semibold text-ink2">
-          {THEMES.find((t) => t.id === theme)?.label}
+        <p className="px-2 mt-2 text-[11px] font-semibold text-ink2 truncate">
+          {activePaletteName || THEMES.find((t) => t.id === theme)?.label}
           {theme === 'nocturno' ? ' · oscuro' : dark ? ' · oscuro' : ' · claro'}
         </p>
       </div>
@@ -191,7 +191,7 @@ export function MobileNav({ active, onChange }: MobileNavProps) {
               aria-label={tab.label}
               className={cx(
                 'flex items-center justify-center gap-1.5 rounded-full transition-all duration-300 active:scale-95',
-                isActive ? 'bg-primary text-onprimary px-3.5 py-2 shadow-card' : 'text-ink3 hover:text-ink px-2.5 py-2'
+                isActive ? 'bg-primary text-onprimary px-3 py-2 shadow-card' : 'text-ink3 hover:text-ink px-2 py-2'
               )}
             >
               <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
