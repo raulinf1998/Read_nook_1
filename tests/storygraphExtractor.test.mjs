@@ -51,8 +51,8 @@ describe('extractor local de StoryGraph', () => {
   });
 
   test('publica la versión corregida y no ordena los ID como números', () => {
-    assert.match(source, /\/\/ @version\s+1\.0\.2/);
-    assert.match(source, /const EXTRACTOR_VERSION = '1\.0\.2'/);
+    assert.match(source, /\/\/ @version\s+1\.0\.3/);
+    assert.match(source, /const EXTRACTOR_VERSION = '1\.0\.3'/);
     assert.doesNotMatch(source, /journal_entries\\\/\(\\d\+\)\\\/edit/);
     assert.doesNotMatch(source, /Number\(a\.id\)\s*-\s*Number\(b\.id\)/);
   });

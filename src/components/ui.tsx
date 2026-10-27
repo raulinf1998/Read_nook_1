@@ -7,6 +7,19 @@ import { STATUS_META } from '../types';
 
 export const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ');
 
+/** Marca de Bilibook: el mismo SVG que usa el favicon de la pestaña. */
+export function BrandMark({ className = 'w-10 h-10' }: { className?: string }) {
+  return (
+    <img
+      src={`${import.meta.env.BASE_URL}favicon.svg`}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={cx('shrink-0 select-none rounded-[26%] shadow-card', className)}
+    />
+  );
+}
+
 export const inputCls =
   'w-full px-3.5 py-2.5 rounded-btn border border-line bg-raised text-ink placeholder:text-ink3 ' +
   'focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all text-sm';

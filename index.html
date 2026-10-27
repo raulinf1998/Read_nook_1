@@ -3,15 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#A9DDF7" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Read Nook — tu rincón de lectura: sigue tus libros, tu progreso, tus retos y tus estadísticas." />
+    <meta name="description" content="Bilibook — tu biblioteca y rincón de lectura: sigue tus libros, tu progreso, tus retos y tus estadísticas." />
     <script>
       // Aplica tema/modo guardados antes del primer pintado (evita parpadeos)
       try {
-        var t = localStorage.getItem('readnook-theme') || 'calido';
-        var d = localStorage.getItem('readnook-dark') === '1' || t === 'nocturno';
-        document.documentElement.dataset.theme = t;
-        if (d) document.documentElement.classList.add('dark');
+        var root = document.documentElement;
+        var t = localStorage.getItem('bilibook-theme') || localStorage.getItem('readnook-theme') || 'calido';
+        var storedDark = localStorage.getItem('bilibook-dark');
+        if (storedDark === null) storedDark = localStorage.getItem('readnook-dark');
+        var d = storedDark === '1' || t === 'nocturno';
+        root.dataset.theme = t;
+        if (d) root.classList.add('dark');
+        var customVars = JSON.parse(localStorage.getItem('bilibook-custom-css-vars') || 'null');
+        if (customVars) {
+          Object.keys(customVars).forEach(function (key) {
+            if (key.indexOf('--') === 0) root.style.setProperty(key, customVars[key]);
+          });
+        }
       } catch (e) {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -20,7 +32,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&family=Nunito:wght@600;700;800;900&display=swap"
       rel="stylesheet"
     />
-    <title>Read Nook — Tu rincón de lectura</title>
+    <title>Bilibook — Tu biblioteca y rincón de lectura</title>
   </head>
   <body>
     <div id="root"></div>

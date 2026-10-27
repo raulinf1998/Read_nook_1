@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Pencil, Trash2, LayoutGrid, Rows3, SearchX, TriangleAlert } from 'lucide-react';
+import { BookOpen, FileText, Search, Pencil, Star, Trash2, LayoutGrid, Rows3, SearchX, TriangleAlert } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
 import { STATUS_META, FORMAT_META } from '../types';
 import { StarRating } from './StarRating';
@@ -46,8 +46,44 @@ export function Library({ books, onDelete, onEdit }: Props) {
     return sorted;
   }, [books, statusFilter, search, sort]);
 
+  const libraryStats = useMemo(() => {
+    const rated = books.filter((book) => book.rating > 0);
+    return {
+      totalPages: books.reduce((sum, book) => sum + (book.pages || 0), 0),
+      reading: books.filter((book) => book.status === 'reading').length,
+      pending: books.filter((book) => book.status === 'pending').length,
+      rated: rated.length,
+      averageRating: rated.length
+        ? (rated.reduce((sum, book) => sum + book.rating, 0) / rated.length).toFixed(1)
+        : '—',
+    };
+  }, [books]);
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-5">
+      {/* Resumen rápido de la colección */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 stagger">
+        <LibraryStat
+          icon={<BookOpen size={16} />}
+          value={books.length.toLocaleString('es')}
+          label="Libros"
+          detail={`${libraryStats.reading} en curso`}
+        />
+        <LibraryStat
+          icon={<FileText size={16} />}
+          value={libraryStats.totalPages.toLocaleString('es')}
+          label="Páginas"
+          detail={`${libraryStats.pending} pendientes`}
+        />
+        <LibraryStat
+          icon={<Star size={16} />}
+          value={libraryStats.averageRating}
+          label="Nota media"
+          detail={`${libraryStats.rated} valorados`}
+        />
+      </div>
+
+      <section className={cx(cardCls, 'space-y-3 p-3 sm:p-4')}>
       {/* Buscador + orden + vista */}
       <div className="flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[200px]">
@@ -94,6 +130,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
           {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'}
         </span>
       </div>
+      </section>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -111,7 +148,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
           )}
         </EmptyState>
       ) : view === 'grid' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 stagger">
+        <div className="grid grid-cols-3 gap-2.5 min-[420px]:gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6 stagger">
           {filtered.map((book) => (
             <GridCard key={book.id} book={book} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
           ))}
@@ -177,34 +214,68 @@ function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
 
 function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => void; onAskDelete: () => void }) {
   const pct = book.pages > 0 ? Math.min((book.currentPage / book.pages) * 100, 100) : 0;
+  const status = STATUS_META[book.status];
   return (
-    <article className={cx(cardCls, 'group overflow-hidden hover:shadow-lift hover:-translate-y-1 transition-all duration-300')}>
-      <button onClick={onEdit} className="block w-full relative bg-sunken" aria-label={`Abrir ${book.title}`}>
+    <article className={cx(
+      cardCls,
+      'group relative flex h-full flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-accent/40 hover:shadow-lift',
+    )}>
+      <button
+        onClick={onEdit}
+        className="relative block aspect-[2/3] w-full shrink-0 overflow-hidden bg-sunken text-left"
+        aria-label={`Abrir ${book.title}`}
+      >
         <BookCover
           title={book.title}
           author={book.author}
           coverUrl={book.coverUrl}
           detail="lg"
-          className="w-full aspect-[2/3] group-hover:scale-[1.03] transition-transform duration-500"
+          className="h-full w-full transition-transform duration-500 group-hover:scale-[1.035]"
         />
-        <StatusBadge status={book.status} className="absolute top-2 left-2 backdrop-blur-md bg-surface/80 shadow-card" />
+        <span className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/30 to-transparent opacity-70" aria-hidden />
+        <span
+          className={cx('absolute right-2 top-2 h-2.5 w-2.5 rounded-full shadow ring-2 ring-white/80', status.dot)}
+          title={status.label}
+          aria-hidden
+        />
         {book.status === 'reading' && book.pages > 0 && (
-          <span className="absolute bottom-2 right-2 text-[10px] font-extrabold bg-surface/85 backdrop-blur-md text-ink px-1.5 py-0.5 rounded-md shadow-card tabular-nums">
+          <span className="absolute bottom-2 right-2 rounded-md bg-surface/90 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-ink shadow-card backdrop-blur-md">
             {pct.toFixed(0)}%
           </span>
         )}
       </button>
-      <div className="p-3">
-        <h3 className="font-display font-semibold text-ink text-sm leading-snug line-clamp-2 min-h-[2.5em]">{book.title}</h3>
-        <p className="text-xs text-ink3 truncate mt-1">{book.author || 'Autor desconocido'}</p>
-        <div className="flex items-center justify-between mt-2 gap-1">
-          {book.rating > 0 ? (
-            <StarRating value={book.rating} size={12} />
-          ) : (
-            <span className="text-[11px] text-ink3">{book.pages ? `${book.pages} págs` : ' '}</span>
-          )}
-          <span className="flex gap-0.5 -mr-1.5">
-            <button onClick={onEdit} className={cx(iconBtn, 'p-1.5')} aria-label={`Editar ${book.title}`}>
+
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3.5">
+        <h3 className="h-[2.65em] font-display text-[12px] font-semibold leading-snug text-ink line-clamp-2 sm:text-sm">
+          {book.title}
+        </h3>
+        <p className="mt-1 h-4 truncate text-[11px] text-ink3 sm:text-xs">{book.author || 'Autor desconocido'}</p>
+
+        <div className="mt-1.5 flex h-4 items-center gap-1.5 text-[10px] font-semibold text-ink3">
+          <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full', status.dot)} aria-hidden />
+          <span className="truncate">{status.label}</span>
+          <span className="hidden min-[420px]:inline" aria-hidden>·</span>
+          <span className="hidden min-[420px]:inline truncate">{FORMAT_META[book.format].label}</span>
+          {book.pages > 0 && <span className="ml-auto shrink-0 tabular-nums">{book.pages} págs</span>}
+        </div>
+
+        <div className="mt-auto flex min-h-8 items-end justify-between gap-1 pt-2">
+          <span className="min-w-0">
+            {book.rating > 0 ? (
+              <>
+                <span className="text-[11px] font-extrabold tabular-nums text-gold sm:hidden">
+                  ★ {book.rating.toFixed(1)}
+                </span>
+                <span className="hidden sm:block">
+                  <StarRating value={book.rating} size={11} />
+                </span>
+              </>
+            ) : (
+              <span className="text-[10px] font-semibold text-ink3">Sin nota</span>
+            )}
+          </span>
+          <span className="flex shrink-0 gap-0.5 -mr-1.5">
+            <button onClick={onEdit} className={cx(iconBtn, 'hidden p-1.5 min-[420px]:inline-flex')} aria-label={`Editar ${book.title}`}>
               <Pencil size={14} />
             </button>
             <button onClick={onAskDelete} className={cx(iconBtn, 'p-1.5 hover:!text-danger hover:!bg-danger/10')} aria-label={`Eliminar ${book.title}`}>
@@ -214,6 +285,29 @@ function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => voi
         </div>
       </div>
     </article>
+  );
+}
+
+function LibraryStat({ icon, value, label, detail }: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  detail: string;
+}) {
+  return (
+    <div className={cx(cardCls, 'flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4')}>
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-btn bg-accent/10 text-accent sm:h-9 sm:w-9">
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate font-display text-lg font-semibold leading-none tabular-nums text-ink sm:text-xl">
+          {value}
+        </span>
+        <span className="mt-1 block truncate text-[9px] font-extrabold uppercase tracking-wide text-ink3">
+          {label} · {detail}
+        </span>
+      </span>
+    </div>
   );
 }
 
@@ -270,7 +364,7 @@ function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: B
         {books.map((book) => (
           <div key={book.id} className="p-3 flex items-center gap-3">
             <button onClick={() => onEdit(book)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-              <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-10 h-[60px] shadow-book" />
+              <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[54px] shadow-book" />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink truncate">{book.title}</span>
                 <span className="block text-xs text-ink3 truncate">{book.author || 'Autor desconocido'}</span>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Book, ThemeId } from './types';
+import type { Book, CustomPalette, ThemeId } from './types';
+import { THEMES } from './types';
 import { apiClient } from './api';
+import { sanitizeCustomPalettes } from './themePalettes';
 import { mergeStoryGraphJournal } from './storyGraphJournal';
 import type { StoryGraphBookMetadata, StoryGraphJournalEntry } from './storyGraphJournal';
 
@@ -101,21 +103,48 @@ export function useBooks() {
   return { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal };
 }
 
-const VALID_THEMES: ThemeId[] = ['calido', 'minimal', 'nocturno', 'vibrante'];
+const VALID_THEMES: ThemeId[] = THEMES.map((theme) => theme.id);
+const THEME_STORAGE_KEYS = ['bilibook-theme', 'readnook-theme'];
+const DARK_STORAGE_KEYS = ['bilibook-dark', 'readnook-dark'];
+const CUSTOM_PALETTES_STORAGE_KEY = 'bilibook-custom-palettes';
+const CUSTOM_PALETTE_ID_STORAGE_KEY = 'bilibook-custom-palette-id';
+
+function readStoredValue(keys: string[]): string | null {
+  try {
+    for (const key of keys) {
+      const value = localStorage.getItem(key);
+      if (value !== null) return value;
+    }
+  } catch {
+    /* almacenamiento no disponible */
+  }
+  return null;
+}
 
 function storedTheme(): ThemeId {
+  const t = readStoredValue(THEME_STORAGE_KEYS) as ThemeId | null;
+  return t && VALID_THEMES.includes(t) ? t : 'calido';
+}
+
+function storedDark(): boolean {
+  return readStoredValue(DARK_STORAGE_KEYS) === '1';
+}
+
+function storedCustomPalettes(): CustomPalette[] {
   try {
-    const t = localStorage.getItem('readnook-theme') as ThemeId | null;
-    return t && VALID_THEMES.includes(t) ? t : 'calido';
+    const raw = localStorage.getItem(CUSTOM_PALETTES_STORAGE_KEY);
+    return sanitizeCustomPalettes(raw ? JSON.parse(raw) : []);
   } catch {
-    return 'calido';
+    return [];
   }
 }
-function storedDark(): boolean {
+
+function storedCustomPaletteId(palettes = storedCustomPalettes()): string | null {
   try {
-    return localStorage.getItem('readnook-dark') === '1';
+    const id = localStorage.getItem(CUSTOM_PALETTE_ID_STORAGE_KEY);
+    return id && palettes.some((palette) => palette.id === id) ? id : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -124,6 +153,8 @@ export function useServerSettings() {
   // Se inicializa desde localStorage para aplicar el tema sin esperar al servidor
   const [dark, setDarkState] = useState<boolean>(storedDark);
   const [theme, setThemeState] = useState<ThemeId>(storedTheme);
+  const [customPalettes, setCustomPalettesState] = useState<CustomPalette[]>(storedCustomPalettes);
+  const [customPaletteId, setCustomPaletteIdState] = useState<string | null>(() => storedCustomPaletteId());
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -131,16 +162,36 @@ export function useServerSettings() {
       setGoalState(s.goal);
       setDarkState(s.dark);
       if (s.theme && VALID_THEMES.includes(s.theme)) setThemeState(s.theme);
+      if (Array.isArray(s.customPalettes)) {
+        const palettes = sanitizeCustomPalettes(s.customPalettes);
+        setCustomPalettesState(palettes);
+        setCustomPaletteIdState(
+          s.customPaletteId && palettes.some((palette) => palette.id === s.customPaletteId)
+            ? s.customPaletteId
+            : null,
+        );
+      }
     }).catch(() => {}).finally(() => setLoaded(true));
   }, []);
 
-  // Reflejo en localStorage: el script de index.html lo usa antes del primer pintado
+  // Reflejo en localStorage: el script de index.html lo usa antes del primer pintado.
+  // Se mantiene también la clave antigua para no perder preferencias al renombrar la app.
   useEffect(() => {
     try {
+      localStorage.setItem('bilibook-theme', theme);
       localStorage.setItem('readnook-theme', theme);
+      localStorage.setItem('bilibook-dark', dark ? '1' : '0');
       localStorage.setItem('readnook-dark', dark ? '1' : '0');
     } catch { /* ignore */ }
   }, [theme, dark]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_PALETTES_STORAGE_KEY, JSON.stringify(customPalettes));
+      if (customPaletteId) localStorage.setItem(CUSTOM_PALETTE_ID_STORAGE_KEY, customPaletteId);
+      else localStorage.removeItem(CUSTOM_PALETTE_ID_STORAGE_KEY);
+    } catch { /* ignore */ }
+  }, [customPalettes, customPaletteId]);
 
   const setGoal = useCallback((g: number) => {
     setGoalState(g);
@@ -154,12 +205,59 @@ export function useServerSettings() {
 
   const setTheme = useCallback((t: ThemeId) => {
     setThemeState(t);
+    setCustomPaletteIdState(null);
     // El modo oscuro es una preferencia aparte: «Nocturno» lo fuerza mientras
     // está activo (ver App), pero al cambiar de tema vuelve el modo previo.
-    apiClient.setSettings({ theme: t }).catch(() => {});
+    apiClient.setSettings({ theme: t, customPaletteId: null }).catch(() => {});
   }, []);
 
-  return { goal, setGoal, dark, setDark, theme, setTheme, loaded };
+  const applyCustomPalette = useCallback((palette: CustomPalette) => {
+    setThemeState(palette.baseTheme);
+    setCustomPaletteIdState(palette.id);
+    apiClient.setSettings({ theme: palette.baseTheme, customPaletteId: palette.id }).catch(() => {});
+  }, []);
+
+  const saveCustomPalette = useCallback((palette: CustomPalette) => {
+    const clean = sanitizeCustomPalettes([palette])[0];
+    if (!clean) return;
+    const next = customPalettes.some((item) => item.id === clean.id)
+      ? customPalettes.map((item) => (item.id === clean.id ? clean : item))
+      : [...customPalettes, clean];
+    setCustomPalettesState(next);
+    setThemeState(clean.baseTheme);
+    setCustomPaletteIdState(clean.id);
+    apiClient.setSettings({
+      customPalettes: next,
+      customPaletteId: clean.id,
+      theme: clean.baseTheme,
+    }).catch(() => {});
+  }, [customPalettes]);
+
+  const deleteCustomPalette = useCallback((id: string) => {
+    const next = customPalettes.filter((palette) => palette.id !== id);
+    const nextActiveId = customPaletteId === id ? null : customPaletteId;
+    setCustomPalettesState(next);
+    setCustomPaletteIdState(nextActiveId);
+    apiClient.setSettings({ customPalettes: next, customPaletteId: nextActiveId }).catch(() => {});
+  }, [customPalettes, customPaletteId]);
+
+  const activeCustomPalette = customPalettes.find((palette) => palette.id === customPaletteId) || null;
+
+  return {
+    goal,
+    setGoal,
+    dark,
+    setDark,
+    theme,
+    setTheme,
+    customPalettes,
+    customPaletteId,
+    activeCustomPalette,
+    applyCustomPalette,
+    saveCustomPalette,
+    deleteCustomPalette,
+    loaded,
+  };
 }
 
 export function useServerTags() {

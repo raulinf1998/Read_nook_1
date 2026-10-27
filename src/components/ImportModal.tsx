@@ -239,7 +239,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
         });
       } else if (journalEntries?.length) {
         if (!existingBooks.length) {
-          throw new Error('Todavía no hay libros en Read Nook. Importa también el CSV oficial de la biblioteca.');
+          throw new Error('Todavía no hay libros en Bilibook. Importa también el CSV oficial de la biblioteca.');
         }
         const report = await onMergeJournal(journalEntries, journalBooks);
         setSuccess({ booksImported: 0, report });
@@ -304,7 +304,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                 <h3 className="font-display text-lg font-semibold text-ink">Importación completada</h3>
                 {success.booksImported > 0 && (
                   <p className="text-sm text-ink2 mt-1">
-                    Se han añadido <strong>{success.booksImported}</strong> libros a Read Nook.
+                    Se han añadido <strong>{success.booksImported}</strong> libros a Bilibook.
                   </p>
                 )}
                 {success.report ? (
@@ -313,7 +313,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                     en <strong>Estadísticas</strong> y las sesiones dentro del diario de cada libro.
                   </p>
                 ) : (
-                  <p className="text-sm text-ink2 mt-1">La biblioteca ya está disponible en Read Nook.</p>
+                  <p className="text-sm text-ink2 mt-1">La biblioteca ya está disponible en Bilibook.</p>
                 )}
               </div>
             </div>
@@ -337,7 +337,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                   JSON actualiza las entradas y las portadas sin duplicar sesiones.
                 </p>
                 <p>
-                  Read Nook nunca necesita tu contraseña ni tus cookies: el extractor se ejecuta localmente en tu
+                  Bilibook nunca necesita tu contraseña ni tus cookies: el extractor se ejecuta localmente en tu
                   navegador, dentro de tu sesión.
                 </p>
               </div>
@@ -402,7 +402,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                   </div>
                   {existingBooks.length > 0 && (
                     <div className="rounded-btn border border-gold/30 bg-gold/10 p-3 text-xs leading-relaxed text-ink2">
-                      <strong>Ojo:</strong> este CSV crea libros nuevos. Si esos libros ya están en Read Nook,
+                      <strong>Ojo:</strong> este CSV crea libros nuevos. Si esos libros ya están en Bilibook,
                       aparecerán duplicados. Para actualizar únicamente el diario, quita este CSV y sube solo el
                       archivo del apartado 2.
                     </div>
@@ -460,7 +460,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                       rel="noreferrer"
                       className="font-bold text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent"
                     >
-                      el extractor de Read Nook
+                      el extractor de Bilibook
                     </a>{' '}
                     para instalarlo. También puedes{' '}
                     <a href={USERSCRIPT_URL} download className="font-bold text-accent underline decoration-accent/40 underline-offset-2 hover:decoration-accent">
@@ -468,7 +468,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                     </a>
                     .
                   </li>
-                  <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Read Nook · Exportar diario».</li>
+                  <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Bilibook · Exportar diario».</li>
                   <li>Confirma tu usuario, pulsa <strong>Exportar mi diario</strong> y espera sin cerrar la pestaña.</li>
                   <li>
                     Descarga el <strong>JSON</strong> y súbelo justo debajo. El CSV es una alternativa equivalente.
@@ -703,7 +703,7 @@ function ReportSummary({ report, final = false }: { report: StoryGraphJournalMer
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-ink3">
             Suele resolverse importando el CSV oficial o corrigiendo el ISBN/título del libro correspondiente en
-            Read Nook y volviendo a subir el diario.
+            Bilibook y volviendo a subir el diario.
           </p>
         </details>
       )}

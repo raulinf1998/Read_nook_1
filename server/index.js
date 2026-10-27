@@ -10,24 +10,79 @@ const STATIC_DIR = join(__dirname, 'dist');
 
 mkdirSync(DATA_DIR, { recursive: true });
 
-const VALID_THEMES = ['calido', 'minimal', 'nocturno', 'vibrante'];
+const VALID_THEMES = ['calido', 'minimal', 'nocturno', 'vibrante', 'oceano', 'bosque', 'atardecer', 'lavanda'];
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+const PALETTE_ID_RE = /^[a-zA-Z0-9_-]{1,90}$/;
+
+function sanitizePaletteColors(value, fallback) {
+  const record = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const color = (key) => (
+    typeof record[key] === 'string' && HEX_COLOR_RE.test(record[key].trim())
+      ? record[key].trim().toLowerCase()
+      : fallback[key]
+  );
+  return {
+    bg: color('bg'),
+    surface: color('surface'),
+    ink: color('ink'),
+    primary: color('primary'),
+    accent: color('accent'),
+    accent2: color('accent2'),
+  };
+}
+
+function sanitizeCustomPalettes(value) {
+  if (!Array.isArray(value)) return [];
+  const fallbackLight = {
+    bg: '#eef8ff', surface: '#ffffff', ink: '#12324a',
+    primary: '#0284c7', accent: '#0f766e', accent2: '#f59e0b',
+  };
+  const fallbackDark = {
+    bg: '#061928', surface: '#0b2a42', ink: '#e8f6ff',
+    primary: '#38bdf8', accent: '#2dd4bf', accent2: '#fbbf24',
+  };
+  const seen = new Set();
+  const palettes = [];
+
+  for (const raw of value.slice(0, 40)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    if (!PALETTE_ID_RE.test(id) || seen.has(id)) continue;
+    palettes.push({
+      id,
+      name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 40) : 'Mi paleta',
+      baseTheme: VALID_THEMES.includes(raw.baseTheme) ? raw.baseTheme : 'calido',
+      light: sanitizePaletteColors(raw.light, fallbackLight),
+      dark: sanitizePaletteColors(raw.dark, fallbackDark),
+      createdAt: typeof raw.createdAt === 'number' && Number.isFinite(raw.createdAt) ? raw.createdAt : 0,
+    });
+    seen.add(id);
+    if (palettes.length >= 24) break;
+  }
+  return palettes;
+}
 
 function loadDB() {
   if (existsSync(DATA_FILE)) {
     try {
       const parsed = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+      const customPalettes = sanitizeCustomPalettes(parsed.customPalettes);
       return {
         books: Array.isArray(parsed.books) ? parsed.books : [],
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         goal: typeof parsed.goal === 'number' ? parsed.goal : 24,
         dark: Boolean(parsed.dark),
         theme: VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'calido',
+        customPalettes,
+        customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
+          ? parsed.customPaletteId
+          : null,
       };
     } catch {
       // corrupted, start fresh
     }
   }
-  return { books: [], tags: [], goal: 24, dark: false, theme: 'calido' };
+  return { books: [], tags: [], goal: 24, dark: false, theme: 'calido', customPalettes: [], customPaletteId: null };
 }
 
 function saveDB(db) {
@@ -93,7 +148,13 @@ app.delete('/api/tags/:tag', (req, res) => {
 });
 
 // --- Settings ---
-const publicSettings = () => ({ goal: db.goal, dark: db.dark, theme: db.theme });
+const publicSettings = () => ({
+  goal: db.goal,
+  dark: db.dark,
+  theme: db.theme,
+  customPalettes: db.customPalettes,
+  customPaletteId: db.customPaletteId,
+});
 
 app.get('/api/settings', (req, res) => {
   res.json(publicSettings());
@@ -102,6 +163,20 @@ app.put('/api/settings', (req, res) => {
   if (typeof req.body.goal === 'number') db.goal = req.body.goal;
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;
   if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
+  if (Array.isArray(req.body.customPalettes)) {
+    db.customPalettes = sanitizeCustomPalettes(req.body.customPalettes);
+    if (!db.customPalettes.some((palette) => palette.id === db.customPaletteId)) {
+      db.customPaletteId = null;
+    }
+  }
+  if (req.body.customPaletteId === null) {
+    db.customPaletteId = null;
+  } else if (
+    typeof req.body.customPaletteId === 'string'
+    && db.customPalettes.some((palette) => palette.id === req.body.customPaletteId)
+  ) {
+    db.customPaletteId = req.body.customPaletteId;
+  }
   saveDB(db);
   res.json(publicSettings());
 });
@@ -121,5 +196,5 @@ if (existsSync(join(STATIC_DIR, 'index.html'))) {
 }
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Read Nook server running on port ${PORT}`);
+  console.log(`Bilibook server running on port ${PORT}`);
 });

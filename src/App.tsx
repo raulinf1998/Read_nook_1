@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Moon, Sun, Upload, Tag, BookOpen, Palette } from 'lucide-react';
+import { Plus, Moon, Sun, Upload, Tag, Palette } from 'lucide-react';
 import type { Book } from './types';
 import { DEFAULT_TAGS } from './types';
 import { useBooks, useServerSettings, useServerTags } from './hooks';
@@ -14,13 +14,16 @@ import { Statistics } from './components/Statistics';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
+import { Discover } from './components/Discover';
 import { buildDemoBooks } from './demo';
-import { iconBtn } from './components/ui';
+import { applyCustomPaletteToRoot } from './themePalettes';
+import { BrandMark, iconBtn } from './components/ui';
 
 const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   reading: { title: 'Inicio', subtitle: 'Tu lectura de hoy, de un vistazo' },
   library: { title: 'Biblioteca', subtitle: 'Todos tus libros: busca, filtra y ordena' },
   shelf: { title: 'Estantería', subtitle: 'Tu colección, balda a balda' },
+  discover: { title: 'Descubrir', subtitle: 'Ideas para tu próxima lectura, según tus gustos' },
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
@@ -36,7 +39,19 @@ function greeting() {
 export default function App() {
   const { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal } = useBooks();
   const { tags, addTag, removeTag } = useServerTags();
-  const { goal, setGoal, dark, setDark, theme, setTheme } = useServerSettings();
+  const {
+    goal,
+    setGoal,
+    dark,
+    setDark,
+    theme,
+    setTheme,
+    customPalettes,
+    activeCustomPalette,
+    applyCustomPalette,
+    saveCustomPalette,
+    deleteCustomPalette,
+  } = useServerSettings();
 
   const [tab, setTab] = useState<TabId>('reading');
   const [showForm, setShowForm] = useState(false);
@@ -45,21 +60,26 @@ export default function App() {
   const [showTagManager, setShowTagManager] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
 
-  // Aplicar tema + modo, con transición suave solo durante el cambio
+  // Aplicar tema + modo + paleta personalizada, con transición suave al cambiar
   const firstRun = useRef(true);
   useEffect(() => {
     const root = document.documentElement;
+    const effectiveDark = dark || theme === 'nocturno';
+    let timeout: number | undefined;
+
     if (!firstRun.current) {
       root.classList.add('theme-anim');
-      const t = setTimeout(() => root.classList.remove('theme-anim'), 420);
-      root.dataset.theme = theme;
-      root.classList.toggle('dark', dark || theme === 'nocturno');
-      return () => clearTimeout(t);
+      timeout = window.setTimeout(() => root.classList.remove('theme-anim'), 420);
     }
     firstRun.current = false;
     root.dataset.theme = theme;
-    root.classList.toggle('dark', dark || theme === 'nocturno');
-  }, [dark, theme]);
+    root.classList.toggle('dark', effectiveDark);
+    applyCustomPaletteToRoot(activeCustomPalette, effectiveDark);
+
+    return () => {
+      if (timeout) window.clearTimeout(timeout);
+    };
+  }, [activeCustomPalette, dark, theme]);
 
   const handleEdit = (book: Book) => {
     setEditingBook(book);
@@ -85,6 +105,7 @@ export default function App() {
     reading: books.filter((b) => b.status === 'reading').length,
     library: books.length,
     shelf: books.length,
+    discover: books.filter((b) => b.status === 'pending').length,
   };
 
   if (loading) return <LoadingShell />;
@@ -103,6 +124,7 @@ export default function App() {
         onAppearance={() => setShowThemes(true)}
         theme={theme}
         onSetTheme={setTheme}
+        activePaletteName={activeCustomPalette?.name || null}
         dark={isDark}
         onToggleDark={() => setDark(!isDark)}
       />
@@ -112,11 +134,9 @@ export default function App() {
         <header className="lg:hidden sticky top-0 z-30 bg-surface/85 backdrop-blur-xl border-b border-line">
           <div className="px-4 py-3 flex items-center justify-between max-w-5xl mx-auto w-full">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-btn bg-grad-primary text-ongrad flex items-center justify-center shadow-card shrink-0">
-                <BookOpen size={17} strokeWidth={2.2} />
-              </div>
+              <BrandMark className="h-9 w-9" />
               <div className="min-w-0">
-                <h1 className="font-display font-semibold text-base leading-none text-ink truncate">Read Nook</h1>
+                <h1 className="font-display font-semibold text-base leading-none text-ink truncate">Bilibook</h1>
                 <p className="text-[11px] text-ink3 mt-0.5 truncate">{TAB_TITLES[tab].title}</p>
               </div>
             </div>
@@ -185,11 +205,12 @@ export default function App() {
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} />}
             {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} />}
             {tab === 'shelf' && <Bookshelf books={books} onEdit={handleEdit} />}
+            {tab === 'discover' && <Discover books={books} onEdit={handleEdit} onAdd={handleAdd} />}
           </div>
         </main>
 
         <footer className="hidden lg:block pb-8 text-center text-[11px] text-ink3">
-          Read Nook · hecho para leer un poco más cada día
+          Bilibook · hecho para leer un poco más cada día
         </footer>
       </div>
 
@@ -222,6 +243,11 @@ export default function App() {
           dark={isDark}
           onSetTheme={setTheme}
           onSetDark={setDark}
+          customPalettes={customPalettes}
+          activeCustomPalette={activeCustomPalette}
+          onApplyCustomPalette={applyCustomPalette}
+          onSaveCustomPalette={saveCustomPalette}
+          onDeleteCustomPalette={deleteCustomPalette}
           onClose={() => setShowThemes(false)}
         />
       )}
@@ -265,7 +291,7 @@ function LoadingShell() {
               <div key={i} className="h-44 rounded-card bg-surface border border-line" />
             ))}
           </div>
-          <p className="text-center text-sm font-medium text-ink3 mt-10">Abriendo tu rincón de lectura…</p>
+          <p className="text-center text-sm font-medium text-ink3 mt-10">Abriendo Bilibook…</p>
         </div>
       </div>
     </div>
