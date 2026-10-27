@@ -13,7 +13,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import type { Book } from '../types';
-import { FORMAT_META, LANGUAGE_META } from '../types';
+import { formatLabel, languageLabel, seriesLabel } from '../types';
 import { StarRating } from './StarRating';
 import {
   BookCover,
@@ -244,8 +244,9 @@ export function Discover({ books, onEdit, onAdd }: Props) {
 
             <div className="mt-3 flex flex-wrap justify-center sm:justify-start gap-1.5 text-[11px] font-bold">
               {heroBook.pages > 0 && <HeroChip>{heroBook.pages} págs</HeroChip>}
-              <HeroChip>{FORMAT_META[heroBook.format].label}</HeroChip>
-              <HeroChip>{LANGUAGE_META[heroBook.language].label}</HeroChip>
+              <HeroChip>{formatLabel(heroBook.format)}</HeroChip>
+              <HeroChip>{languageLabel(heroBook.language)}</HeroChip>
+              {seriesLabel(heroBook) && <HeroChip>{seriesLabel(heroBook)}</HeroChip>}
               {(heroBook.tags || []).slice(0, 3).map((tag) => <HeroChip key={tag}>{tag}</HeroChip>)}
             </div>
 

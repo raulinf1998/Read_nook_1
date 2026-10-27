@@ -1,6 +1,7 @@
-export type BookStatus = 'pending' | 'reading' | 'read';
-export type BookFormat = 'hardcover' | 'paperback' | 'ebook';
-export type BookLanguage = 'es' | 'en';
+export type BookStatus = 'pending' | 'reading' | 'read' | 'dnf';
+export type BookFormat = 'hardcover' | 'paperback' | 'ebook' | 'audiobook' | 'other';
+/** Código ISO breve preferido (`es`, `en`, `fr`…); admite nombres no reconocidos. */
+export type BookLanguage = string;
 
 export type JournalEntryKind =
   | 'progress'
@@ -30,6 +31,8 @@ export interface Book {
   title: string;
   author: string;
   coverUrl: string;
+  /** URL externa de origen cuando `coverUrl` apunta a la copia guardada en el servidor. */
+  coverSourceUrl?: string;
   status: BookStatus;
   rating: number; // 0-5, supports halves (e.g. 3.5)
   notes: string;
@@ -42,6 +45,10 @@ export interface Book {
   description: string;
   tags: string[];
   isbn: string;
+  /** Nombre de la saga/serie, si el libro forma parte de una. */
+  series?: string;
+  /** Posición libre dentro de la saga: `1`, `0.5`, `1-6`, etc. */
+  seriesPosition?: string;
   storyGraphId?: string;
   startedAt: number | null;
   finishedAt: number | null;
@@ -71,18 +78,89 @@ export const STATUS_META: Record<
     dot: 'bg-stread',
     activeBtn: 'bg-stread/15 text-stread ring-1 ring-stread/30',
   },
+  dnf: {
+    label: 'Abandonado',
+    badge: 'bg-danger/10 text-danger',
+    dot: 'bg-danger',
+    activeBtn: 'bg-danger/15 text-danger ring-1 ring-danger/30',
+  },
 };
 
 export const FORMAT_META: Record<BookFormat, { label: string }> = {
   hardcover: { label: 'Tapa dura' },
   paperback: { label: 'Tapa blanda' },
   ebook: { label: 'Ebook' },
+  audiobook: { label: 'Audiolibro' },
+  other: { label: 'Otro' },
 };
 
-export const LANGUAGE_META: Record<BookLanguage, { label: string }> = {
+export function formatLabel(format: BookFormat | string | undefined): string {
+  return FORMAT_META[format as BookFormat]?.label || 'Otro';
+}
+
+export const LANGUAGE_META: Record<string, { label: string }> = {
   es: { label: 'Español' },
   en: { label: 'Inglés' },
+  ca: { label: 'Catalán' },
+  eu: { label: 'Euskera' },
+  gl: { label: 'Gallego' },
+  pt: { label: 'Portugués' },
+  fr: { label: 'Francés' },
+  de: { label: 'Alemán' },
+  it: { label: 'Italiano' },
+  nl: { label: 'Neerlandés' },
+  sv: { label: 'Sueco' },
+  no: { label: 'Noruego' },
+  da: { label: 'Danés' },
+  fi: { label: 'Finés' },
+  pl: { label: 'Polaco' },
+  cs: { label: 'Checo' },
+  hu: { label: 'Húngaro' },
+  ro: { label: 'Rumano' },
+  el: { label: 'Griego' },
+  ru: { label: 'Ruso' },
+  uk: { label: 'Ucraniano' },
+  tr: { label: 'Turco' },
+  ar: { label: 'Árabe' },
+  he: { label: 'Hebreo' },
+  hi: { label: 'Hindi' },
+  ja: { label: 'Japonés' },
+  zh: { label: 'Chino' },
+  ko: { label: 'Coreano' },
+  id: { label: 'Indonesio' },
+  vi: { label: 'Vietnamita' },
+  th: { label: 'Tailandés' },
+  other: { label: 'Otro' },
 };
+
+export function languageLabel(language: BookLanguage | undefined): string {
+  const code = (language || '').trim().toLowerCase();
+  if (!code) return 'Sin idioma';
+  if (LANGUAGE_META[code]) return LANGUAGE_META[code].label;
+  try {
+    const label = new Intl.DisplayNames(['es'], { type: 'language' }).of(code);
+    if (label && label.toLowerCase() !== code) return label.charAt(0).toUpperCase() + label.slice(1);
+  } catch {
+    /* El código puede ser un nombre libre guardado por una importación antigua. */
+  }
+  return code.charAt(0).toUpperCase() + code.slice(1);
+}
+
+export function languageOptions(current?: BookLanguage): { code: string; label: string }[] {
+  const options = Object.entries(LANGUAGE_META).map(([code, meta]) => ({ code, label: meta.label }));
+  const code = (current || '').trim().toLowerCase();
+  if (code && !options.some((option) => option.code === code)) {
+    options.push({ code, label: languageLabel(code) });
+  }
+  return options;
+}
+
+export function seriesLabel(book: Pick<Book, 'series' | 'seriesPosition'>): string {
+  const series = (book.series || '').trim();
+  if (!series) return '';
+  const position = (book.seriesPosition || '').trim().replace(/^#\s*/, '');
+  return position ? `${series} · #${position}` : series;
+}
 
 export const DEFAULT_TAGS = [
   'Fantasía', 'Ciencia ficción', 'Thriller', 'Romance', 'Histórica',

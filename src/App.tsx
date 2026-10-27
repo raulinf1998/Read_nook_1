@@ -223,6 +223,7 @@ export default function App() {
           onClose={() => { setShowForm(false); setEditingBook(null); }}
           editingBook={editingBook}
           availableTags={tags.length ? tags : DEFAULT_TAGS}
+          availableSeries={[...new Set(books.map((book) => book.series?.trim()).filter((name): name is string => Boolean(name)))].sort((a, b) => a.localeCompare(b, 'es'))}
           onUpdateBook={updateBook}
         />
       )}

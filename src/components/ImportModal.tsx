@@ -21,19 +21,30 @@ import {
 } from '../storyGraphJournal';
 import type {
   StoryGraphBookMetadata,
+  StoryGraphJournalCoverStats,
   StoryGraphJournalEntry,
   StoryGraphJournalMergeReport,
+  StoryGraphMetadataStats,
 } from '../storyGraphJournal';
 import type { Book, BookLanguage } from '../types';
-import { LANGUAGE_META } from '../types';
+import { languageOptions } from '../types';
 import { Modal, ProgressBar, btnGhost, btnPrimary, btnSoft, cx, selectCls } from './ui';
 
 type NewBook = Omit<Book, 'id' | 'createdAt'>;
 type DropTarget = 'library' | 'journal' | null;
 
+interface ImportResultInfo {
+  imported: number;
+  localizedCovers?: number;
+  coverLocalizationFailures?: number;
+}
+
 interface Props {
   existingBooks: Book[];
-  onImport: (books: NewBook[]) => Promise<number | void> | number | void;
+  onImport: (
+    books: NewBook[],
+    onCoverProgress?: (done: number, total: number) => void,
+  ) => Promise<number | ImportResultInfo | void> | number | ImportResultInfo | void;
   onMergeJournal: (
     entries: StoryGraphJournalEntry[],
     bookMetadata?: StoryGraphBookMetadata[]
@@ -43,6 +54,8 @@ interface Props {
 
 interface SuccessInfo {
   booksImported: number;
+  localizedCovers?: number;
+  coverLocalizationFailures?: number;
   report?: StoryGraphJournalMergeReport;
 }
 
@@ -81,6 +94,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
   const [libraryPreview, setLibraryPreview] = useState<NewBook[] | null>(null);
   const [journalEntries, setJournalEntries] = useState<StoryGraphJournalEntry[] | null>(null);
   const [journalBooks, setJournalBooks] = useState<StoryGraphBookMetadata[]>([]);
+  const [journalCoverStats, setJournalCoverStats] = useState<StoryGraphJournalCoverStats | null>(null);
+  const [journalMetadataStats, setJournalMetadataStats] = useState<StoryGraphMetadataStats | null>(null);
   const [libraryFileName, setLibraryFileName] = useState('');
   const [journalFileName, setJournalFileName] = useState('');
   const [libraryError, setLibraryError] = useState('');
@@ -167,10 +182,14 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
       const parsedExport = parseStoryGraphJournalExport(text, file.name);
       setJournalEntries(parsedExport.entries);
       setJournalBooks(parsedExport.books);
+      setJournalCoverStats(parsedExport.coverStats);
+      setJournalMetadataStats(parsedExport.metadataStats);
     } catch (error) {
       setJournalError(error instanceof Error ? error.message : 'No se pudo leer el archivo del diario.');
       setJournalEntries(null);
       setJournalBooks([]);
+      setJournalCoverStats(null);
+      setJournalMetadataStats(null);
     }
   };
 
@@ -190,6 +209,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
   const clearJournal = () => {
     setJournalEntries(null);
     setJournalBooks([]);
+    setJournalCoverStats(null);
+    setJournalMetadataStats(null);
     setJournalFileName('');
     setJournalError('');
     if (journalFileRef.current) journalFileRef.current.value = '';
@@ -232,9 +253,14 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
         booksToImport = await enrichWithCovers(booksToImport, (done, total) => {
           setProgress({ done, total });
         });
-        const imported = await onImport(booksToImport);
+        const imported = await onImport(booksToImport, (done, total) => {
+          setProgress({ done, total });
+        });
+        const importInfo = imported && typeof imported === 'object' ? imported : null;
         setSuccess({
-          booksImported: typeof imported === 'number' ? imported : booksToImport.length,
+          booksImported: typeof imported === 'number' ? imported : importInfo?.imported ?? booksToImport.length,
+          localizedCovers: importInfo?.localizedCovers ?? 0,
+          coverLocalizationFailures: importInfo?.coverLocalizationFailures ?? 0,
           report,
         });
       } else if (journalEntries?.length) {
@@ -255,7 +281,9 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
   const journalOnlyWithoutMatches = !libraryPreview?.length
     && Boolean(journalEntries?.length)
     && (!existingBooks.length
-      || (journalPreviewReport?.matchedEntries === 0 && journalPreviewReport?.updatedCovers === 0));
+      || (journalPreviewReport?.matchedEntries === 0
+        && journalPreviewReport?.updatedCovers === 0
+        && journalPreviewReport?.updatedMetadataBooks === 0));
   const confirmDisabled = importing || (!success && (!hasSelection || journalOnlyWithoutMatches));
   const confirmLabel = success
     ? 'Hecho'
@@ -305,6 +333,16 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                 {success.booksImported > 0 && (
                   <p className="text-sm text-ink2 mt-1">
                     Se han añadido <strong>{success.booksImported}</strong> libros a Bilibook.
+                  </p>
+                )}
+                {(success.localizedCovers ?? 0) > 0 && (
+                  <p className="text-sm text-ink2 mt-1">
+                    Copias de portada guardadas en el servidor: <strong>{success.localizedCovers}</strong>.
+                  </p>
+                )}
+                {(success.coverLocalizationFailures ?? 0) > 0 && (
+                  <p className="text-sm text-ink2 mt-1">
+                    No se pudieron copiar {success.coverLocalizationFailures} portadas externas; se conservó su URL como respaldo.
                   </p>
                 )}
                 {success.report ? (
@@ -370,8 +408,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                 onChange={(event) => handleLangChange(event.target.value as BookLanguage)}
                 className={cx(selectCls, 'ml-auto py-1.5 text-xs')}
               >
-                {(Object.keys(LANGUAGE_META) as BookLanguage[]).map((language) => (
-                  <option key={language} value={language}>{LANGUAGE_META[language].label}</option>
+                {languageOptions(defaultLang).map((option) => (
+                  <option key={option.code} value={option.code}>{option.label}</option>
                 ))}
               </select>
             </div>
@@ -469,7 +507,11 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                     .
                   </li>
                   <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Bilibook · Exportar diario».</li>
-                  <li>Confirma tu usuario, pulsa <strong>Exportar mi diario</strong> y espera sin cerrar la pestaña.</li>
+                  <li>
+                    Confirma tu usuario, pulsa <strong>Exportar mi diario</strong> y espera sin cerrar la pestaña.
+                    El registro debe anunciar la versión <strong>1.0.5</strong> o posterior y mostrar cuántos
+                    libros traen portada, idioma, formato, fecha, estado, puntuación y saga.
+                  </li>
                   <li>
                     Descarga el <strong>JSON</strong> y súbelo justo debajo. El CSV es una alternativa equivalente.
                     Después puedes desactivar el userscript para que no aparezca en cada visita a StoryGraph.
@@ -516,6 +558,8 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                       </p>
                     </div>
                   </div>
+
+                  <JournalCoverStatsSummary stats={journalCoverStats} metadataStats={journalMetadataStats} />
 
                   {!libraryPreview && existingBooks.length === 0 ? (
                     <div className="rounded-btn border border-gold/30 bg-gold/10 p-3 text-xs leading-relaxed text-ink2">
@@ -648,6 +692,48 @@ function FieldError({ message }: { message: string }) {
   );
 }
 
+function JournalCoverStatsSummary({
+  stats,
+  metadataStats,
+}: {
+  stats: StoryGraphJournalCoverStats | null;
+  metadataStats: StoryGraphMetadataStats | null;
+}) {
+  if (!stats) return null;
+
+  const hasAnyCover = stats.booksWithCover > 0 || stats.entriesWithCover > 0;
+  const booksLabel = stats.booksInFile > 0
+    ? `${stats.booksWithCover.toLocaleString('es')} de ${stats.booksInFile.toLocaleString('es')} libros`
+    : null;
+  const entriesLabel = `${stats.entriesWithCover.toLocaleString('es')} de ${stats.totalEntries.toLocaleString('es')} entradas`;
+  const scopeLabel = [booksLabel, entriesLabel].filter(Boolean).join(' · ');
+  const versionLabel = stats.extractorVersion ? ` Extractor v${stats.extractorVersion}.` : '';
+
+  if (!hasAnyCover) {
+    return (
+      <div className="flex items-start gap-2 rounded-btn border border-gold/30 bg-gold/10 p-3 text-xs leading-relaxed text-ink2" role="status">
+        <AlertCircle size={17} className="mt-0.5 shrink-0 text-gold" />
+        <p>
+          <strong>Este archivo no incluye ninguna URL de portada</strong> ({scopeLabel}).{versionLabel} Puedes
+          importar el diario, pero no se sustituirá ninguna portada. Vuelve a generarlo con el extractor
+          <strong> 1.0.5 o posterior</strong> y comprueba que su registro indica libros con portada.
+        </p>
+      </div>
+    );
+  }
+
+  const metadataSummary = metadataStats
+    ? `Datos incluidos en ${metadataStats.booksInFile.toLocaleString('es')} libros: idioma ${metadataStats.booksWithLanguage.toLocaleString('es')} · formato ${metadataStats.booksWithFormat.toLocaleString('es')} · páginas ${metadataStats.booksWithPages.toLocaleString('es')} · fecha ${metadataStats.booksWithPublishDate.toLocaleString('es')} · estado ${metadataStats.booksWithStatus.toLocaleString('es')} · puntuación ${metadataStats.booksWithRating.toLocaleString('es')} · saga ${metadataStats.booksWithSeries.toLocaleString('es')}.`
+    : null;
+
+  return (
+    <div className="space-y-1.5 rounded-btn bg-surface/70 px-3 py-2 text-xs leading-relaxed text-ink2">
+      <p>Portadas incluidas en el archivo: <strong>{scopeLabel}</strong>.{versionLabel}</p>
+      {metadataSummary && <p>{metadataSummary}</p>}
+    </div>
+  );
+}
+
 function ReportSummary({ report, final = false }: { report: StoryGraphJournalMergeReport; final?: boolean }) {
   const entriesLabel = final
     ? `${report.addedEntries} nuevas · ${report.updatedEntries} actualizadas · ${report.unchangedEntries} sin cambios`
@@ -662,11 +748,38 @@ function ReportSummary({ report, final = false }: { report: StoryGraphJournalMer
         <ReportMetric label="Sin vincular" value={report.unmatchedEntries} />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-ink2">{entriesLabel}.</p>
-      {report.updatedCovers > 0 && (
-        <p className="mt-1 text-xs text-ink2">
-          {final
-            ? 'Portadas sustituidas por las de StoryGraph'
-            : 'Portadas que se sustituirán por las de StoryGraph'}: {report.updatedCovers}.
+      {report.providedCovers > 0 ? (
+        <p className="mt-1 text-xs leading-relaxed text-ink2">
+          Portadas de StoryGraph para libros vinculados: {report.providedCovers}.{' '}
+          {final ? 'Sustituidas' : 'Se sustituirán'}: {report.updatedCovers}. Ya coincidían:{' '}
+          {report.unchangedCovers}.
+        </p>
+      ) : (
+        <p className="mt-1 text-xs font-semibold leading-relaxed text-ink2">
+          No se cambiará ninguna portada: el archivo no trae URLs de portada para libros vinculados.
+        </p>
+      )}
+      {report.unmatchedCovers > 0 && (
+        <p className="mt-1 text-xs leading-relaxed text-ink2">
+          Además, {report.unmatchedCovers} {report.unmatchedCovers === 1 ? 'portada no se aplicará' : 'portadas no se aplicarán'}
+          {' '}porque su libro no se pudo vincular.
+        </p>
+      )}
+      {report.providedMetadataBooks > 0 && (
+        <p className="mt-1 text-xs leading-relaxed text-ink2">
+          Datos completados desde StoryGraph en {report.updatedMetadataBooks} de{' '}
+          {report.providedMetadataBooks} libros con metadatos: idioma, formato, páginas, fecha, estado,
+          puntuación y saga cuando el archivo los incluye.
+        </p>
+      )}
+      {final && report.localizedCovers > 0 && (
+        <p className="mt-1 text-xs leading-relaxed text-ink2">
+          Copias de portada guardadas en el servidor: {report.localizedCovers}.
+        </p>
+      )}
+      {final && report.coverLocalizationFailures > 0 && (
+        <p className="mt-1 text-xs leading-relaxed text-ink2">
+          No se pudieron copiar {report.coverLocalizationFailures} portadas externas; se conservó su URL como respaldo.
         </p>
       )}
       {report.importedMinutes > 0 && (

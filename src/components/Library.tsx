@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BookOpen, FileText, Search, Pencil, Star, Trash2, LayoutGrid, Rows3, SearchX, TriangleAlert } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
-import { STATUS_META, FORMAT_META } from '../types';
+import { STATUS_META, formatLabel, seriesLabel } from '../types';
 import { StarRating } from './StarRating';
 import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filterChipCls, iconBtn, selectCls } from './ui';
 import { useLocalStorage } from '../hooks';
@@ -22,7 +22,7 @@ type ViewMode = 'grid' | 'list';
 export function Library({ books, onDelete, onEdit }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
-  const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating'>('recent');
+  const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating' | 'series'>('recent');
   const [view, setView] = useLocalStorage<ViewMode>('readnook-library-view', 'grid');
   const [confirming, setConfirming] = useState<Book | null>(null);
 
@@ -35,6 +35,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
         (b) =>
           b.title.toLowerCase().includes(q) ||
           b.author.toLowerCase().includes(q) ||
+          (b.series || '').toLowerCase().includes(q) ||
           b.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
@@ -42,6 +43,15 @@ export function Library({ books, onDelete, onEdit }: Props) {
     if (sort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title, 'es'));
     else if (sort === 'author') sorted.sort((a, b) => a.author.localeCompare(b.author, 'es'));
     else if (sort === 'rating') sorted.sort((a, b) => b.rating - a.rating);
+    else if (sort === 'series') {
+      const position = (book: Book) => {
+        const value = Number.parseFloat((book.seriesPosition || '').replace(',', '.'));
+        return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+      };
+      sorted.sort((a, b) => (a.series || '￿').localeCompare(b.series || '￿', 'es')
+        || position(a) - position(b)
+        || a.title.localeCompare(b.title, 'es'));
+    }
     else sorted.sort((a, b) => b.createdAt - a.createdAt);
     return sorted;
   }, [books, statusFilter, search, sort]);
@@ -91,7 +101,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por título, autor o género…"
+            placeholder="Buscar por título, autor, saga o género…"
             className="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface border border-line text-ink placeholder:text-ink3 focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all text-sm shadow-card"
           />
         </div>
@@ -105,6 +115,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
           <option value="title">Título</option>
           <option value="author">Autor</option>
           <option value="rating">Puntuación</option>
+          <option value="series">Saga y número</option>
         </select>
         <div className="flex rounded-full border border-line bg-surface shadow-card p-1" role="group" aria-label="Modo de vista">
           <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} icon={<LayoutGrid size={16} />} label="Rejilla" />
@@ -114,7 +125,7 @@ export function Library({ books, onDelete, onEdit }: Props) {
 
       {/* Filtro por estado */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-        {(['all', 'reading', 'pending', 'read'] as const).map((s) => {
+        {(['all', 'reading', 'pending', 'read', 'dnf'] as const).map((s) => {
           const label = s === 'all' ? 'Todos' : STATUS_META[s].label;
           const count = s === 'all' ? books.length : books.filter((b) => b.status === s).length;
           const active = statusFilter === s;
@@ -250,12 +261,15 @@ function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => voi
           {book.title}
         </h3>
         <p className="mt-1 h-4 truncate text-[11px] text-ink3 sm:text-xs">{book.author || 'Autor desconocido'}</p>
+        <p className="mt-0.5 h-4 truncate text-[9px] font-extrabold uppercase tracking-wide text-accent sm:text-[10px]" title={seriesLabel(book) || undefined}>
+          {seriesLabel(book) || '\u00a0'}
+        </p>
 
         <div className="mt-1.5 flex h-4 items-center gap-1.5 text-[10px] font-semibold text-ink3">
           <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full', status.dot)} aria-hidden />
           <span className="truncate">{status.label}</span>
           <span className="hidden min-[420px]:inline" aria-hidden>·</span>
-          <span className="hidden min-[420px]:inline truncate">{FORMAT_META[book.format].label}</span>
+          <span className="hidden min-[420px]:inline truncate">{formatLabel(book.format)}</span>
           {book.pages > 0 && <span className="ml-auto shrink-0 tabular-nums">{book.pages} págs</span>}
         </div>
 
@@ -334,11 +348,12 @@ function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: B
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-ink truncate max-w-[320px]">{book.title}</span>
                     <span className="block text-xs text-ink3 truncate max-w-[320px]">{book.author || 'Autor desconocido'}</span>
+                    {seriesLabel(book) && <span className="block text-[10px] font-extrabold uppercase tracking-wide text-accent truncate max-w-[320px]">{seriesLabel(book)}</span>}
                   </span>
                 </button>
               </td>
               <td className="px-4 py-2.5"><StatusBadge status={book.status} /></td>
-              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{FORMAT_META[book.format].label}</td>
+              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{formatLabel(book.format)}</td>
               <td className="px-4 py-2.5 text-xs text-ink2 tabular-nums">{book.pages || '—'}</td>
               <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{book.finishedAt ? formatDate(book.finishedAt) : '—'}</td>
               <td className="px-4 py-2.5">
@@ -368,6 +383,7 @@ function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: B
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink truncate">{book.title}</span>
                 <span className="block text-xs text-ink3 truncate">{book.author || 'Autor desconocido'}</span>
+                {seriesLabel(book) && <span className="block text-[10px] font-extrabold uppercase tracking-wide text-accent truncate">{seriesLabel(book)}</span>}
                 <span className="flex items-center gap-2 mt-1.5">
                   <StatusBadge status={book.status} />
                   {book.rating > 0 && <StarRating value={book.rating} size={11} />}
