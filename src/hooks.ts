@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Book, ThemeId } from './types';
 import { apiClient } from './api';
 import { mergeStoryGraphJournal } from './storyGraphJournal';
-import type { StoryGraphJournalEntry } from './storyGraphJournal';
+import type { StoryGraphBookMetadata, StoryGraphJournalEntry } from './storyGraphJournal';
 
 export function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(() => {
@@ -74,8 +74,11 @@ export function useBooks() {
     return result.imported;
   }, []);
 
-  const mergeExistingStoryGraphJournal = useCallback(async (entries: StoryGraphJournalEntry[]) => {
-    const result = mergeStoryGraphJournal(books, entries);
+  const mergeExistingStoryGraphJournal = useCallback(async (
+    entries: StoryGraphJournalEntry[],
+    bookMetadata: StoryGraphBookMetadata[] = []
+  ) => {
+    const result = mergeStoryGraphJournal(books, entries, bookMetadata);
     setBooks(result.books);
 
     // El servidor actualiza libro a libro; limitamos la concurrencia para no

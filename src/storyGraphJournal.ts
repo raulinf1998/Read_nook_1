@@ -10,6 +10,7 @@ export interface StoryGraphJournalEntry {
   isbn: string;
   title: string;
   author: string;
+  coverUrl: string;
   date: string; // YYYY-MM-DD
   pagesRead: number | null;
   pagesTotal: number | null;
@@ -19,6 +20,19 @@ export interface StoryGraphJournalEntry {
   minutesTotal: number | null;
   kind: JournalEntryKind;
   note: string;
+}
+
+export interface StoryGraphBookMetadata {
+  storyGraphBookId: string;
+  isbn: string;
+  title: string;
+  author: string;
+  coverUrl: string;
+}
+
+export interface StoryGraphJournalExport {
+  entries: StoryGraphJournalEntry[];
+  books: StoryGraphBookMetadata[];
 }
 
 export interface StoryGraphUnmatchedBook {
@@ -39,6 +53,7 @@ export interface StoryGraphJournalMergeReport {
   unchangedEntries: number;
   importedPages: number;
   importedMinutes: number;
+  updatedCovers: number;
   unmatchedBooks: StoryGraphUnmatchedBook[];
 }
 
@@ -51,6 +66,7 @@ export interface JournalMergeBookLike {
   title: string;
   author: string;
   isbn: string;
+  coverUrl?: string;
   storyGraphId?: string;
   pages: number;
   currentPage: number;
@@ -189,6 +205,8 @@ function normalizeEntry(raw: UnknownRecord, bookMeta = new Map<string, UnknownRe
 
   const title = pickString(merged, ['title', 'bookTitle', 'book_title']);
   const author = pickString(merged, ['author', 'authors', 'authorName', 'author_name']);
+  const coverKeys = ['coverUrl', 'cover_url', 'cover', 'imageUrl', 'image_url', 'image'];
+  const coverUrl = pickString(raw, coverKeys) || (meta ? pickString(meta, coverKeys) : '');
   const isbn = pickString(merged, ['isbn', 'ISBN', 'isbnUid', 'isbn_uid', 'uid']).replace(/[-\s]/g, '');
   let sourceEntryId = pickString(raw, [
     'sourceEntryId', 'source_entry_id', 'entryId', 'entry_id', 'journalEntryId', 'journal_entry_id', 'id',
@@ -200,6 +218,7 @@ function normalizeEntry(raw: UnknownRecord, bookMeta = new Map<string, UnknownRe
     isbn,
     title,
     author,
+    coverUrl,
     date,
     pagesRead: pickNumber(raw, ['pagesRead', 'pages_read', 'pagesReadInSession', 'pages_read_in_last_sitting', 'pagesInSession', 'pages']),
     pagesTotal: pickNumber(raw, ['pagesTotal', 'pages_total', 'pagesReadTotal', 'pages_read_total', 'cumulativePages', 'cumulative_pages', 'currentPage', 'current_page']),
@@ -240,6 +259,7 @@ function deduplicateEntries(entries: StoryGraphJournalEntry[]): StoryGraphJourna
       isbn: entry.isbn || previous.isbn,
       title: entry.title || previous.title,
       author: entry.author || previous.author,
+      coverUrl: entry.coverUrl || previous.coverUrl,
       pagesRead: entry.pagesRead ?? previous.pagesRead,
       pagesTotal: entry.pagesTotal ?? previous.pagesTotal,
       bookPages: entry.bookPages ?? previous.bookPages,
@@ -252,7 +272,21 @@ function deduplicateEntries(entries: StoryGraphJournalEntry[]): StoryGraphJourna
   return Array.from(byId.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function parseJsonExport(text: string): StoryGraphJournalEntry[] {
+function normalizeBookMetadata(raw: UnknownRecord): StoryGraphBookMetadata | null {
+  const coverUrl = pickString(raw, ['coverUrl', 'cover_url', 'cover', 'imageUrl', 'image_url', 'image']);
+  if (!coverUrl) return null;
+
+  const metadata: StoryGraphBookMetadata = {
+    storyGraphBookId: pickString(raw, ['storyGraphBookId', 'storygraphBookId', 'storygraph_book_id', 'storyGraphId', 'bookId', 'book_id', 'id']),
+    isbn: pickString(raw, ['isbn', 'ISBN', 'isbnUid', 'isbn_uid', 'uid']).replace(/[-\s]/g, ''),
+    title: pickString(raw, ['title', 'bookTitle', 'book_title']),
+    author: pickString(raw, ['author', 'authors', 'authorName', 'author_name']),
+    coverUrl,
+  };
+  return metadata.storyGraphBookId || metadata.isbn || metadata.title ? metadata : null;
+}
+
+function parseJsonExport(text: string): StoryGraphJournalExport {
   const parsed: unknown = JSON.parse(text.replace(/^\uFEFF/, ''));
   const root = isRecord(parsed) ? parsed : null;
   const rawEntries: unknown[] = Array.isArray(parsed)
@@ -277,7 +311,11 @@ function parseJsonExport(text: string): StoryGraphJournalEntry[] {
     .filter(isRecord)
     .map((entry) => normalizeEntry(entry, bookMeta))
     .filter((entry): entry is StoryGraphJournalEntry => Boolean(entry));
-  return deduplicateEntries(entries);
+  const books = rawBooks
+    .filter(isRecord)
+    .map(normalizeBookMetadata)
+    .filter((book): book is StoryGraphBookMetadata => Boolean(book));
+  return { entries: deduplicateEntries(entries), books };
 }
 
 /** Tokenizador CSV completo: soporta comillas, comas y saltos de línea dentro de notas. */
@@ -332,6 +370,7 @@ const CSV_FIELDS: Record<string, string[]> = {
   isbn: ['isbn', 'isbnuid', 'uid'],
   title: ['title', 'booktitle'],
   author: ['author', 'authors', 'authorname'],
+  coverUrl: ['coverurl', 'cover', 'imageurl', 'image'],
   date: ['date', 'entrydate', 'readdate'],
   pagesRead: ['pagesread', 'pagesreadinsession', 'pagesreadinlastsitting', 'pagesinsession', 'pages', 'delta'],
   pagesTotal: ['pagestotal', 'pagesreadtotal', 'cumulativepages', 'currentpage'],
@@ -368,22 +407,28 @@ function parseCsvExport(text: string): StoryGraphJournalEntry[] {
   return deduplicateEntries(entries);
 }
 
-export function parseStoryGraphJournalFile(text: string, fileName = ''): StoryGraphJournalEntry[] {
+export function parseStoryGraphJournalExport(text: string, fileName = ''): StoryGraphJournalExport {
   const trimmed = text.trim();
   if (!trimmed) throw new Error('El archivo del diario está vacío.');
   const looksJson = fileName.toLowerCase().endsWith('.json') || trimmed.startsWith('{') || trimmed.startsWith('[');
-  let entries: StoryGraphJournalEntry[];
+  let parsedExport: StoryGraphJournalExport;
   try {
-    entries = looksJson ? parseJsonExport(trimmed) : parseCsvExport(trimmed);
+    parsedExport = looksJson
+      ? parseJsonExport(trimmed)
+      : { entries: parseCsvExport(trimmed), books: [] };
   } catch {
     throw new Error(looksJson
       ? 'No se pudo leer el JSON del diario. Comprueba que es el archivo generado por el extractor.'
       : 'No se pudo leer el CSV del diario. Comprueba que es el archivo generado por el extractor.');
   }
-  if (entries.length === 0) {
+  if (parsedExport.entries.length === 0) {
     throw new Error('No se encontraron avances válidos en el archivo del diario.');
   }
-  return entries;
+  return parsedExport;
+}
+
+export function parseStoryGraphJournalFile(text: string, fileName = ''): StoryGraphJournalEntry[] {
+  return parseStoryGraphJournalExport(text, fileName).entries;
 }
 
 export function normalizeIsbnKey(value: string): string {
@@ -528,6 +573,48 @@ function findBookIndex<T extends JournalMergeBookLike>(books: T[], group: EntryG
   return -1;
 }
 
+function findBookIndexForMetadata<T extends JournalMergeBookLike>(
+  books: T[],
+  metadata: StoryGraphBookMetadata
+): number {
+  const unique = (candidates: number[]) => (candidates.length === 1 ? candidates[0] : -1);
+
+  if (metadata.storyGraphBookId) {
+    const exact = books
+      .map((book, index) => (book.storyGraphId === metadata.storyGraphBookId ? index : -1))
+      .filter((index) => index >= 0);
+    if (exact.length) return unique(exact);
+  }
+
+  const isbn = normalizeIsbnKey(metadata.isbn);
+  if (isbn) {
+    const exact = books
+      .map((book, index) => (normalizeIsbnKey(book.isbn) === isbn ? index : -1))
+      .filter((index) => index >= 0);
+    if (exact.length) return unique(exact);
+  }
+
+  const metadataTitles = new Set(titleKeys(metadata.title));
+  const metadataAuthors = new Set(authorKeys(metadata.author));
+  if (metadataTitles.size && metadataAuthors.size) {
+    const exact = books.map((book, index) => {
+      const sameTitle = titleKeys(book.title).some((key) => metadataTitles.has(key));
+      const sameAuthor = authorKeys(book.author).some((key) => metadataAuthors.has(key));
+      return sameTitle && sameAuthor ? index : -1;
+    }).filter((index) => index >= 0);
+    if (exact.length) return unique(exact);
+  }
+
+  if (metadataTitles.size) {
+    const exact = books
+      .map((book, index) => (titleKeys(book.title).some((key) => metadataTitles.has(key)) ? index : -1))
+      .filter((index) => index >= 0);
+    return unique(exact);
+  }
+
+  return -1;
+}
+
 function latestSegment(entries: JournalEntry[]): JournalEntry[] {
   const sorted = [...entries].sort((a, b) => a.date - b.date);
   let lastTerminal = -1;
@@ -645,7 +732,7 @@ function convertEntries(book: JournalMergeBookLike, rawEntries: StoryGraphJourna
 function applyEntriesToBook<T extends JournalMergeBookLike>(
   book: T,
   rawEntries: StoryGraphJournalEntry[]
-): { book: T; patch: Partial<Book>; added: number; updated: number; unchanged: number; importedPages: number; importedMinutes: number } {
+): { book: T; patch: Partial<Book>; added: number; updated: number; unchanged: number; importedPages: number; importedMinutes: number; updatedCover: number } {
   const converted = convertEntries(book, rawEntries);
   const bySource = new Map<string, JournalEntry>();
   for (const entry of book.journal || []) {
@@ -684,6 +771,10 @@ function applyEntriesToBook<T extends JournalMergeBookLike>(
 
   const storyGraphId = book.storyGraphId || rawEntries.find((entry) => entry.storyGraphBookId)?.storyGraphBookId || undefined;
   const isbn = book.isbn || rawEntries.find((entry) => entry.isbn)?.isbn || '';
+  // La portada de StoryGraph es prioritaria: sustituye la existente siempre que el diario traiga una.
+  const importedCoverUrl = rawEntries.find((entry) => entry.coverUrl)?.coverUrl || '';
+  const coverUrl = importedCoverUrl || book.coverUrl || '';
+  const updatedCover = importedCoverUrl && importedCoverUrl !== (book.coverUrl || '') ? 1 : 0;
   const pages = book.pages || Math.max(0, ...rawEntries.map((entry) => entry.bookPages || 0));
 
   const latest = latestSegment(merged);
@@ -705,6 +796,7 @@ function applyEntriesToBook<T extends JournalMergeBookLike>(
     journal: merged,
     ...(storyGraphId ? { storyGraphId } : {}),
     ...(isbn !== book.isbn ? { isbn } : {}),
+    ...(coverUrl !== (book.coverUrl || '') ? { coverUrl } : {}),
     ...(pages !== book.pages ? { pages } : {}),
     ...(currentPage !== book.currentPage ? { currentPage } : {}),
     ...(startedAt !== book.startedAt ? { startedAt } : {}),
@@ -719,12 +811,14 @@ function applyEntriesToBook<T extends JournalMergeBookLike>(
     unchanged,
     importedPages,
     importedMinutes,
+    updatedCover,
   };
 }
 
 export function mergeStoryGraphJournal<T extends JournalMergeBookLike>(
   books: T[],
-  entries: StoryGraphJournalEntry[]
+  entries: StoryGraphJournalEntry[],
+  bookMetadata: StoryGraphBookMetadata[] = []
 ): { books: T[]; patches: StoryGraphJournalPatch[]; report: StoryGraphJournalMergeReport } {
   const result = [...books];
   const patches: StoryGraphJournalPatch[] = [];
@@ -738,6 +832,7 @@ export function mergeStoryGraphJournal<T extends JournalMergeBookLike>(
     unchangedEntries: 0,
     importedPages: 0,
     importedMinutes: 0,
+    updatedCovers: 0,
     unmatchedBooks: [],
   };
 
@@ -770,6 +865,29 @@ export function mergeStoryGraphJournal<T extends JournalMergeBookLike>(
     report.unchangedEntries += applied.unchanged;
     report.importedPages += applied.importedPages;
     report.importedMinutes += applied.importedMinutes;
+    report.updatedCovers += applied.updatedCover;
+  }
+
+  // El JSON también trae metadatos de libros sin avances exportables. Sus
+  // portadas deben sustituir a las actuales aunque no haya diario que fusionar.
+  const metadataCoverIndexes = new Set<number>();
+  for (const metadata of bookMetadata) {
+    if (!metadata.coverUrl) continue;
+    const index = findBookIndexForMetadata(result, metadata);
+    if (index < 0 || metadataCoverIndexes.has(index)) continue;
+    metadataCoverIndexes.add(index);
+
+    const existingPatch = patches.find((item) => item.index === index);
+    if (existingPatch?.patch.coverUrl) continue;
+    if ((result[index].coverUrl || '') === metadata.coverUrl) continue;
+
+    result[index] = { ...result[index], coverUrl: metadata.coverUrl };
+    if (existingPatch) {
+      existingPatch.patch = { ...existingPatch.patch, coverUrl: metadata.coverUrl };
+    } else {
+      patches.push({ index, patch: { coverUrl: metadata.coverUrl } });
+    }
+    report.updatedCovers++;
   }
 
   report.unmatchedBooks.sort((a, b) => b.entries - a.entries || a.title.localeCompare(b.title, 'es'));

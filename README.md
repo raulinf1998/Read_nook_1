@@ -50,8 +50,12 @@ mano:
 Read Nook vincula cada sesión por ID de StoryGraph, ISBN/UID o título y autor.
 Convierte páginas acumuladas y porcentajes en páginas de cada sesión, conserva
 las entradas manuales, separa las relecturas y usa el ID original de cada
-avance para que reimportar el mismo archivo actualice sin duplicar. El informe
-final muestra entradas nuevas/actualizadas y libros sin coincidencia.
+avance para que reimportar el mismo archivo actualice sin duplicar. El extractor
+también guarda la URL de la portada mostrada por StoryGraph; al importar, esa
+portada sustituye a la que el libro tuviera en Read Nook, incluidos los libros
+presentes en los metadatos del JSON aunque no tengan avances exportables. Si
+StoryGraph no aporta ninguna, se conserva la actual. El informe final muestra entradas
+nuevas/actualizadas, portadas sustituidas y libros sin coincidencia.
 
 > El extractor solo puede recuperar avances que realmente se registraron en
 > StoryGraph. Si un libro se marcó como leído retrospectivamente, puede que
