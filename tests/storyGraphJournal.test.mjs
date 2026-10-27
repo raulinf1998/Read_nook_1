@@ -57,7 +57,7 @@ describe('parseo del diario de StoryGraph', () => {
         pageCount: 560,
       }],
       entries: [{
-        id: '9001',
+        id: '123e4567-e89b-12d3-a456-426614174000',
         storyGraphId: '11111111-1111-4111-8111-111111111111',
         date: '2026-02-03',
         pagesRead: null,
@@ -72,11 +72,24 @@ describe('parseo del diario de StoryGraph', () => {
 
     const entries = parseStoryGraphJournalFile(text, 'diario.json');
     assert.equal(entries.length, 1);
-    assert.equal(entries[0].sourceEntryId, '9001');
+    assert.equal(entries[0].sourceEntryId, '123e4567-e89b-12d3-a456-426614174000');
     assert.equal(entries[0].title, 'Ciudad de Jade');
     assert.equal(entries[0].author, 'Fonda Lee');
     assert.equal(entries[0].bookPages, 560);
     assert.equal(entries[0].pagesTotal, 84);
+  });
+
+  test('conserva un ID UUID al fusionar una entrada', () => {
+    const sourceEntryId = '123e4567-e89b-12d3-a456-426614174001';
+    const result = mergeStoryGraphJournal(
+      [makeBook()],
+      [makeEntry({ sourceEntryId, pagesTotal: 42 })],
+    );
+
+    assert.equal(result.report.addedEntries, 1);
+    assert.equal(result.books[0].journal[0].id, `sg-${sourceEntryId}`);
+    assert.equal(result.books[0].journal[0].sourceEntryId, sourceEntryId);
+    assert.equal(result.books[0].journal[0].pages, 42);
   });
 
   test('acepta el CSV gemelo con comas y saltos de línea en la nota', () => {
