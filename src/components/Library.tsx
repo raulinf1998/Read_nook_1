@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
-import { BookOpen, FileText, Search, Pencil, Star, Trash2, LayoutGrid, Rows3, SearchX, TriangleAlert } from 'lucide-react';
+import { BookOpen, FileText, Search, Pencil, Star, Trash2, SearchX, TriangleAlert } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
 import { STATUS_META, formatLabel, seriesLabel } from '../types';
 import { StarRating } from './StarRating';
 import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filterChipCls, iconBtn, selectCls } from './ui';
 import { useLocalStorage } from '../hooks';
+import { LIBRARY_VIEW_OPTIONS, type LibraryViewMode } from '../libraryViews';
+import { LibraryViews } from './LibraryViews';
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -16,15 +18,17 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit: (book: Book) => void;
   onOpen: (book: Book) => void;
+  onOpenSeries: (seriesName: string) => void;
 }
 
-type ViewMode = 'grid' | 'list';
-
-export function Library({ books, onDelete, onEdit, onOpen }: Props) {
+export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating' | 'series'>('recent');
-  const [view, setView] = useLocalStorage<ViewMode>('readnook-library-view', 'grid');
+  // Clave nueva en esta versión: la Biblioteca se estrena en modo estantería
+  // y, a partir de ahí, recuerda la vista que elija cada persona.
+  const [view, setView] = useLocalStorage<LibraryViewMode>('bilibook-library-view-v2', 'wood');
+  const activeView = LIBRARY_VIEW_OPTIONS.find((option) => option.value === view) || LIBRARY_VIEW_OPTIONS[0];
   const [confirming, setConfirming] = useState<Book | null>(null);
 
   const filtered = useMemo(() => {
@@ -118,10 +122,19 @@ export function Library({ books, onDelete, onEdit, onOpen }: Props) {
           <option value="rating">Puntuación</option>
           <option value="series">Saga y número</option>
         </select>
-        <div className="flex rounded-full border border-line bg-surface shadow-card p-1" role="group" aria-label="Modo de vista">
-          <ViewBtn active={view === 'grid'} onClick={() => setView('grid')} icon={<LayoutGrid size={16} />} label="Rejilla" />
-          <ViewBtn active={view === 'list'} onClick={() => setView('list')} icon={<Rows3 size={16} />} label="Lista" />
-        </div>
+        <label className="min-w-[188px] flex-1 sm:flex-none">
+          <span className="sr-only">Estilo de la estantería</span>
+          <select
+            value={activeView.value}
+            onChange={(e) => setView(e.target.value as LibraryViewMode)}
+            className={cx(selectCls, 'w-full rounded-full shadow-card')}
+            aria-label="Estilo de la estantería"
+          >
+            {LIBRARY_VIEW_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Filtro por estado */}
@@ -142,6 +155,9 @@ export function Library({ books, onDelete, onEdit, onOpen }: Props) {
           {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'}
         </span>
       </div>
+        <p className="px-1 text-[11px] font-medium leading-relaxed text-ink3" role="status">
+          <strong className="text-ink2">{activeView.label}.</strong> {activeView.description} Toca un libro para abrir su ficha y el nombre de una saga para verla completa.
+        </p>
       </section>
 
       {filtered.length === 0 ? (
@@ -162,11 +178,13 @@ export function Library({ books, onDelete, onEdit, onOpen }: Props) {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-3 gap-2.5 min-[420px]:gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6 stagger">
           {filtered.map((book) => (
-            <GridCard key={book.id} book={book} onOpen={() => onOpen(book)} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
+            <GridCard key={book.id} book={book} onOpen={() => onOpen(book)} onOpenSeries={onOpenSeries} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
           ))}
         </div>
+      ) : view === 'list' ? (
+        <ListView books={filtered} onOpen={onOpen} onOpenSeries={onOpenSeries} onEdit={onEdit} onAskDelete={setConfirming} />
       ) : (
-        <ListView books={filtered} onOpen={onOpen} onEdit={onEdit} onAskDelete={setConfirming} />
+        <LibraryViews books={filtered} view={view} onOpen={onOpen} onOpenSeries={onOpenSeries} />
       )}
 
       {/* Confirmación de borrado */}
@@ -206,25 +224,9 @@ export function Library({ books, onDelete, onEdit, onOpen }: Props) {
   );
 }
 
-function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={`Vista de ${label}`}
-      className={cx(
-        'px-3 py-1.5 rounded-full transition-all active:scale-95',
-        active ? 'bg-primary text-onprimary shadow-card' : 'text-ink3 hover:text-ink'
-      )}
-    >
-      {icon}
-    </button>
-  );
-}
-
 /* ---------- Vista de rejilla ---------- */
 
-function GridCard({ book, onOpen, onEdit, onAskDelete }: { book: Book; onOpen: () => void; onEdit: () => void; onAskDelete: () => void }) {
+function GridCard({ book, onOpen, onOpenSeries, onEdit, onAskDelete }: { book: Book; onOpen: () => void; onOpenSeries: (seriesName: string) => void; onEdit: () => void; onAskDelete: () => void }) {
   const pct = book.pages > 0 ? Math.min((book.currentPage / book.pages) * 100, 100) : 0;
   const status = STATUS_META[book.status];
   return (
@@ -262,9 +264,19 @@ function GridCard({ book, onOpen, onEdit, onAskDelete }: { book: Book; onOpen: (
           <button onClick={onOpen} className="text-left hover:text-accent transition-colors">{book.title}</button>
         </h3>
         <p className="mt-1 h-4 truncate text-[11px] text-ink3 sm:text-xs">{book.author || 'Autor desconocido'}</p>
-        <p className="mt-0.5 h-4 truncate text-[9px] font-extrabold uppercase tracking-wide text-accent sm:text-[10px]" title={seriesLabel(book) || undefined}>
-          {seriesLabel(book) || '\u00a0'}
-        </p>
+        <div className="mt-0.5 flex h-4 items-center">
+          {seriesLabel(book) && book.series?.trim() ? (
+            <button
+              type="button"
+              onClick={() => onOpenSeries(book.series!.trim())}
+              className="truncate text-left text-[9px] font-extrabold uppercase tracking-wide text-accent hover:text-ink hover:underline sm:text-[10px]"
+              aria-label={`Abrir la saga ${book.series}`}
+              title={`Abrir la saga ${book.series}`}
+            >
+              {seriesLabel(book)}
+            </button>
+          ) : <span>{'\u00a0'}</span>}
+        </div>
 
         <div className="mt-1.5 flex h-4 items-center gap-1.5 text-[10px] font-semibold text-ink3">
           <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full', status.dot)} aria-hidden />
@@ -328,7 +340,7 @@ function LibraryStat({ icon, value, label, detail }: {
 
 /* ---------- Vista de lista / tabla ---------- */
 
-function ListView({ books, onOpen, onEdit, onAskDelete }: { books: Book[]; onOpen: (b: Book) => void; onEdit: (b: Book) => void; onAskDelete: (b: Book) => void }) {
+function ListView({ books, onOpen, onOpenSeries, onEdit, onAskDelete }: { books: Book[]; onOpen: (b: Book) => void; onOpenSeries: (seriesName: string) => void; onEdit: (b: Book) => void; onAskDelete: (b: Book) => void }) {
   return (
     <div className={cx(cardCls, 'overflow-hidden')}>
       {/* Tabla escritorio */}
@@ -344,14 +356,20 @@ function ListView({ books, onOpen, onEdit, onAskDelete }: { books: Book[]; onOpe
           {books.map((book) => (
             <tr key={book.id} className="border-b border-line/60 last:border-0 hover:bg-sunken/60 transition-colors group">
               <td className="px-4 py-2.5">
-                <button onClick={() => onOpen(book)} className="flex items-center gap-3 text-left min-w-0" aria-label={`Abrir ficha de ${book.title}`}>
-                  <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[52px] shadow-book" />
+                <div className="flex items-center gap-3 text-left min-w-0">
+                  <button onClick={() => onOpen(book)} className="shrink-0" aria-label={`Abrir ficha de ${book.title}`}>
+                    <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[52px] shadow-book" />
+                  </button>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-ink truncate max-w-[320px]">{book.title}</span>
+                    <button onClick={() => onOpen(book)} className="block max-w-[320px] truncate text-left text-sm font-semibold text-ink hover:text-accent">{book.title}</button>
                     <span className="block text-xs text-ink3 truncate max-w-[320px]">{book.author || 'Autor desconocido'}</span>
-                    {seriesLabel(book) && <span className="block text-[10px] font-extrabold uppercase tracking-wide text-accent truncate max-w-[320px]">{seriesLabel(book)}</span>}
+                    {seriesLabel(book) && book.series?.trim() && (
+                      <button onClick={() => onOpenSeries(book.series!.trim())} className="block max-w-[320px] truncate text-left text-[10px] font-extrabold uppercase tracking-wide text-accent hover:text-ink hover:underline" aria-label={`Abrir la saga ${book.series}`}>
+                        {seriesLabel(book)}
+                      </button>
+                    )}
                   </span>
-                </button>
+                </div>
               </td>
               <td className="px-4 py-2.5"><StatusBadge status={book.status} /></td>
               <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{formatLabel(book.format)}</td>
@@ -379,18 +397,24 @@ function ListView({ books, onOpen, onEdit, onAskDelete }: { books: Book[]; onOpe
       <div className="md:hidden divide-y divide-line/70">
         {books.map((book) => (
           <div key={book.id} className="p-3 flex items-center gap-3">
-            <button onClick={() => onOpen(book)} className="flex items-center gap-3 flex-1 min-w-0 text-left" aria-label={`Abrir ficha de ${book.title}`}>
-              <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[54px] shadow-book" />
+            <div className="flex items-center gap-3 flex-1 min-w-0 text-left">
+              <button onClick={() => onOpen(book)} className="shrink-0" aria-label={`Abrir ficha de ${book.title}`}>
+                <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[54px] shadow-book" />
+              </button>
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-ink truncate">{book.title}</span>
+                <button onClick={() => onOpen(book)} className="block max-w-full truncate text-left text-sm font-semibold text-ink hover:text-accent">{book.title}</button>
                 <span className="block text-xs text-ink3 truncate">{book.author || 'Autor desconocido'}</span>
-                {seriesLabel(book) && <span className="block text-[10px] font-extrabold uppercase tracking-wide text-accent truncate">{seriesLabel(book)}</span>}
+                {seriesLabel(book) && book.series?.trim() && (
+                  <button onClick={() => onOpenSeries(book.series!.trim())} className="block max-w-full truncate text-left text-[10px] font-extrabold uppercase tracking-wide text-accent hover:text-ink hover:underline" aria-label={`Abrir la saga ${book.series}`}>
+                    {seriesLabel(book)}
+                  </button>
+                )}
                 <span className="flex items-center gap-2 mt-1.5">
                   <StatusBadge status={book.status} />
                   {book.rating > 0 && <StarRating value={book.rating} size={11} />}
                 </span>
               </span>
-            </button>
+            </div>
             <div className="flex gap-0.5 shrink-0">
               <button onClick={() => onEdit(book)} className={iconBtn} aria-label={`Editar ${book.title}`}>
                 <Pencil size={16} />

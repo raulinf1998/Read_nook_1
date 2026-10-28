@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test": "node --experimental-strip-types --test tests/storyGraphJournal.test.mjs tests/storygraphExtractor.test.mjs tests/themePalettes.test.mjs tests/coverStorage.test.mjs"
+    "test": "node --experimental-strip-types --test tests/storyGraphJournal.test.mjs tests/storygraphExtractor.test.mjs tests/themePalettes.test.mjs tests/coverStorage.test.mjs tests/seriesAndSpines.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

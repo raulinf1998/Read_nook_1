@@ -11,6 +11,7 @@ interface Props {
   onUpdate: (id: string, patch: Partial<Book>) => void;
   onEdit: (book: Book) => void;
   onOpen: (book: Book) => void;
+  onOpenSeries: (seriesName: string) => void;
   onAdd: () => void;
   onLoadDemo: () => void;
   onGoChallenge: () => void;
@@ -26,7 +27,7 @@ function setPage(book: Book, page: number, onUpdate: Props['onUpdate']) {
   onUpdate(book.id, patch);
 }
 
-export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onAdd, onLoadDemo, onGoChallenge }: Props) {
+export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onOpenSeries, onAdd, onLoadDemo, onGoChallenge }: Props) {
   const reading = books.filter((b) => b.status === 'reading');
   const pending = books.filter((b) => b.status === 'pending');
   const year = new Date().getFullYear();
@@ -114,6 +115,7 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onAdd, onLoa
                 book={book}
                 onUpdate={onUpdate}
                 onOpen={onOpen}
+                onOpenSeries={onOpenSeries}
                 onLogProgress={(item) => setProgressBookId(item.id)}
               />
             ))}
@@ -151,7 +153,11 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onAdd, onLoa
                     <button onClick={() => onOpen(book)} className="text-left hover:text-accent transition-colors">{book.title}</button>
                   </h3>
                   <p className="text-xs text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
-                  {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
+                  {seriesLabel(book) && book.series?.trim() && (
+                    <button type="button" onClick={() => onOpenSeries(book.series!.trim())} className="mt-0.5 block max-w-full truncate text-left text-[10px] font-extrabold uppercase tracking-wide text-accent hover:text-ink hover:underline" aria-label={`Abrir la saga ${book.series}`}>
+                      {seriesLabel(book)}
+                    </button>
+                  )}
                   <div className="flex items-center gap-2 mt-1.5">
                     {book.pages > 0 && <span className="text-[11px] font-medium text-ink3">{book.pages} págs</span>}
                     {book.tags.slice(0, 2).map((t) => (
@@ -200,11 +206,13 @@ function ReadingCard({
   book,
   onUpdate,
   onOpen,
+  onOpenSeries,
   onLogProgress,
 }: {
   book: Book;
   onUpdate: Props['onUpdate'];
   onOpen: (b: Book) => void;
+  onOpenSeries: (seriesName: string) => void;
   onLogProgress: (b: Book) => void;
 }) {
   const pct = bookProgress(book);
@@ -244,7 +252,11 @@ function ReadingCard({
                 <button onClick={() => onOpen(book)} className="text-left hover:text-accent transition-colors">{book.title}</button>
               </h3>
               <p className="text-xs sm:text-sm text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
-              {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
+              {seriesLabel(book) && book.series?.trim() && (
+                    <button type="button" onClick={() => onOpenSeries(book.series!.trim())} className="mt-0.5 block max-w-full truncate text-left text-[10px] font-extrabold uppercase tracking-wide text-accent hover:text-ink hover:underline" aria-label={`Abrir la saga ${book.series}`}>
+                      {seriesLabel(book)}
+                    </button>
+                  )}
             </div>
             {/* Anillo de progreso */}
             <div className="relative w-12 h-12 shrink-0" title={`${pct.toFixed(0)}% leído`}>

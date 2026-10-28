@@ -1,7 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
 import { STATUS_META } from '../types';
+import { bookSpineCandidateUrls } from '../bookSpine';
 
 /* ---------- Clases compartidas (tokens de tema) ---------- */
 
@@ -70,28 +72,61 @@ interface ModalProps {
 }
 
 export function Modal({ title, icon, onClose, children, footer, maxWidth = 'max-w-lg' }: ModalProps) {
+  const [viewportStyle, setViewportStyle] = useState<CSSProperties>({});
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    // En móvil, el área realmente visible cambia con la barra del navegador
+    // y con el teclado. VisualViewport permite que la hoja siga esa zona en
+    // lugar de quedarse al final del documento o detrás del teclado.
+    const visualViewport = window.visualViewport;
+    const syncViewport = () => {
+      if (!visualViewport) return;
+      setViewportStyle({
+        top: `${visualViewport.offsetTop}px`,
+        height: `${visualViewport.height}px`,
+        bottom: 'auto',
+      });
+    };
+    syncViewport();
+    visualViewport?.addEventListener('resize', syncViewport);
+    visualViewport?.addEventListener('scroll', syncViewport);
+
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+      visualViewport?.removeEventListener('resize', syncViewport);
+      visualViewport?.removeEventListener('scroll', syncViewport);
     };
   }, [onClose]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  // Portal a <body>: si el modal se monta dentro de una pestaña con
+  // `transform` (las animaciones de entrada lo usan), CSS convierte ese
+  // contenedor en el marco de referencia de `position: fixed` y el popup
+  // aparece al final de la página en el teléfono. En body siempre se abre
+  // sobre el punto visible en el que está el usuario.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/45 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 backdrop-blur-sm animate-fade-in [overscroll-behavior:contain] sm:items-center sm:p-4"
+      style={viewportStyle}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={title}
+      data-bilibook-modal="true"
     >
       <div
         className={cx(
-          'bg-surface w-full max-h-[92dvh] sm:max-h-[90vh] flex flex-col border border-line2 shadow-pop animate-pop-in',
+          'bg-surface w-full max-h-[92%] flex flex-col border border-line2 shadow-pop animate-pop-in',
           'rounded-t-[22px] sm:rounded-card overflow-hidden',
           maxWidth
         )}
@@ -109,10 +144,11 @@ export function Modal({ title, icon, onClose, children, footer, maxWidth = 'max-
             <X size={20} />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 sm:px-6 py-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">{children}</div>
         {footer && <div className="px-5 sm:px-6 py-4 border-t border-line bg-sunken/50 shrink-0">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -198,6 +234,113 @@ export function BookCover({ title, author, coverUrl, className = '', detail = 'm
         </div>
       )}
       <span className="cover-shine" aria-hidden />
+    </div>
+  );
+}
+
+interface BookSpineProps {
+  book: Book;
+  className?: string;
+}
+
+/**
+ * Lomo para las vistas de estantería.
+ *
+ * Primero intenta una imagen de lomo (`spineUrl` o el candidato generado por
+ * ISBN de OpenCover). Si no existe o no tiene proporción de lomo, compone uno
+ * con la portada real guardada en Bilibook y el título/autor en vertical. No
+ * presenta esa composición como una fotografía del lomo físico.
+ */
+export function BookSpine({ book, className = '' }: BookSpineProps) {
+  const candidates = bookSpineCandidateUrls(book);
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const [coverFailed, setCoverFailed] = useState(false);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+    setCoverFailed(false);
+  }, [book.id, book.isbn, book.spineUrl, book.coverUrl]);
+
+  const candidate = candidates[candidateIndex] || '';
+  const candidateIsExplicit = Boolean(book.spineUrl?.trim() && candidate === book.spineUrl.trim());
+  const [from, to, ink] = COVER_GRADIENTS[hashTitle(`${book.title || '?'} ${book.author || ''}`) % COVER_GRADIENTS.length];
+  const position = (book.seriesPosition || '').trim().replace(/^#\s*/, '');
+
+  return (
+    <div
+      className={cx('relative shrink-0 select-none overflow-hidden shadow-book', className)}
+      style={{
+        borderRadius: '4px 2px 2px 4px',
+        background: `linear-gradient(180deg, ${from}, ${to})`,
+        color: ink,
+      }}
+      aria-hidden
+    >
+      {!candidate && book.coverUrl?.trim() && !coverFailed && (
+        <img
+          src={book.coverUrl}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover opacity-45"
+          style={{ objectPosition: '18% 50%' }}
+          onError={() => setCoverFailed(true)}
+          onLoad={(event) => {
+            if ((event.target as HTMLImageElement).naturalWidth <= 1) setCoverFailed(true);
+          }}
+        />
+      )}
+
+      {!candidate && (
+        <>
+          <span className="absolute inset-0 bg-gradient-to-r from-black/45 via-transparent to-black/35" />
+          <span className="absolute inset-x-1.5 top-2 h-px bg-white/45" />
+          <span className="absolute inset-x-1.5 bottom-2 h-px bg-white/45" />
+          <span
+            className="absolute inset-x-1 bottom-8 top-8 flex flex-col items-center"
+            style={{ textShadow: '0 1px 3px rgb(0 0 0 / 0.65)' }}
+          >
+            <span
+              className="max-h-[66%] overflow-hidden text-ellipsis whitespace-nowrap font-display text-[11px] font-bold leading-none tracking-wide"
+              style={{ writingMode: 'vertical-rl' }}
+            >
+              {book.title || 'Sin título'}
+            </span>
+            {book.author && (
+              <span
+                className="mt-auto max-h-[30%] overflow-hidden text-ellipsis whitespace-nowrap text-[7px] font-bold uppercase leading-none tracking-[0.14em] opacity-85"
+                style={{ writingMode: 'vertical-rl' }}
+              >
+                {book.author}
+              </span>
+            )}
+          </span>
+          {position && (
+            <span className="absolute bottom-3 left-1/2 flex h-5 min-w-5 -translate-x-1/2 items-center justify-center rounded-full bg-black/25 px-1 text-[8px] font-extrabold ring-1 ring-white/35">
+              {position}
+            </span>
+          )}
+        </>
+      )}
+
+      {candidate && (
+        <img
+          src={candidate}
+          alt=""
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setCandidateIndex((index) => index + 1)}
+          onLoad={(event) => {
+            const image = event.target as HTMLImageElement;
+            const ratio = image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : 1;
+            if (image.naturalWidth < 8 || image.naturalHeight < 24 || (!candidateIsExplicit && ratio > 0.65)) {
+              setCandidateIndex((index) => index + 1);
+            }
+          }}
+        />
+      )}
+
+      <span className="pointer-events-none absolute inset-y-0 left-0 w-[3px] bg-white/25" />
+      <span className="pointer-events-none absolute inset-y-0 right-0 w-[3px] bg-black/25" />
     </div>
   );
 }

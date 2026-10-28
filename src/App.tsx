@@ -16,6 +16,8 @@ import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
 import { Discover } from './components/Discover';
 import { BookDetail } from './components/BookDetail';
+import { SeriesDetail } from './components/SeriesDetail';
+import { findSeriesGroup } from './series';
 import { buildDemoBooks } from './demo';
 import { applyCustomPaletteToRoot } from './themePalettes';
 import { BrandMark, iconBtn } from './components/ui';
@@ -29,15 +31,25 @@ const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
 
-function bookIdFromHash(): string | null {
+type HashRoute =
+  | { kind: 'book'; id: string }
+  | { kind: 'series'; name: string }
+  | null;
+
+function routeFromHash(): HashRoute {
   if (typeof window === 'undefined') return null;
-  const match = window.location.hash.match(/^#\/libro\/([^/?#]+)/);
+  const bookMatch = window.location.hash.match(/^#\/libro\/([^/?#]+)/);
+  const seriesMatch = window.location.hash.match(/^#\/saga\/([^/?#]+)/);
+  const match = bookMatch || seriesMatch;
   if (!match) return null;
+
+  let value = match[1];
   try {
-    return decodeURIComponent(match[1]);
+    value = decodeURIComponent(value);
   } catch {
-    return match[1];
+    // Se conserva el valor sin decodificar.
   }
+  return bookMatch ? { kind: 'book', id: value } : { kind: 'series', name: value };
 }
 
 function greeting() {
@@ -66,7 +78,14 @@ export default function App() {
   } = useServerSettings();
 
   const [tab, setTab] = useState<TabId>('reading');
-  const [selectedBookId, setSelectedBookId] = useState<string | null>(() => bookIdFromHash());
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(() => {
+    const route = routeFromHash();
+    return route?.kind === 'book' ? route.id : null;
+  });
+  const [selectedSeriesName, setSelectedSeriesName] = useState<string | null>(() => {
+    const route = routeFromHash();
+    return route?.kind === 'series' ? route.name : null;
+  });
   const [showForm, setShowForm] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -94,16 +113,23 @@ export default function App() {
     };
   }, [activeCustomPalette, dark, theme]);
 
-  // La ficha de un libro tiene su propia dirección (#/libro/:id), así el
-  // botón Atrás del móvil/navegador vuelve a la lista anterior.
+  // Libros y sagas tienen su propia dirección (#/libro/:id y #/saga/:nombre),
+  // así el botón Atrás del móvil/navegador vuelve a la pantalla anterior.
   useEffect(() => {
-    const syncBookFromHash = () => setSelectedBookId(bookIdFromHash());
-    window.addEventListener('hashchange', syncBookFromHash);
-    return () => window.removeEventListener('hashchange', syncBookFromHash);
+    const syncRouteFromHash = () => {
+      const route = routeFromHash();
+      setSelectedBookId(route?.kind === 'book' ? route.id : null);
+      setSelectedSeriesName(route?.kind === 'series' ? route.name : null);
+    };
+    window.addEventListener('hashchange', syncRouteFromHash);
+    return () => window.removeEventListener('hashchange', syncRouteFromHash);
   }, []);
 
   const selectedBook = selectedBookId
     ? books.find((book) => book.id === selectedBookId) || null
+    : null;
+  const selectedSeriesGroup = selectedSeriesName
+    ? findSeriesGroup(books, selectedSeriesName)
     : null;
 
   useEffect(() => {
@@ -113,23 +139,47 @@ export default function App() {
     }
   }, [loading, selectedBook, selectedBookId]);
 
+  useEffect(() => {
+    if (!loading && selectedSeriesName && !selectedSeriesGroup) {
+      setSelectedSeriesName(null);
+      window.history.replaceState(null, '', '#/');
+    }
+  }, [loading, selectedSeriesGroup, selectedSeriesName]);
+
   const handleTab = (nextTab: TabId) => {
     setSelectedBookId(null);
+    setSelectedSeriesName(null);
     setTab(nextTab);
-    if (window.location.hash.startsWith('#/libro/')) window.location.hash = '/';
+    if (window.location.hash.startsWith('#/libro/') || window.location.hash.startsWith('#/saga/')) {
+      window.location.hash = '/';
+    }
     window.scrollTo({ top: 0 });
   };
 
   const handleOpen = (book: Book) => {
+    setSelectedSeriesName(null);
     setSelectedBookId(book.id);
     const target = `#/libro/${encodeURIComponent(book.id)}`;
     if (window.location.hash !== target) window.location.hash = target;
     window.scrollTo({ top: 0 });
   };
 
+  const handleOpenSeries = (seriesName: string) => {
+    const name = seriesName.trim().replace(/\s+/g, ' ');
+    if (!name) return;
+    setSelectedBookId(null);
+    setSelectedSeriesName(name);
+    const target = `#/saga/${encodeURIComponent(name)}`;
+    if (window.location.hash !== target) window.location.hash = target;
+    window.scrollTo({ top: 0 });
+  };
+
   const closeBookDetail = () => {
     setSelectedBookId(null);
-    if (window.location.hash.startsWith('#/libro/')) window.location.hash = '/';
+    setSelectedSeriesName(null);
+    if (window.location.hash.startsWith('#/libro/') || window.location.hash.startsWith('#/saga/')) {
+      window.location.hash = '/';
+    }
     window.scrollTo({ top: 0 });
   };
 
@@ -189,7 +239,7 @@ export default function App() {
               <BrandMark className="h-9 w-9" />
               <div className="min-w-0">
                 <h1 className="font-display font-semibold text-base leading-none text-ink truncate">Bilibook</h1>
-                <p className="text-[11px] text-ink3 mt-0.5 truncate">{selectedBook ? selectedBook.title : TAB_TITLES[tab].title}</p>
+                <p className="text-[11px] text-ink3 mt-0.5 truncate">{selectedBook ? selectedBook.title : selectedSeriesGroup ? selectedSeriesGroup.name : TAB_TITLES[tab].title}</p>
               </div>
             </div>
             <div className="flex items-center gap-0.5">
@@ -221,7 +271,7 @@ export default function App() {
         {/* Contenido */}
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 pt-5 sm:pt-7 pb-28 lg:pb-14">
           {/* Encabezado de página (la ficha de un libro lleva el suyo propio) */}
-          {!selectedBook && <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
+          {!selectedBook && !selectedSeriesGroup && <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
             {tab === 'reading' && books.length > 0 && (
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent mb-1">{greeting()}</p>
             )}
@@ -241,7 +291,7 @@ export default function App() {
             </div>
           </div>}
 
-          <div key={selectedBook ? `book-${selectedBook.id}` : tab} className="animate-fade-up">
+          <div key={selectedBook ? `book-${selectedBook.id}` : selectedSeriesGroup ? `series-${selectedSeriesGroup.key}` : tab} className="animate-fade-up">
             {selectedBook ? (
               <BookDetail
                 key={selectedBook.id}
@@ -252,6 +302,16 @@ export default function App() {
                 onUpdate={updateBook}
                 onDelete={deleteBook}
                 onOpen={handleOpen}
+                onOpenSeries={handleOpenSeries}
+              />
+            ) : selectedSeriesGroup ? (
+              <SeriesDetail
+                key={selectedSeriesGroup.key}
+                group={selectedSeriesGroup}
+                onBack={closeBookDetail}
+                onOpen={handleOpen}
+                onEdit={handleEdit}
+                onUpdate={updateBook}
               />
             ) : (
               <>
@@ -262,6 +322,7 @@ export default function App() {
                 onUpdate={updateBook}
                 onEdit={handleEdit}
                 onOpen={handleOpen}
+                onOpenSeries={handleOpenSeries}
                 onAdd={handleAdd}
                 onLoadDemo={handleLoadDemo}
                 onGoChallenge={() => handleTab('challenge')}
@@ -269,9 +330,9 @@ export default function App() {
             )}
             {tab === 'stats' && <Statistics books={books} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
-            {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} />}
+            {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
             {tab === 'shelf' && <Bookshelf books={books} onOpen={handleOpen} />}
-            {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onAdd={handleAdd} />}
+            {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onOpenSeries={handleOpenSeries} onAdd={handleAdd} />}
               </>
             )}
           </div>

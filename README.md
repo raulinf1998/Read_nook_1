@@ -8,10 +8,19 @@ estadísticas de lectura.
 
 - **Inicio**: libros en curso con anillo de progreso, slider y botón
   **Registrar avance**. El popup solo pide la fecha y la página o porcentaje
-  alcanzado; Bilibook calcula las páginas de esa sesión. También muestra
-  pendientes y resumen del reto anual.
-- **Biblioteca**: búsqueda (título, autor y géneros), filtros por estado,
-  ordenación y vista en rejilla o lista.
+  alcanzado; Bilibook calcula las páginas de esa sesión. En el móvil se abre
+  sobre la zona visible en la que estás (también con el teclado abierto), no
+  al final de la página. También muestra pendientes y resumen del reto anual.
+- **Biblioteca**: búsqueda (título, autor, saga y géneros), filtros por estado,
+  ordenación y un selector con **10 formas de verla**: baldas de madera,
+  lomos, baldas flotantes, vitrina, pilas, muro de portadas, galería con
+  marcos, fichero de biblioteca, rejilla clásica y lista. La opción elegida se
+  recuerda en ese navegador.
+- **Sagas**: el nombre de una saga es clicable y abre su propia página
+  (`#/saga/…`) con abanico de portadas, progreso de la colección, siguiente
+  volumen recomendado, la saga en lomos y la ruta de lectura ordenada. Si la
+  numeración guardada salta un entero (por ejemplo, tienes el `#1` y el
+  `#3`, pero no el `#2`), la ruta marca el hueco en tu colección.
 - **Estantería**: tu colección en baldas, como una librería de verdad.
 - **Descubrir**: recomendación de próxima lectura según tus autores y géneros
   favoritos, ruleta lectora, joyas para releer y pendientes olvidados.
@@ -39,6 +48,14 @@ estadísticas de lectura.
   localmente con el extractor incluido. Se pueden subir juntos o aplicar el
   diario sobre libros que ya estén en Bilibook.
 - **Libros sin portada**: se genera una portada tipográfica automática.
+- **Lomos**: en la vista de lomos, Bilibook intenta primero una imagen de
+  lomo asociada al ISBN mediante OpenCover y solo la usa si carga con una
+  proporción plausible. Hoy no existe una fuente general fiable de
+  fotografías reales de lomos para la mayoría de ediciones (Open Library y
+  servicios similares publican la portada frontal), así que, cuando no hay
+  imagen válida, compone un lomo legible con la portada guardada, título,
+  autor, número de saga y un grosor según las páginas. Esa composición no se
+  presenta como fotografía del lomo físico.
 - **Biblioteca de ejemplo** con un clic si empiezas de cero.
 
 ## Importar el diario de StoryGraph
@@ -170,14 +187,17 @@ src/
   api.ts             Cliente de la API REST
   lib.ts             ISBN (Google Books/Open Library) y parser CSV StoryGraph
   bookMetadata.ts    Normalización de idioma, formato, fecha, estado y saga
+  series.ts          Agrupación, orden y huecos de sagas
+  bookSpine.ts       ISBN-13, candidato de lomo y grosor visual
+  libraryViews.ts    Las 10 vistas disponibles en Biblioteca
   storyGraphJournal.ts Parser JSON/CSV y fusión idempotente del diario
   coverStorage.ts    Copia de portadas externas en el servidor
   demo.ts            Biblioteca de ejemplo
   components/
     ui.tsx           Primitivas: Modal, BookCover, badges, botones…
     ThemePicker.tsx  Selector de apariencia con vistas previas
-    ReadingNow · Library · Bookshelf · Discover · ReadingChallenge · Statistics
-    BookDetail · BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
+    ReadingNow · Library · LibraryViews · Bookshelf · Discover · ReadingChallenge · Statistics
+    BookDetail · SeriesDetail · BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
 public/tools/
   storygraph-journal-exporter.user.js  Extractor local del Reading Journal
 tests/
@@ -185,6 +205,7 @@ tests/
   storygraphExtractor.test.mjs         Pruebas del extractor local
   themePalettes.test.mjs               Pruebas de paletas personalizadas
   coverStorage.test.mjs                Subida y servido de portadas (requiere `npm --prefix server install`)
+  seriesAndSpines.test.mjs             Orden de sagas, huecos, ISBN y grosor de lomos
 server/
   index.js           API Express, portadas guardadas y servido del build
 ```

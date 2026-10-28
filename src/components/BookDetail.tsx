@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BookOpen,
   CalendarDays,
+  ChevronRight,
   Clock3,
   ExternalLink,
   FileText,
@@ -43,6 +44,7 @@ interface Props {
   onUpdate: (id: string, patch: Partial<Book>) => void;
   onDelete: (id: string) => void;
   onOpen: (book: Book) => void;
+  onOpenSeries: (seriesName: string) => void;
 }
 
 function formatDate(timestamp: number | null | undefined): string {
@@ -100,7 +102,7 @@ function seriesPositionValue(book: Book): number {
   return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
 }
 
-export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, onOpen }: Props) {
+export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, onOpen, onOpenSeries }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const journal = useMemo(
@@ -229,10 +231,16 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={book.status} />
-              {seriesLabel(book) && (
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-accent">
-                  {seriesLabel(book)}
-                </span>
+              {seriesLabel(book) && book.series?.trim() && (
+                <button
+                  type="button"
+                  onClick={() => onOpenSeries(book.series!.trim())}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-accent transition-all hover:bg-accent hover:text-onprimary hover:shadow-card"
+                  aria-label={`Abrir la saga ${book.series}`}
+                  title={`Abrir la saga ${book.series}`}
+                >
+                  {seriesLabel(book)} <ChevronRight size={12} />
+                </button>
               )}
               <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-bold text-ink2">
                 {formatLabel(book.format)}
@@ -353,7 +361,13 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
               {details.map(([label, value]) => (
                 <div key={label} className="border-b border-line/60 pb-3 last:border-0 sm:last:border-b">
                   <dt className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-ink3">{label}</dt>
-                  <dd className="mt-1 break-words text-sm font-semibold leading-snug text-ink">{value}</dd>
+                  <dd className="mt-1 break-words text-sm font-semibold leading-snug text-ink">
+                    {label === 'Saga' && book.series?.trim() ? (
+                      <button type="button" onClick={() => onOpenSeries(book.series!.trim())} className="text-left text-accent hover:text-ink hover:underline">
+                        {value}
+                      </button>
+                    ) : value}
+                  </dd>
                 </div>
               ))}
             </dl>
