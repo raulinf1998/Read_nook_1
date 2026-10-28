@@ -6,24 +6,23 @@
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#A9DDF7" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Bilibook — tu biblioteca y rincón de lectura: sigue tus libros, tu progreso, tus retos y tus estadísticas." />
     <script>
-      // Aplica tema/modo guardados antes del primer pintado (evita parpadeos)
+      // En producción, el servidor sustituye este marcador por los ajustes
+      // compartidos actuales. No se lee localStorage: el primer pintado sale
+      // de la misma fuente en el PC y en el teléfono.
+      window.__BILIBOOK_SETTINGS__ = /* __BILIBOOK_SETTINGS__ */ null;
       try {
         var root = document.documentElement;
-        var t = localStorage.getItem('bilibook-theme') || localStorage.getItem('readnook-theme') || 'calido';
-        var storedDark = localStorage.getItem('bilibook-dark');
-        if (storedDark === null) storedDark = localStorage.getItem('readnook-dark');
-        var d = storedDark === '1' || t === 'nocturno';
-        root.dataset.theme = t;
-        if (d) root.classList.add('dark');
-        var customVars = JSON.parse(localStorage.getItem('bilibook-custom-css-vars') || 'null');
-        if (customVars) {
-          Object.keys(customVars).forEach(function (key) {
-            if (key.indexOf('--') === 0) root.style.setProperty(key, customVars[key]);
-          });
-        }
+        var settings = window.__BILIBOOK_SETTINGS__;
+        var theme = settings && typeof settings.theme === 'string' ? settings.theme : 'calido';
+        var hasCustomPalette = Boolean(settings && settings.customPaletteId);
+        var dark = Boolean(settings && settings.dark) || (theme === 'nocturno' && !hasCustomPalette);
+        root.dataset.theme = theme;
+        root.classList.toggle('dark', dark);
+        root.style.colorScheme = dark ? 'dark' : 'light';
       } catch (e) {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

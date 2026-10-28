@@ -225,33 +225,41 @@ export function buildPaletteCssVars(colors: PaletteColors, dark: boolean): Recor
   };
 }
 
-let appliedCssVarKeys: string[] = [];
+export const CUSTOM_PALETTE_CSS_VAR_KEYS = Object.freeze(
+  Object.keys(buildPaletteCssVars(FALLBACK_LIGHT, false)),
+);
 
 export function applyCustomPaletteToRoot(palette: CustomPalette | null | undefined, dark: boolean): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
 
-  for (const key of appliedCssVarKeys) root.style.removeProperty(key);
-  appliedCssVarKeys = [];
+  // Se retiran siempre todas las variables que puede fijar una paleta, no
+  // solo las aplicadas en esta sesión. Las versiones anteriores dejaban una
+  // copia en localStorage que index.html volvía a inyectar al abrir la app;
+  // si esa copia era de otro modo/paleta, el teléfono podía quedarse con un
+  // aspecto oscuro aunque el servidor ya dijera «claro».
+  const inlineKeys = new Set<string>(CUSTOM_PALETTE_CSS_VAR_KEYS);
+  if (typeof root.style.length === 'number' && typeof root.style.item === 'function') {
+    for (let index = 0; index < root.style.length; index += 1) {
+      const key = root.style.item(index);
+      if (key.startsWith('--')) inlineKeys.add(key);
+    }
+  }
+  for (const key of inlineKeys) root.style.removeProperty(key);
+  root.style.colorScheme = dark ? 'dark' : 'light';
+
+  try {
+    localStorage.removeItem(CUSTOM_PALETTE_CSS_VARS_KEY);
+  } catch {
+    /* almacenamiento no disponible */
+  }
 
   if (!palette) {
     delete root.dataset.customPalette;
-    try {
-      localStorage.removeItem(CUSTOM_PALETTE_CSS_VARS_KEY);
-    } catch {
-      /* almacenamiento no disponible */
-    }
     return;
   }
 
   const vars = buildPaletteCssVars(dark ? palette.dark : palette.light, dark);
   for (const [key, value] of Object.entries(vars)) root.style.setProperty(key, value);
-  appliedCssVarKeys = Object.keys(vars);
   root.dataset.customPalette = palette.id;
-
-  try {
-    localStorage.setItem(CUSTOM_PALETTE_CSS_VARS_KEY, JSON.stringify(vars));
-  } catch {
-    /* almacenamiento no disponible */
-  }
 }

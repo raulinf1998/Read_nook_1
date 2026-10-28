@@ -70,7 +70,10 @@ export function ThemePicker({
   const [editorMode, setEditorMode] = useState<'light' | 'dark'>(dark ? 'dark' : 'light');
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
-  const isDarkOnly = theme === 'nocturno';
+  // Solo el tema integrado Nocturno es «siempre oscuro». Si hay una paleta
+  // personalizada activa, su baseTheme puede ser nocturno pero sus colores
+  // claros guardados sí deben poder utilizarse.
+  const isDarkOnly = theme === 'nocturno' && !activeCustomPalette;
   const editorColors = editorMode === 'dark' ? darkColors : lightColors;
 
   const beginCreate = () => {
@@ -151,7 +154,7 @@ export function ThemePicker({
         </div>
       </div>
       {isDarkOnly && (
-        <p className="text-xs text-ink3 -mt-3 mb-4">«Nocturno» es oscuro por definición; el modo claro no le aplica.</p>
+        <p className="text-xs text-ink3 -mt-3 mb-4">El tema integrado «Nocturno» es oscuro por definición; el modo claro no le aplica. Una paleta personalizada con esa base sí puede usar su variante clara.</p>
       )}
 
       <ThemeSectionTitle title="Paletas de Bilibook" detail="Estilos completos, con su tipografía y formas" />

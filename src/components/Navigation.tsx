@@ -102,7 +102,7 @@ export function Sidebar({
         <div className="flex items-center justify-between px-2 mb-2.5">
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ink3">Tema</p>
           <div className="flex items-center gap-1">
-            {theme !== 'nocturno' && (
+            {(theme !== 'nocturno' || activePaletteName) && (
               <button
                 onClick={onToggleDark}
                 className="p-1.5 rounded-lg text-ink3 hover:text-ink hover:bg-sunken transition-colors"
@@ -146,7 +146,7 @@ export function Sidebar({
         </div>
         <p className="px-2 mt-2 text-[11px] font-semibold text-ink2 truncate">
           {activePaletteName || THEMES.find((t) => t.id === theme)?.label}
-          {theme === 'nocturno' ? ' · oscuro' : dark ? ' · oscuro' : ' · claro'}
+          {dark ? ' · oscuro' : ' · claro'}
         </p>
       </div>
     </aside>

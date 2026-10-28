@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
+  CUSTOM_PALETTE_CSS_VAR_KEYS,
+  CUSTOM_PALETTE_CSS_VARS_KEY,
+  applyCustomPaletteToRoot,
   buildPaletteCssVars,
   generateDarkPaletteColors,
   mixHexColors,
@@ -81,5 +84,49 @@ describe('paletas personalizadas', () => {
     assert.equal(ocean.light.primary, '#0284c7');
     assert.match(ocean.dark.bg, /^#[0-9a-f]{6}$/);
     assert.equal(mixHexColors('#000000', '#ffffff', 0.5), '#808080');
+  });
+
+  test('limpia variables antiguas inyectadas antes de React y respeta claro/oscuro', () => {
+    const properties = new Map(
+      CUSTOM_PALETTE_CSS_VAR_KEYS.map((key) => [key, '1 2 3']),
+    );
+    const removedStorageKeys = [];
+    const root = {
+      dataset: { customPalette: 'paleta-antigua' },
+      style: {
+        colorScheme: 'dark',
+        setProperty(key, value) { properties.set(key, value); },
+        removeProperty(key) { properties.delete(key); },
+      },
+    };
+
+    globalThis.document = { documentElement: root };
+    globalThis.localStorage = {
+      removeItem(key) { removedStorageKeys.push(key); },
+    };
+
+    try {
+      applyCustomPaletteToRoot(null, false);
+      assert.equal(properties.size, 0, 'ninguna variable antigua debe sobrevivir');
+      assert.equal(root.style.colorScheme, 'light');
+      assert.equal(root.dataset.customPalette, undefined);
+      assert.ok(removedStorageKeys.includes(CUSTOM_PALETTE_CSS_VARS_KEY));
+
+      applyCustomPaletteToRoot(validPalette, false);
+      assert.equal(properties.get('--bg'), buildPaletteCssVars(validPalette.light, false)['--bg']);
+      assert.equal(root.style.colorScheme, 'light');
+      assert.equal(root.dataset.customPalette, validPalette.id);
+
+      applyCustomPaletteToRoot(validPalette, true);
+      assert.equal(properties.get('--bg'), buildPaletteCssVars(validPalette.dark, true)['--bg']);
+      assert.notEqual(
+        buildPaletteCssVars(validPalette.light, false)['--bg'],
+        buildPaletteCssVars(validPalette.dark, true)['--bg'],
+      );
+      assert.equal(root.style.colorScheme, 'dark');
+    } finally {
+      delete globalThis.document;
+      delete globalThis.localStorage;
+    }
   });
 });
