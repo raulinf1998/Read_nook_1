@@ -294,6 +294,7 @@ export function useServerSettings() {
   const activeWriteOperationRef = useRef<SettingsWriteOperation | null>(null);
   const writeRetryTimerRef = useRef<number | null>(null);
   const writeRetryAttemptRef = useRef(0);
+  const rejectedWriteRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshSettingsRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const processWriteQueueRef = useRef<() => Promise<void>>(async () => {});
@@ -330,7 +331,7 @@ export function useServerSettings() {
         'El servidor respondió sin el protocolo actual de sincronización. Puede estar ejecutando una versión antigua; Bilibook seguirá reintentándolo automáticamente.',
       );
       if (!hasPendingWrites()) setSettingsSyncStatus('error');
-    } else if (!hasPendingWrites()) {
+    } else if (!hasPendingWrites() && !rejectedWriteRef.current) {
       setSettingsSyncError(null);
       setSettingsSyncStatus('synced');
     }
@@ -359,6 +360,8 @@ export function useServerSettings() {
 
   const beginLocalMutation = useCallback((): number => {
     localMutationRef.current += 1;
+    rejectedWriteRef.current = false;
+    setSettingsSyncError(null);
     setSettingsSyncStatus('saving');
     return localMutationRef.current;
   }, []);
@@ -394,7 +397,7 @@ export function useServerSettings() {
   const processWriteQueue = useCallback(async (): Promise<void> => {
     if (writeInFlightRef.current) return;
     if (!writeQueueRef.current.length) {
-      if ((confirmedSettingsRef.current?.settingsSyncProtocol || 0) >= SETTINGS_SYNC_PROTOCOL) {
+      if (!rejectedWriteRef.current && (confirmedSettingsRef.current?.settingsSyncProtocol || 0) >= SETTINGS_SYNC_PROTOCOL) {
         setSettingsSyncError(null);
         setSettingsSyncStatus('synced');
       }
@@ -410,7 +413,19 @@ export function useServerSettings() {
       activeWriteOperationRef.current = operation;
       try {
         const saved = await executeWriteOperation(operation);
-        if (!normalizeServerSettings(saved)) throw new Error('El servidor no confirmó los ajustes guardados.');
+        const normalizedSaved = normalizeServerSettings(saved);
+        if (!normalizedSaved) throw new Error('El servidor no confirmó los ajustes guardados.');
+        // Una respuesta HTTP 200 no basta: algunos servidores antiguos
+        // ignoran el ID de paleta. No marcar como guardada una selección que
+        // el servidor no ha devuelto realmente.
+        const expectedPaletteId = operation.kind === 'savePalette' && operation.activate
+          ? operation.palette.id
+          : operation.kind === 'patch' ? operation.patch.customPaletteId : undefined;
+        const expectedTheme = operation.kind === 'patch' ? operation.patch.theme : undefined;
+        if ((expectedPaletteId !== undefined && normalizedSaved.customPaletteId !== expectedPaletteId)
+          || (expectedTheme !== undefined && normalizedSaved.theme !== expectedTheme)) {
+          throw new Error('El servidor no confirmó la paleta seleccionada. Se reintentará automáticamente.');
+        }
         if (writeQueueRef.current[0] === operation) writeQueueRef.current.shift();
         else writeQueueRef.current = writeQueueRef.current.filter((item) => item !== operation);
         activeWriteOperationRef.current = null;
@@ -426,6 +441,7 @@ export function useServerSettings() {
         setSettingsSyncError(settingsErrorMessage(error));
 
         if (permanent) {
+          rejectedWriteRef.current = true;
           if (writeQueueRef.current[0] === operation) writeQueueRef.current.shift();
           else writeQueueRef.current = writeQueueRef.current.filter((item) => item !== operation);
           appliedSettingsFingerprintRef.current = '';

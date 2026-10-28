@@ -419,6 +419,8 @@ export default function App() {
           onSetDark={setDark}
           customPalettes={customPalettes}
           activeCustomPalette={activeCustomPalette}
+          syncStatus={settingsSyncStatus}
+          syncError={settingsSyncError}
           onApplyCustomPalette={applyCustomPalette}
           onSaveCustomPalette={saveCustomPalette}
           onDeleteCustomPalette={deleteCustomPalette}
