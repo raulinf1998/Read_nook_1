@@ -1,13 +1,16 @@
-import { BookOpen, Bookmark, ChevronRight, Sparkles, Plus, Library, Target, CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpen, Bookmark, ChevronRight, Sparkles, Plus, Library, Target, CheckCircle2, NotebookPen } from 'lucide-react';
 import type { Book } from '../types';
 import { seriesLabel } from '../types';
-import { BookCover, EmptyState, ProgressBar, SectionHeader, bookProgress, btnGhost, btnSoft, cardCls, cx } from './ui';
+import { ProgressLogModal } from './JournalModal';
+import { BookCover, EmptyState, ProgressBar, SectionHeader, bookProgress, btnSoft, cardCls, cx } from './ui';
 
 interface Props {
   books: Book[];
   goal: number;
   onUpdate: (id: string, patch: Partial<Book>) => void;
   onEdit: (book: Book) => void;
+  onOpen: (book: Book) => void;
   onAdd: () => void;
   onLoadDemo: () => void;
   onGoChallenge: () => void;
@@ -23,13 +26,15 @@ function setPage(book: Book, page: number, onUpdate: Props['onUpdate']) {
   onUpdate(book.id, patch);
 }
 
-export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, onGoChallenge }: Props) {
+export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onAdd, onLoadDemo, onGoChallenge }: Props) {
   const reading = books.filter((b) => b.status === 'reading');
   const pending = books.filter((b) => b.status === 'pending');
   const year = new Date().getFullYear();
   const readThisYear = books.filter(
     (b) => b.status === 'read' && b.finishedAt && new Date(b.finishedAt).getFullYear() === year
   ).length;
+  const [progressBookId, setProgressBookId] = useState<string | null>(null);
+  const progressBook = progressBookId ? books.find((book) => book.id === progressBookId) || null : null;
 
   // Biblioteca completamente vacía: bienvenida con atajos
   if (books.length === 0) {
@@ -104,7 +109,13 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, o
         ) : (
           <div className="grid gap-4 xl:grid-cols-2 stagger">
             {reading.map((book) => (
-              <ReadingCard key={book.id} book={book} onUpdate={onUpdate} onEdit={onEdit} />
+              <ReadingCard
+                key={book.id}
+                book={book}
+                onUpdate={onUpdate}
+                onOpen={onOpen}
+                onLogProgress={(item) => setProgressBookId(item.id)}
+              />
             ))}
           </div>
         )}
@@ -126,7 +137,7 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, o
                 key={book.id}
                 className={cx(cardCls, 'group p-3 flex items-center gap-3.5 hover:shadow-lift hover:-translate-y-0.5 transition-all')}
               >
-                <button onClick={() => onEdit(book)} className="shrink-0" aria-label={`Editar ${book.title}`}>
+                <button onClick={() => onOpen(book)} className="shrink-0" aria-label={`Abrir ficha de ${book.title}`}>
                   <BookCover
                     title={book.title}
                     author={book.author}
@@ -136,7 +147,9 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, o
                   />
                 </button>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-display font-semibold text-ink text-[15px] leading-snug line-clamp-2">{book.title}</h3>
+                  <h3 className="font-display font-semibold text-ink text-[15px] leading-snug line-clamp-2">
+                    <button onClick={() => onOpen(book)} className="text-left hover:text-accent transition-colors">{book.title}</button>
+                  </h3>
                   <p className="text-xs text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
                   {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
                   <div className="flex items-center gap-2 mt-1.5">
@@ -165,6 +178,10 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onAdd, onLoadDemo, o
           </div>
         )}
       </section>
+
+      {progressBook && (
+        <ProgressLogModal book={progressBook} onUpdate={onUpdate} onClose={() => setProgressBookId(null)} />
+      )}
     </div>
   );
 }
@@ -179,14 +196,38 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
   );
 }
 
-function ReadingCard({ book, onUpdate, onEdit }: { book: Book; onUpdate: Props['onUpdate']; onEdit: (b: Book) => void }) {
+function ReadingCard({
+  book,
+  onUpdate,
+  onOpen,
+  onLogProgress,
+}: {
+  book: Book;
+  onUpdate: Props['onUpdate'];
+  onOpen: (b: Book) => void;
+  onLogProgress: (b: Book) => void;
+}) {
   const pct = bookProgress(book);
   const remaining = book.pages > 0 ? Math.max(book.pages - book.currentPage, 0) : null;
+  const progressActions = (
+    <div className="flex items-center gap-1.5 mt-2">
+      <button type="button" onClick={() => onLogProgress(book)} className={cx(btnSoft, 'px-2.5 py-1.5 text-[11px]')}>
+        <NotebookPen size={13} /> Registrar avance
+      </button>
+      <button
+        type="button"
+        onClick={() => onOpen(book)}
+        className="ml-auto text-[11px] font-bold text-accent hover:underline inline-flex items-center gap-0.5 py-1.5"
+      >
+        Ficha y diario <ChevronRight size={12} />
+      </button>
+    </div>
+  );
 
   return (
     <article className={cx(cardCls, 'p-4 sm:p-5 hover:shadow-lift transition-shadow')}>
       <div className="flex gap-4">
-        <button onClick={() => onEdit(book)} className="shrink-0 self-start" aria-label={`Editar ${book.title}`}>
+        <button onClick={() => onOpen(book)} className="shrink-0 self-start" aria-label={`Abrir ficha de ${book.title}`}>
           <BookCover
             title={book.title}
             author={book.author}
@@ -199,7 +240,9 @@ function ReadingCard({ book, onUpdate, onEdit }: { book: Book; onUpdate: Props['
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="font-display font-semibold text-ink text-base sm:text-lg leading-snug line-clamp-2">{book.title}</h3>
+              <h3 className="font-display font-semibold text-ink text-base sm:text-lg leading-snug line-clamp-2">
+                <button onClick={() => onOpen(book)} className="text-left hover:text-accent transition-colors">{book.title}</button>
+              </h3>
               <p className="text-xs sm:text-sm text-ink3 truncate mt-0.5">{book.author || 'Autor desconocido'}</p>
               {seriesLabel(book) && <p className="text-[10px] font-extrabold uppercase tracking-wide text-accent truncate mt-0.5">{seriesLabel(book)}</p>}
             </div>
@@ -256,22 +299,10 @@ function ReadingCard({ book, onUpdate, onEdit }: { book: Book; onUpdate: Props['
                 }}
                 aria-label={`Página actual de ${book.title}`}
               />
-              <div className="flex items-center gap-1.5 mt-2">
-                <button onClick={() => setPage(book, book.currentPage + 10, onUpdate)} className={cx(btnGhost, 'px-2.5 py-1.5 text-[11px]')}>
-                  +10 págs
-                </button>
-                <button onClick={() => setPage(book, book.currentPage + 25, onUpdate)} className={cx(btnGhost, 'px-2.5 py-1.5 text-[11px]')}>
-                  +25 págs
-                </button>
-                <button
-                  onClick={() => onEdit(book)}
-                  className="ml-auto text-[11px] font-bold text-accent hover:underline inline-flex items-center gap-0.5 py-1.5"
-                >
-                  Diario y detalles <ChevronRight size={12} />
-                </button>
-              </div>
+              {progressActions}
             </div>
           )}
+          {book.pages <= 0 && progressActions}
         </div>
       </div>
     </article>

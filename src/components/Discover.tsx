@@ -29,7 +29,7 @@ import {
 
 interface Props {
   books: Book[];
-  onEdit: (book: Book) => void;
+  onOpen: (book: Book) => void;
   onAdd: () => void;
 }
 
@@ -67,7 +67,7 @@ function average(stat: TasteStat | undefined): number {
   return stat && stat.ratedCount > 0 ? stat.ratingTotal / stat.ratedCount : 0;
 }
 
-export function Discover({ books, onEdit, onAdd }: Props) {
+export function Discover({ books, onOpen, onAdd }: Props) {
   const [recommendationIndex, setRecommendationIndex] = useState(0);
   const [rouletteBookId, setRouletteBookId] = useState<string | null>(null);
 
@@ -219,7 +219,7 @@ export function Discover({ books, onEdit, onAdd }: Props) {
         <Compass size={280} strokeWidth={0.45} className="absolute -right-14 -top-16 opacity-[0.13]" aria-hidden />
         <div className="relative flex flex-col sm:flex-row gap-5 sm:gap-7">
           <button
-            onClick={() => onEdit(heroBook)}
+            onClick={() => onOpen(heroBook)}
             className="mx-auto sm:mx-0 shrink-0 transition-transform duration-300 hover:-translate-y-1.5 hover:-rotate-1 active:scale-[0.98]"
             aria-label={`Abrir ${heroBook.title}`}
           >
@@ -261,7 +261,7 @@ export function Discover({ books, onEdit, onAdd }: Props) {
 
             <div className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2">
               <button
-                onClick={() => onEdit(heroBook)}
+                onClick={() => onOpen(heroBook)}
                 className="inline-flex items-center gap-1.5 rounded-btn bg-white px-4 py-2.5 text-sm font-extrabold text-neutral-900 shadow-card transition-all hover:bg-white/90 active:scale-95"
               >
                 Ver ficha <ArrowRight size={15} />
@@ -291,11 +291,11 @@ export function Discover({ books, onEdit, onAdd }: Props) {
                 const sessions = left > 0 ? Math.ceil(left / 25) : 0;
                 return (
                   <div key={book.id} className="flex gap-3 rounded-btn bg-sunken/55 p-3">
-                    <button onClick={() => onEdit(book)} aria-label={`Abrir ${book.title}`} className="shrink-0 transition-transform hover:-translate-y-0.5">
+                    <button onClick={() => onOpen(book)} aria-label={`Abrir ${book.title}`} className="shrink-0 transition-transform hover:-translate-y-0.5">
                       <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-11 h-[66px] shadow-book" />
                     </button>
                     <div className="min-w-0 flex-1">
-                      <button onClick={() => onEdit(book)} className="block max-w-full truncate text-left text-sm font-bold text-ink hover:text-accent">
+                      <button onClick={() => onOpen(book)} className="block max-w-full truncate text-left text-sm font-bold text-ink hover:text-accent">
                         {book.title}
                       </button>
                       <p className="truncate text-xs text-ink3">{book.author || 'Autor desconocido'}</p>
@@ -333,12 +333,12 @@ export function Discover({ books, onEdit, onAdd }: Props) {
           <div className="relative">
             {rouletteBook ? (
               <div className="flex items-center gap-4">
-                <button onClick={() => onEdit(rouletteBook)} aria-label={`Abrir ${rouletteBook.title}`} className="shrink-0 transition-transform hover:-translate-y-1 hover:-rotate-1">
+                <button onClick={() => onOpen(rouletteBook)} aria-label={`Abrir ${rouletteBook.title}`} className="shrink-0 transition-transform hover:-translate-y-1 hover:-rotate-1">
                   <BookCover title={rouletteBook.title} author={rouletteBook.author} coverUrl={rouletteBook.coverUrl} detail="md" className="w-20 aspect-[2/3] shadow-book" />
                 </button>
                 <div className="min-w-0">
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-accent">El azar ha hablado</p>
-                  <button onClick={() => onEdit(rouletteBook)} className="mt-1 block text-left font-display text-xl font-semibold leading-tight text-ink line-clamp-2 hover:text-accent">
+                  <button onClick={() => onOpen(rouletteBook)} className="mt-1 block text-left font-display text-xl font-semibold leading-tight text-ink line-clamp-2 hover:text-accent">
                     {rouletteBook.title}
                   </button>
                   <p className="mt-1 truncate text-sm text-ink3">{rouletteBook.author || 'Autor desconocido'}</p>
@@ -369,7 +369,7 @@ export function Discover({ books, onEdit, onAdd }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 stagger">
             {discovery.rereadGems.map((book) => (
               <article key={book.id} className={cx(cardCls, 'group overflow-hidden hover:shadow-lift hover:-translate-y-1 transition-all duration-300')}>
-                <button onClick={() => onEdit(book)} className="block w-full bg-sunken" aria-label={`Abrir ${book.title}`}>
+                <button onClick={() => onOpen(book)} className="block w-full bg-sunken" aria-label={`Abrir ${book.title}`}>
                   <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="md" className="aspect-[2/3] w-full transition-transform duration-500 group-hover:scale-[1.03]" />
                 </button>
                 <div className="p-3">
@@ -393,11 +393,11 @@ export function Discover({ books, onEdit, onAdd }: Props) {
             <div className="divide-y divide-line/70">
               {discovery.forgotten.map((book) => (
                 <div key={book.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                  <button onClick={() => onEdit(book)} aria-label={`Abrir ${book.title}`} className="shrink-0 transition-transform hover:-translate-y-0.5">
+                  <button onClick={() => onOpen(book)} aria-label={`Abrir ${book.title}`} className="shrink-0 transition-transform hover:-translate-y-0.5">
                     <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[54px] shadow-book" />
                   </button>
                   <div className="min-w-0 flex-1">
-                    <button onClick={() => onEdit(book)} className="block max-w-full truncate text-left text-sm font-bold text-ink hover:text-accent">
+                    <button onClick={() => onOpen(book)} className="block max-w-full truncate text-left text-sm font-bold text-ink hover:text-accent">
                       {book.title}
                     </button>
                     <p className="truncate text-xs text-ink3">{book.author || 'Autor desconocido'}</p>

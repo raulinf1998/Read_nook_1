@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
+  buildJournalProgressTimeline,
   calculateJournalCurrentPage,
   mergeStoryGraphJournal,
+  planManualProgress,
   normalizeCoverUrl,
   normalizeIsbnKey,
   parseStoryGraphJournalDate,
@@ -242,6 +244,64 @@ describe('fusion del diario', () => {
     assert.ok(mergedBook.journal.some((entry) => entry.id === 'manual-1'));
     assert.equal(mergedBook.currentPage, 155);
     assert.equal(calculateJournalCurrentPage(mergedBook.journal, mergedBook.pages), 155);
+  });
+
+  test('las páginas de sesión mandan sobre un 100 % repetido al importar', () => {
+    const entries = [
+      makeEntry({ sourceEntryId: 'p1', date: '2026-01-01', pagesRead: 29, pagesTotal: 300, percent: 100 }),
+      makeEntry({ sourceEntryId: 'p2', date: '2026-01-02', pagesRead: 213, pagesTotal: 300, percent: 100 }),
+      makeEntry({ sourceEntryId: 'p3', date: '2026-01-03', pagesRead: 42, pagesTotal: 300, percent: 100 }),
+    ];
+
+    const result = mergeStoryGraphJournal([makeBook({ pages: 300 })], entries);
+    const chronological = [...result.books[0].journal].sort((a, b) => a.date - b.date);
+
+    assert.deepEqual(chronological.map((entry) => entry.pages), [29, 213, 42]);
+    assert.deepEqual(chronological.map((entry) => entry.cumulativePages), [29, 242, 284]);
+    assert.deepEqual(chronological.map((entry) => entry.percent), [9.7, 80.7, 94.7]);
+    assert.equal(result.books[0].currentPage, 284);
+  });
+
+  test('reconstruye un diario antiguo guardado con la última página y 100 % en cada sesión', () => {
+    const day = (value) => new Date(2026, 0, value, 12).getTime();
+    const stored = [
+      { id: 's3', date: day(3), pages: 42, note: '', percent: 100, cumulativePages: 300, kind: 'progress', source: 'storygraph' },
+      { id: 's2', date: day(2), pages: 213, note: '', percent: 100, cumulativePages: 300, kind: 'progress', source: 'storygraph' },
+      { id: 's1', date: day(1), pages: 29, note: '', percent: 100, cumulativePages: 300, kind: 'progress', source: 'storygraph' },
+    ];
+
+    const timeline = buildJournalProgressTimeline(stored, 300, 284);
+
+    assert.deepEqual(timeline.points.map((point) => point.cumulativePages), [29, 242, 284]);
+    assert.deepEqual(timeline.points.map((point) => point.percent), [9.7, 80.7, 94.7]);
+    assert.equal(timeline.currentPage, 284);
+  });
+
+  test('planifica un avance manual por página actual y reparte un punto intermedio', () => {
+    const day = (value) => new Date(2026, 0, value, 12).getTime();
+    const entries = [
+      { id: 'm2', date: day(10), pages: 60, note: '', percent: 33.3, cumulativePages: 100, kind: 'progress' },
+      { id: 'm1', date: day(1), pages: 40, note: '', percent: 13.3, cumulativePages: 40, kind: 'progress' },
+    ];
+
+    const latest = planManualProgress(entries, 300, 100, 135, day(12));
+    assert.equal(latest.baselinePage, 100);
+    assert.equal(latest.deltaPages, 35);
+    assert.equal(latest.nextCurrentPage, 135);
+    assert.equal(latest.affectsCurrent, true);
+
+    const intermediate = planManualProgress(entries, 300, 100, 70, day(5));
+    assert.equal(intermediate.baselinePage, 40);
+    assert.equal(intermediate.deltaPages, 30);
+    assert.equal(intermediate.nextCurrentPage, 100);
+    assert.equal(intermediate.affectsCurrent, false);
+    assert.equal(intermediate.nextEntryId, 'm2');
+    assert.equal(intermediate.nextEntryPages, 30);
+
+    const tooFar = planManualProgress(entries, 300, 100, 120, day(5));
+    assert.equal(tooFar.invalidReason, 'next-progress');
+    assert.equal(tooFar.nextPage, 100);
+    assert.equal(tooFar.deltaPages, 0);
   });
 
   test('vincula por título y autor cuando no hay ID ni ISBN', () => {

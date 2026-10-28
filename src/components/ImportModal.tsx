@@ -509,7 +509,7 @@ export function ImportModal({ existingBooks, onImport, onMergeJournal, onClose }
                   <li>Abre StoryGraph con tu sesión iniciada. Aparecerá el panel «Bilibook · Exportar diario».</li>
                   <li>
                     Confirma tu usuario, pulsa <strong>Exportar mi diario</strong> y espera sin cerrar la pestaña.
-                    El registro debe anunciar la versión <strong>1.0.5</strong> o posterior y mostrar cuántos
+                    El registro debe anunciar la versión <strong>1.0.6</strong> o posterior y mostrar cuántos
                     libros traen portada, idioma, formato, fecha, estado, puntuación y saga.
                   </li>
                   <li>
@@ -716,7 +716,7 @@ function JournalCoverStatsSummary({
         <p>
           <strong>Este archivo no incluye ninguna URL de portada</strong> ({scopeLabel}).{versionLabel} Puedes
           importar el diario, pero no se sustituirá ninguna portada. Vuelve a generarlo con el extractor
-          <strong> 1.0.5 o posterior</strong> y comprueba que su registro indica libros con portada.
+          <strong> 1.0.6 o posterior</strong> y comprueba que su registro indica libros con portada.
         </p>
       </div>
     );

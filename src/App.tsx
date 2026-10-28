@@ -15,6 +15,7 @@ import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
 import { Discover } from './components/Discover';
+import { BookDetail } from './components/BookDetail';
 import { buildDemoBooks } from './demo';
 import { applyCustomPaletteToRoot } from './themePalettes';
 import { BrandMark, iconBtn } from './components/ui';
@@ -27,6 +28,17 @@ const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
+
+function bookIdFromHash(): string | null {
+  if (typeof window === 'undefined') return null;
+  const match = window.location.hash.match(/^#\/libro\/([^/?#]+)/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -54,6 +66,7 @@ export default function App() {
   } = useServerSettings();
 
   const [tab, setTab] = useState<TabId>('reading');
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(() => bookIdFromHash());
   const [showForm, setShowForm] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [showImport, setShowImport] = useState(false);
@@ -80,6 +93,45 @@ export default function App() {
       if (timeout) window.clearTimeout(timeout);
     };
   }, [activeCustomPalette, dark, theme]);
+
+  // La ficha de un libro tiene su propia dirección (#/libro/:id), así el
+  // botón Atrás del móvil/navegador vuelve a la lista anterior.
+  useEffect(() => {
+    const syncBookFromHash = () => setSelectedBookId(bookIdFromHash());
+    window.addEventListener('hashchange', syncBookFromHash);
+    return () => window.removeEventListener('hashchange', syncBookFromHash);
+  }, []);
+
+  const selectedBook = selectedBookId
+    ? books.find((book) => book.id === selectedBookId) || null
+    : null;
+
+  useEffect(() => {
+    if (!loading && selectedBookId && !selectedBook) {
+      setSelectedBookId(null);
+      window.history.replaceState(null, '', '#/');
+    }
+  }, [loading, selectedBook, selectedBookId]);
+
+  const handleTab = (nextTab: TabId) => {
+    setSelectedBookId(null);
+    setTab(nextTab);
+    if (window.location.hash.startsWith('#/libro/')) window.location.hash = '/';
+    window.scrollTo({ top: 0 });
+  };
+
+  const handleOpen = (book: Book) => {
+    setSelectedBookId(book.id);
+    const target = `#/libro/${encodeURIComponent(book.id)}`;
+    if (window.location.hash !== target) window.location.hash = target;
+    window.scrollTo({ top: 0 });
+  };
+
+  const closeBookDetail = () => {
+    setSelectedBookId(null);
+    if (window.location.hash.startsWith('#/libro/')) window.location.hash = '/';
+    window.scrollTo({ top: 0 });
+  };
 
   const handleEdit = (book: Book) => {
     setEditingBook(book);
@@ -116,7 +168,7 @@ export default function App() {
     <div className="min-h-dvh text-ink">
       <Sidebar
         active={tab}
-        onChange={setTab}
+        onChange={handleTab}
         counts={counts}
         onAdd={handleAdd}
         onImport={() => setShowImport(true)}
@@ -137,7 +189,7 @@ export default function App() {
               <BrandMark className="h-9 w-9" />
               <div className="min-w-0">
                 <h1 className="font-display font-semibold text-base leading-none text-ink truncate">Bilibook</h1>
-                <p className="text-[11px] text-ink3 mt-0.5 truncate">{TAB_TITLES[tab].title}</p>
+                <p className="text-[11px] text-ink3 mt-0.5 truncate">{selectedBook ? selectedBook.title : TAB_TITLES[tab].title}</p>
               </div>
             </div>
             <div className="flex items-center gap-0.5">
@@ -168,8 +220,8 @@ export default function App() {
 
         {/* Contenido */}
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 pt-5 sm:pt-7 pb-28 lg:pb-14">
-          {/* Encabezado de página */}
-          <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
+          {/* Encabezado de página (la ficha de un libro lleva el suyo propio) */}
+          {!selectedBook && <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
             {tab === 'reading' && books.length > 0 && (
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent mb-1">{greeting()}</p>
             )}
@@ -187,25 +239,41 @@ export default function App() {
                 <HeaderTool icon={<Palette size={16} />} label="Apariencia" onClick={() => setShowThemes(true)} />
               </div>
             </div>
-          </div>
+          </div>}
 
-          <div key={tab} className="animate-fade-up">
+          <div key={selectedBook ? `book-${selectedBook.id}` : tab} className="animate-fade-up">
+            {selectedBook ? (
+              <BookDetail
+                key={selectedBook.id}
+                book={selectedBook}
+                books={books}
+                onBack={closeBookDetail}
+                onEdit={handleEdit}
+                onUpdate={updateBook}
+                onDelete={deleteBook}
+                onOpen={handleOpen}
+              />
+            ) : (
+              <>
             {tab === 'reading' && (
               <ReadingNow
                 books={books}
                 goal={goal}
                 onUpdate={updateBook}
                 onEdit={handleEdit}
+                onOpen={handleOpen}
                 onAdd={handleAdd}
                 onLoadDemo={handleLoadDemo}
-                onGoChallenge={() => setTab('challenge')}
+                onGoChallenge={() => handleTab('challenge')}
               />
             )}
             {tab === 'stats' && <Statistics books={books} />}
-            {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} />}
-            {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} />}
-            {tab === 'shelf' && <Bookshelf books={books} onEdit={handleEdit} />}
-            {tab === 'discover' && <Discover books={books} onEdit={handleEdit} onAdd={handleAdd} />}
+            {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
+            {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} />}
+            {tab === 'shelf' && <Bookshelf books={books} onOpen={handleOpen} />}
+            {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onAdd={handleAdd} />}
+              </>
+            )}
           </div>
         </main>
 
@@ -214,7 +282,7 @@ export default function App() {
         </footer>
       </div>
 
-      <MobileNav active={tab} onChange={setTab} />
+      <MobileNav active={tab} onChange={handleTab} />
 
       {/* Modales */}
       {showForm && (

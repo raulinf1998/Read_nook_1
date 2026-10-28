@@ -6,8 +6,10 @@ estadísticas de lectura.
 
 ## Funcionalidades
 
-- **Inicio**: libros en curso con anillo de progreso, slider y avances rápidos
-  (+10/+25 páginas), pendientes y resumen del reto anual.
+- **Inicio**: libros en curso con anillo de progreso, slider y botón
+  **Registrar avance**. El popup solo pide la fecha y la página o porcentaje
+  alcanzado; Bilibook calcula las páginas de esa sesión. También muestra
+  pendientes y resumen del reto anual.
 - **Biblioteca**: búsqueda (título, autor y géneros), filtros por estado,
   ordenación y vista en rejilla o lista.
 - **Estantería**: tu colección en baldas, como una librería de verdad.
@@ -21,10 +23,13 @@ estadísticas de lectura.
   tipo de dato lo permite. Si hay sesiones en el diario, también muestra
   páginas por día/mes/año, días activos, media diaria, sesiones, rachas y
   libros con más actividad.
-- **Ficha completa de libro**: portada, estado (incluido «Abandonado»),
-  puntuación con medias estrellas, formato, idioma amplio, páginas, fecha de
-  publicación, saga y número dentro de la saga, tags, sinopsis, notas y
-  **diario lector** por sesiones. La portada puede subirse desde el
+- **Ficha completa de libro**: al tocar una portada o un título se abre una
+  página propia del libro (no el formulario de edición), con portada grande,
+  estado (incluido «Abandonado»), puntuación con medias estrellas, formato,
+  idioma amplio, páginas, fecha de publicación, saga y número dentro de la
+  saga, tags, sinopsis, notas, actividad y el **diario lector abierto** por
+  sesiones. Editar sigue estando disponible con su botón. La portada puede
+  subirse desde el
   ordenador/móvil o copiarse desde una URL; en ambos casos se guarda el
   archivo en el servidor de Bilibook para que siga viéndose aunque la URL
   original desaparezca.
@@ -51,7 +56,7 @@ mano:
    en la consola del navegador) y ábrelo en StoryGraph con tu sesión iniciada.
    El script trabaja solo en tu navegador: hace peticiones GET a StoryGraph,
    no pide contraseña ni cookies y no envía tus datos a Bilibook.
-4. Ejecuta la exportación (extractor **1.0.5 o posterior**) y descarga el
+4. Ejecuta la exportación (extractor **1.0.6 o posterior**) y descarga el
    **JSON** (recomendado) o el CSV gemelo. Deja activada la opción de
    pendientes si también quieres traer los datos de tu lista *to read*. Antes
    de descargarlo, el registro indica cuántos libros traen portada, idioma,
@@ -63,7 +68,11 @@ mano:
 Bilibook vincula cada sesión por ID de StoryGraph, ISBN/UID o título y autor.
 Convierte páginas acumuladas y porcentajes en páginas de cada sesión, conserva
 las entradas manuales, separa las relecturas y usa el ID original de cada
-avance para que reimportar el mismo archivo actualice sin duplicar. Para las
+avance para que reimportar el mismo archivo actualice sin duplicar. Si un
+archivo o diario antiguo trae el total/100 % repetido en sesiones intermedias,
+la ficha reconstruye la página alcanzada desde las páginas de sesión y la
+página actual guardada; el extractor 1.0.6 ya no confunde anchos CSS de
+maquetación con el porcentaje lector. Para las
 portadas y datos, el extractor lee el panel de cada libro en StoryGraph
 (`.book-pane[data-book-id]` → `.book-cover img`), con respaldo en la imagen
 enlazada a `/books/{id}` y, si aún falta portada, ISBN, idioma, formato,
@@ -168,7 +177,7 @@ src/
     ui.tsx           Primitivas: Modal, BookCover, badges, botones…
     ThemePicker.tsx  Selector de apariencia con vistas previas
     ReadingNow · Library · Bookshelf · Discover · ReadingChallenge · Statistics
-    BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
+    BookDetail · BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
 public/tools/
   storygraph-journal-exporter.user.js  Extractor local del Reading Journal
 tests/

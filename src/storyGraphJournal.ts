@@ -989,25 +989,305 @@ function latestSegment(entries: JournalEntry[]): JournalEntry[] {
   return sorted.slice(previousTerminal + 1, lastTerminal + 1);
 }
 
-export function calculateJournalCurrentPage(entries: JournalEntry[], totalPages: number): number {
-  const segment = latestSegment(entries || []);
-  if (!segment.length) return 0;
+export interface JournalProgressPoint {
+  entry: JournalEntry;
+  /** Página alcanzada tras esta entrada dentro de su tramo de lectura. */
+  cumulativePages: number | null;
+  /** Porcentaje derivado de `cumulativePages` (no se copia sin más el guardado). */
+  percent: number | null;
+  segmentIndex: number;
+  isProgressPoint: boolean;
+}
 
-  // Se recorre en orden cronológico para poder mezclar entradas importadas
-  // (con página acumulada) y avances manuales posteriores (solo delta).
-  let current = 0;
-  for (const entry of segment) {
-    if (typeof entry.cumulativePages === 'number') {
-      current = entry.cumulativePages;
-    } else if (entry.pages > 0) {
-      current += entry.pages;
-    } else if (typeof entry.percent === 'number' && totalPages > 0) {
-      current = Math.round((entry.percent / 100) * totalPages);
+export interface JournalProgressTimeline {
+  /** Puntos en orden cronológico ascendente. */
+  points: JournalProgressPoint[];
+  currentPage: number;
+  currentSegmentIndex: number;
+}
+
+function finiteJournalNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function clampJournalPage(value: number, totalPages: number): number {
+  const safe = Math.max(0, Math.round(value));
+  return totalPages > 0 ? Math.min(safe, Math.round(totalPages)) : safe;
+}
+
+function journalKindOrder(entry: JournalEntry): number {
+  if (entry.kind === 'started') return 0;
+  if (entry.kind === 'finished' || entry.kind === 'dnf') return 2;
+  return 1;
+}
+
+function isTimelineProgressEntry(entry: JournalEntry): boolean {
+  return (entry.pages || 0) > 0
+    || entry.cumulativePages != null
+    || entry.percent != null
+    || entry.kind === 'started'
+    || entry.kind === 'progress'
+    || entry.kind === 'resumed'
+    || entry.kind === 'finished'
+    || entry.kind === 'dnf';
+}
+
+/**
+ * Reconstruye la página alcanzada tras cada entrada.
+ *
+ * Las importaciones antiguas pudieron guardar `percent: 100` y
+ * `cumulativePages = total` en todas las sesiones (el porcentaje venía de un
+ * elemento visual de StoryGraph, no del avance de esa fecha). Por eso aquí no
+ * se copian esos campos tal cual: si un punto intermedio afirma estar al 100 %
+ * pero la suma de sesiones y los avances posteriores lo contradicen, manda la
+ * suma de páginas de sesión. `knownCurrentPage` solo se usa como comprobación
+ * de cordura para ese caso; no desplaza toda la línea temporal.
+ */
+export function buildJournalProgressTimeline(
+  entries: JournalEntry[],
+  totalPages: number,
+  knownCurrentPage = 0,
+): JournalProgressTimeline {
+  const total = Math.max(0, Math.round(totalPages || 0));
+  const known = clampJournalPage(knownCurrentPage || 0, total);
+  const sorted = [...(entries || [])].sort((a, b) => (
+    a.date - b.date
+    || journalKindOrder(a) - journalKindOrder(b)
+    || (finiteJournalNumber(a.cumulativePages) ?? Number.MAX_SAFE_INTEGER)
+      - (finiteJournalNumber(b.cumulativePages) ?? Number.MAX_SAFE_INTEGER)
+  ));
+
+  const points: JournalProgressPoint[] = [];
+  const segmentEndpoints = new Map<number, number>([[0, 0]]);
+  let segmentIndex = 0;
+  let currentSegmentIndex = 0;
+  let running = 0;
+  let segmentHasProgress = false;
+  let segmentClosed = false;
+
+  sorted.forEach((entry, index) => {
+    if (segmentClosed && isTimelineProgressEntry(entry)) {
+      segmentIndex += 1;
+      running = 0;
+      segmentHasProgress = false;
+      segmentClosed = false;
+      segmentEndpoints.set(segmentIndex, 0);
+    } else if (entry.kind === 'started' && segmentHasProgress && (entry.pages || 0) === 0) {
+      // Un segundo «inicio» tras avances previos marca una relectura/reinicio.
+      segmentIndex += 1;
+      running = 0;
+      segmentHasProgress = false;
+      segmentEndpoints.set(segmentIndex, 0);
     }
-    if (entry.kind === 'finished' && totalPages > 0) current = totalPages;
+
+    const delta = Math.max(0, Math.round(entry.pages || 0));
+    const cumulativeCandidateRaw = finiteJournalNumber(entry.cumulativePages);
+    const percentValue = finiteJournalNumber(entry.percent);
+    const cumulativeCandidate = cumulativeCandidateRaw === null
+      ? null
+      : clampJournalPage(cumulativeCandidateRaw, total);
+    const percentCandidate = percentValue === null || total <= 0
+      ? null
+      : clampJournalPage((percentValue / 100) * total, total);
+
+    let expected = running + delta;
+    let candidate = cumulativeCandidate;
+    if (candidate === null) {
+      candidate = percentCandidate;
+    } else if (percentCandidate !== null && Math.abs(candidate - percentCandidate) > 1) {
+      if (Math.abs(percentCandidate - expected) <= 1) candidate = percentCandidate;
+      else if (candidate >= total && total > 0 && expected < total) candidate = percentCandidate;
+    }
+
+    // Una página acumulada que baja respecto al tramo anterior suele ser el
+    // comienzo de otra lectura (o un cambio de edición), no un retroceso que
+    // deba arrastrar la suma anterior.
+    if (segmentHasProgress && candidate !== null && candidate < running && candidate >= delta) {
+      segmentIndex += 1;
+      running = candidate - delta;
+      expected = candidate;
+      segmentHasProgress = running > 0;
+      segmentEndpoints.set(segmentIndex, running);
+    }
+
+    const hasLaterProgress = sorted.slice(index + 1).some((next) => (next.pages || 0) > 0);
+    const bogusFullTotal = total > 0
+      && candidate !== null
+      && candidate >= total
+      && entry.kind !== 'finished'
+      && expected < total
+      && (hasLaterProgress || (known > 0 && known < total));
+    if (bogusFullTotal) candidate = null;
+
+    let absolute: number | null;
+    if (entry.kind === 'finished' && total > 0) {
+      absolute = total;
+    } else if (candidate !== null) {
+      absolute = candidate;
+    } else if (delta > 0) {
+      absolute = expected;
+    } else if (entry.kind === 'started') {
+      absolute = 0;
+    } else {
+      absolute = segmentHasProgress ? running : null;
+    }
+
+    if (absolute !== null) {
+      absolute = clampJournalPage(absolute, total);
+      running = absolute;
+      segmentEndpoints.set(segmentIndex, running);
+    }
+
+    const establishesProgress = delta > 0
+      || (candidate !== null && candidate > 0)
+      || entry.kind === 'progress'
+      || entry.kind === 'resumed'
+      || entry.kind === 'finished'
+      || entry.kind === 'dnf';
+    if (establishesProgress) segmentHasProgress = true;
+
+    const isProgressPoint = absolute !== null && (
+      delta > 0
+      || entry.kind === 'finished'
+      || entry.kind === 'dnf'
+      || (candidate !== null && absolute > 0)
+    );
+    const percent = isProgressPoint && absolute !== null
+      ? (total > 0 ? Math.round((absolute / total) * 1000) / 10 : percentValue)
+      : null;
+
+    points.push({
+      entry,
+      cumulativePages: absolute,
+      percent,
+      segmentIndex,
+      isProgressPoint,
+    });
+
+    if (isTimelineProgressEntry(entry)) currentSegmentIndex = segmentIndex;
+    if (entry.kind === 'finished' || entry.kind === 'dnf') segmentClosed = true;
+  });
+
+  return {
+    points,
+    currentPage: segmentEndpoints.get(currentSegmentIndex) ?? 0,
+    currentSegmentIndex,
+  };
+}
+
+export function calculateJournalCurrentPage(entries: JournalEntry[], totalPages: number): number {
+  return buildJournalProgressTimeline(entries || [], totalPages).currentPage;
+}
+
+export interface ManualProgressPlan {
+  baselinePage: number;
+  deltaPages: number;
+  nextCurrentPage: number;
+  affectsCurrent: boolean;
+  segmentIndex: number;
+  /** Entrada siguiente cuya sesión debe repartirse al insertar un punto pasado. */
+  nextEntryId: string | null;
+  /** Nuevas páginas de sesión para `nextEntryId`, si hay que ajustarlas. */
+  nextEntryPages: number | null;
+  /** Página ya alcanzada en el siguiente avance, si limita esta inserción. */
+  nextPage: number | null;
+  invalidReason: 'next-progress' | 'between-readings' | null;
+}
+
+/**
+ * Calcula cuántas páginas nuevas supone llegar a `targetPage` en una fecha.
+ *
+ * - Si es el avance más reciente, manda la página actual guardada en el libro
+ *   (la misma que muestra «Leyendo ahora») y se actualiza la página actual.
+ * - Si se inserta entre dos avances del mismo tramo, es un punto intermedio:
+ *   su delta sale del punto anterior y hay que restarlo de la sesión
+ *   siguiente para no contar esas páginas dos veces en las estadísticas.
+ * - Un punto pasado no puede superar el siguiente avance del mismo tramo.
+ */
+export function planManualProgress(
+  entries: JournalEntry[],
+  totalPages: number,
+  knownCurrentPage: number,
+  targetPage: number,
+  entryDate: number,
+): ManualProgressPlan {
+  const total = Math.max(0, Math.round(totalPages || 0));
+  const target = clampJournalPage(targetPage || 0, total);
+  const timeline = buildJournalProgressTimeline(entries || [], total, knownCurrentPage);
+  const fallbackCurrent = knownCurrentPage > 0
+    ? clampJournalPage(knownCurrentPage, total)
+    : timeline.currentPage;
+  const points = timeline.points;
+
+  const prior = [...points].reverse().find((point) => (
+    point.entry.date <= entryDate && point.cumulativePages !== null
+  ));
+  const next = points.find((point) => (
+    point.entry.date > entryDate
+    && point.cumulativePages !== null
+    && (point.isProgressPoint || point.entry.kind === 'started')
+  ));
+
+  if (next) {
+    const segmentIndex = prior?.segmentIndex ?? (next.segmentIndex === 0 ? 0 : timeline.currentSegmentIndex);
+    const baselinePage = prior?.cumulativePages ?? 0;
+    const nextPage = next.cumulativePages ?? 0;
+
+    if (next.segmentIndex !== segmentIndex) {
+      return {
+        baselinePage,
+        deltaPages: 0,
+        nextCurrentPage: fallbackCurrent,
+        affectsCurrent: false,
+        segmentIndex,
+        nextEntryId: null,
+        nextEntryPages: null,
+        nextPage,
+        invalidReason: 'between-readings',
+      };
+    }
+
+    if (target >= nextPage) {
+      return {
+        baselinePage,
+        deltaPages: 0,
+        nextCurrentPage: fallbackCurrent,
+        affectsCurrent: false,
+        segmentIndex,
+        nextEntryId: next.entry.id,
+        nextEntryPages: null,
+        nextPage,
+        invalidReason: 'next-progress',
+      };
+    }
+
+    return {
+      baselinePage,
+      deltaPages: target - baselinePage,
+      nextCurrentPage: fallbackCurrent,
+      affectsCurrent: false,
+      segmentIndex,
+      nextEntryId: next.entry.id,
+      nextEntryPages: Math.max(0, nextPage - target),
+      nextPage,
+      invalidReason: null,
+    };
   }
 
-  return totalPages > 0 ? Math.min(Math.max(0, current), totalPages) : Math.max(0, current);
+  const baselinePage = points.length ? fallbackCurrent : (prior?.cumulativePages ?? fallbackCurrent);
+  const segmentIndex = prior?.segmentIndex ?? timeline.currentSegmentIndex;
+  const deltaPages = target - baselinePage;
+  return {
+    baselinePage,
+    deltaPages,
+    nextCurrentPage: clampJournalPage(baselinePage + deltaPages, total),
+    affectsCurrent: true,
+    segmentIndex,
+    nextEntryId: null,
+    nextEntryPages: null,
+    nextPage: null,
+    invalidReason: null,
+  };
 }
 
 function sameJournalEntry(a: JournalEntry, b: JournalEntry): boolean {
@@ -1028,6 +1308,11 @@ function convertEntries(
 ): JournalEntry[] {
   const sorted = [...rawEntries].sort((a, b) => a.date.localeCompare(b.date));
   const bookPages = preferredPages || book.pages || Math.max(0, ...sorted.map((entry) => entry.bookPages || 0));
+  // Algunos archivos antiguos traen el total del libro repetido como si fuera
+  // la página acumulada de cada sesión. Si ocurre en más de una entrada, ese
+  // campo no es fiable: las páginas de sesión permiten reconstruir la suma.
+  const repeatedFullTotal = bookPages > 0
+    && sorted.filter((entry) => entry.pagesTotal !== null && entry.pagesTotal >= bookPages).length > 1;
   let previousCumulative = 0;
   let previousMinutesTotal = 0;
   let segmentClosed = false;
@@ -1040,18 +1325,41 @@ function convertEntries(
     }
 
     let cumulative = raw.pagesTotal;
-    if (cumulative === null && raw.percent !== null && bookPages > 0) {
-      cumulative = Math.round((raw.percent / 100) * bookPages);
+    if (
+      cumulative !== null
+      && repeatedFullTotal
+      && cumulative >= bookPages
+      && raw.kind !== 'finished'
+    ) {
+      cumulative = null;
     }
 
     let pages = 0;
     if (raw.pagesRead !== null) {
       pages = Math.max(0, Math.round(raw.pagesRead));
+      if (cumulative === null) {
+        // Con páginas de sesión explícitas manda su suma. El porcentaje solo
+        // puede aportar la base inicial de un tramo si no es el dudoso 100 %;
+        // nunca debe convertir cada sesión en «libro terminado».
+        const percentCumulative = raw.percent !== null && bookPages > 0
+          ? Math.round((raw.percent / 100) * bookPages)
+          : null;
+        cumulative = previousCumulative === 0
+          && percentCumulative !== null
+          && percentCumulative > pages
+          && percentCumulative < bookPages
+          ? percentCumulative
+          : previousCumulative + pages;
+      }
     } else if (cumulative !== null) {
       if (cumulative < previousCumulative) {
         // Un acumulado menor suele marcar una relectura o un cambio de edición.
         previousCumulative = 0;
       }
+      pages = Math.max(0, Math.round(cumulative - previousCumulative));
+    } else if (raw.percent !== null && bookPages > 0) {
+      cumulative = Math.round((raw.percent / 100) * bookPages);
+      if (cumulative < previousCumulative) previousCumulative = 0;
       pages = Math.max(0, Math.round(cumulative - previousCumulative));
     } else if (raw.kind === 'finished' && bookPages > 0 && previousCumulative > 0) {
       pages = Math.max(0, bookPages - previousCumulative);
@@ -1076,14 +1384,19 @@ function convertEntries(
 
     if (raw.kind === 'finished' || raw.kind === 'dnf') segmentClosed = true;
 
+    const roundedCumulative = cumulative === null ? null : clampJournalPage(cumulative, bookPages);
+    const derivedPercent = bookPages > 0 && roundedCumulative !== null
+      ? Math.round((roundedCumulative / bookPages) * 1000) / 10
+      : raw.percent;
+
     return {
       id: `sg-${raw.sourceEntryId.replace(/[^A-Za-z0-9_-]/g, '-')}`,
       date: dateToTimestamp(raw.date, index),
       pages,
       note: raw.note || '',
       ...(minutes > 0 ? { minutes } : {}),
-      percent: raw.percent,
-      cumulativePages: cumulative === null ? null : Math.round(cumulative),
+      percent: derivedPercent,
+      cumulativePages: roundedCumulative,
       kind: raw.kind,
       source: 'storygraph' as const,
       sourceEntryId: raw.sourceEntryId,
