@@ -225,11 +225,17 @@ interface AuthorSeriesSortInfo {
   seriesDate: number;
 }
 
+interface SortBooksByAuthorAndSeriesOptions {
+  /** `name` da un orden alfabético de autores; por omisión manda su publicación más antigua. */
+  authorOrder?: 'earliestPublication' | 'name';
+}
+
 /**
- * Orden para la opción «Autor · saga · fecha» de Biblioteca.
+ * Orden por autor y saga.
  *
- * Las sagas de un mismo autor permanecen juntas. Los bloques de autor se
- * ordenan por la primera publicación de sus sagas; dentro de cada autor, las
+ * Las sagas de un mismo autor permanecen juntas. Por omisión, los bloques de
+ * autor se ordenan por la primera publicación de sus sagas (el criterio de la
+ * opción «Autor · saga · fecha» de Biblioteca); dentro de cada autor, las
  * sagas van por su fecha de publicación más antigua y los volúmenes por su
  * número. Los libros sueltos de ese autor quedan después de sus sagas y el
  * autor desconocido va al final. Si se pasa la colección completa como
@@ -239,6 +245,7 @@ interface AuthorSeriesSortInfo {
 export function sortBooksByAuthorAndSeries(
   booksToSort: Book[],
   metadataSource: Book[] = booksToSort,
+  options: SortBooksByAuthorAndSeriesOptions = {},
 ): Book[] {
   const metadataById = new Map<string, Book>();
   for (const book of [...metadataSource, ...booksToSort]) {
@@ -321,9 +328,13 @@ export function sortBooksByAuthorAndSeries(
 
     const unknownAuthor = Number(!ai.authorKey) - Number(!bi.authorKey);
     if (unknownAuthor) return unknownAuthor;
-    if (ai.authorDate !== bi.authorDate) return ai.authorDate - bi.authorDate;
 
     if (ai.authorKey !== bi.authorKey) {
+      if (options.authorOrder === 'name') {
+        return ai.authorName.localeCompare(bi.authorName, 'es')
+          || ai.authorKey.localeCompare(bi.authorKey, 'es');
+      }
+      if (ai.authorDate !== bi.authorDate) return ai.authorDate - bi.authorDate;
       return ai.authorName.localeCompare(bi.authorName, 'es')
         || ai.authorKey.localeCompare(bi.authorKey, 'es');
     }
@@ -347,4 +358,13 @@ export function sortBooksByAuthorAndSeries(
       || a.title.localeCompare(b.title, 'es')
       || (a.createdAt || 0) - (b.createdAt || 0);
   });
+}
+
+/**
+ * Orden permanente de la pestaña Estantería: autores de la A a la Z y, dentro
+ * de cada autor, primero sus sagas (de la más antigua a la más reciente y por
+ * número de volumen) y después los libros sueltos.
+ */
+export function sortBooksForBookshelf(books: Book[]): Book[] {
+  return sortBooksByAuthorAndSeries(books, books, { authorOrder: 'name' });
 }

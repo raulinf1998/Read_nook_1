@@ -23,7 +23,7 @@ estadísticas de lectura.
   volumen recomendado, la saga en lomos y la ruta de lectura ordenada. Si la
   numeración guardada salta un entero (por ejemplo, tienes el `#1` y el
   `#3`, pero no el `#2`), la ruta marca el hueco en tu colección.
-- **Estantería**: solo las portadas, sin títulos, autores, notas ni estados, dentro de un mueble con fondo, laterales, coronación, baldas y zócalo.
+- **Estantería**: solo las portadas, sin títulos, autores, notas ni estados, ordenadas siempre por autor y dentro de cada autor por saga, dentro de una librería clásica frontal lacada en crema con tapa y baldas de pino, laterales moldurados y patas.
 - **Descubrir**: recomendación de próxima lectura según tus autores y géneros
   favoritos, ruleta lectora, joyas para releer y pendientes olvidados.
 - **Reto anual**: objetivo editable, anillo de progreso, hitos (25/50/75/100 %),
