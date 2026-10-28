@@ -25,12 +25,10 @@ import {
   seriesBookProgress,
   type SeriesGroup,
 } from '../series';
-import { spineWidthPx } from '../bookSpine';
 import { useWindowWidth } from '../hooks';
 import { StarRating } from './StarRating';
 import {
   BookCover,
-  BookSpine,
   ProgressBar,
   SectionHeader,
   StatusBadge,
@@ -317,38 +315,37 @@ export function SeriesDetail({ group, onBack, onOpen, onEdit, onUpdate }: Props)
         />
       </section>
 
-      {/* La saga como lomos en una balda */}
+      {/* La saga con sus portadas frontales en una balda */}
       <section className={cx(cardCls, 'overflow-hidden p-4 sm:p-5')}>
         <SectionHeader icon={<Library size={17} />} title="La saga en la balda" count={books.length} />
         <div className="overflow-x-auto pb-1 no-scrollbar">
           <div className="min-w-max">
-          <div className="flex items-end gap-1 px-2 pt-2">
-            {books.map((book) => {
-              const width = spineWidthPx(book);
-              const height = Math.round(190 + Math.min(62, Math.max(0, book.pages || 320) / 14));
-              return (
+            <div className="flex items-end gap-3 px-2 pt-3 sm:gap-4 sm:px-3">
+              {books.map((book, index) => (
                 <button
                   key={book.id}
                   type="button"
                   onClick={() => onOpen(book)}
-                  className="group shrink-0 transition-transform duration-300 hover:-translate-y-2"
-                  style={{ width }}
+                  className="group w-[84px] shrink-0 transition-all duration-300 hover:-translate-y-2 hover:-rotate-1 focus-visible:-translate-y-2 min-[420px]:w-[94px] sm:w-[108px]"
                   aria-label={`Abrir ficha de ${book.title}`}
-                  title={`${positionLabel(book, books.indexOf(book) + 1)} · ${book.title}`}
+                  title={`${positionLabel(book, index + 1)} · ${book.title}`}
                 >
-                  <span className="block" style={{ height }}>
-                    <BookSpine book={book} className="h-full w-full" />
-                  </span>
+                  <BookCover
+                    title={book.title}
+                    author={book.author}
+                    coverUrl={book.coverUrl}
+                    detail="md"
+                    className="aspect-[2/3] w-full shadow-book"
+                  />
                   <span className="sr-only">{book.title}</span>
                 </button>
-              );
-            })}
-          </div>
-          <div className="shelf-board h-4 rounded-[5px]" aria-hidden />
+              ))}
+            </div>
+            <div className="shelf-board mt-1 h-4 rounded-[5px]" aria-hidden />
           </div>
         </div>
         <p className="mt-3 text-center text-[11px] font-medium text-ink3">
-          Toca un lomo para abrir ese volumen.
+          Toca una portada para abrir ese volumen.
         </p>
       </section>
 

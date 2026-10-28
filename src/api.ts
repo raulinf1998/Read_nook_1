@@ -35,6 +35,8 @@ export interface Settings {
   theme: ThemeId;
   customPalettes: CustomPalette[];
   customPaletteId: string | null;
+  /** Crece en el servidor con cada cambio; sirve para sincronizar dispositivos. */
+  settingsVersion: number;
 }
 
 export const apiClient = {
@@ -63,7 +65,14 @@ export const apiClient = {
     api<string[]>('/tags', { method: 'POST', body: JSON.stringify({ tag }) }),
   removeTag: (tag: string) =>
     api<string[]>(`/tags/${encodeURIComponent(tag)}`, { method: 'DELETE' }),
-  getSettings: () => api<Settings>('/settings'),
-  setSettings: (settings: Partial<Settings>) =>
+  getSettings: () => api<Settings>('/settings', { cache: 'no-store' }),
+  setSettings: (settings: Partial<Omit<Settings, 'settingsVersion'>>) =>
     api<Settings>('/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+  saveCustomPalette: (palette: CustomPalette, activate = true) =>
+    api<Settings>(`/settings/custom-palettes/${encodeURIComponent(palette.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ palette, activate }),
+    }),
+  deleteCustomPalette: (id: string) =>
+    api<Settings>(`/settings/custom-palettes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };

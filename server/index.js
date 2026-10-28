@@ -582,6 +582,11 @@ function loadDB() {
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
+        settingsVersion: typeof parsed.settingsVersion === 'number'
+          && Number.isSafeInteger(parsed.settingsVersion)
+          && parsed.settingsVersion > 0
+          ? parsed.settingsVersion
+          : 0,
       };
     } catch {
       // Si la base de datos está dañada no se deben interpretar todas las
@@ -589,7 +594,16 @@ function loadDB() {
       dbLoadFailed = true;
     }
   }
-  return { books: [], tags: [], goal: 24, dark: false, theme: 'calido', customPalettes: [], customPaletteId: null };
+  return {
+    books: [],
+    tags: [],
+    goal: 24,
+    dark: false,
+    theme: 'calido',
+    customPalettes: [],
+    customPaletteId: null,
+    settingsVersion: 0,
+  };
 }
 
 function saveDB(db) {
@@ -762,16 +776,32 @@ app.delete('/api/tags/:tag', (req, res) => {
 });
 
 // --- Settings ---
+// La apariencia (tema, modo y paletas personalizadas) vive en el servidor,
+// no en cada navegador. `settingsVersion` crece con cada cambio para que un
+// dispositivo pueda detectar ajustes hechos desde otro y descartar las
+// respuestas antiguas que lleguen fuera de orden.
 const publicSettings = () => ({
   goal: db.goal,
   dark: db.dark,
   theme: db.theme,
   customPalettes: db.customPalettes,
   customPaletteId: db.customPaletteId,
+  settingsVersion: db.settingsVersion || 0,
 });
 
+function sendSettings(res) {
+  // Nunca debe reutilizarse una copia cacheada de otro momento/dispositivo.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  return res.json(publicSettings());
+}
+
+function touchSettings() {
+  db.settingsVersion = (Number.isSafeInteger(db.settingsVersion) ? db.settingsVersion : 0) + 1;
+}
+
 app.get('/api/settings', (req, res) => {
-  res.json(publicSettings());
+  sendSettings(res);
 });
 app.put('/api/settings', (req, res) => {
   if (typeof req.body.goal === 'number') db.goal = req.body.goal;
@@ -791,8 +821,49 @@ app.put('/api/settings', (req, res) => {
   ) {
     db.customPaletteId = req.body.customPaletteId;
   }
+  touchSettings();
   saveDB(db);
-  res.json(publicSettings());
+  sendSettings(res);
+});
+
+// Guardar o borrar una sola paleta, sin enviar la lista completa. Así, un PC
+// que todavía no ha visto la paleta creada en el móvil no puede borrarla al
+// guardar otra desde su lista antigua (ni al revés).
+app.put('/api/settings/custom-palettes/:id', (req, res) => {
+  const candidate = req.body?.palette ?? req.body;
+  const [palette] = sanitizeCustomPalettes([candidate]);
+  if (!palette || palette.id !== req.params.id) {
+    return res.status(400).json({ error: 'La paleta personalizada no es válida.' });
+  }
+
+  const existingIndex = db.customPalettes.findIndex((item) => item.id === palette.id);
+  if (existingIndex >= 0) {
+    db.customPalettes[existingIndex] = palette;
+  } else {
+    if (db.customPalettes.length >= 24) {
+      return res.status(409).json({ error: 'Ya hay 24 paletas personalizadas guardadas.' });
+    }
+    db.customPalettes.push(palette);
+  }
+
+  if (req.body?.activate !== false) {
+    db.theme = palette.baseTheme;
+    db.customPaletteId = palette.id;
+  }
+  touchSettings();
+  saveDB(db);
+  return sendSettings(res);
+});
+
+app.delete('/api/settings/custom-palettes/:id', (req, res) => {
+  const previousLength = db.customPalettes.length;
+  db.customPalettes = db.customPalettes.filter((palette) => palette.id !== req.params.id);
+  if (db.customPaletteId === req.params.id) db.customPaletteId = null;
+  if (db.customPalettes.length !== previousLength) {
+    touchSettings();
+    saveDB(db);
+  }
+  return sendSettings(res);
 });
 
 const PORT = process.env.PORT || 3001;
