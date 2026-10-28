@@ -10,6 +10,7 @@ import {
   publicationDateValue,
   seriesBookProgress,
   sortBooksByAuthorAndSeries,
+  sortBooksForBookshelf,
   sortSeriesBooks,
 } from '../src/series.ts';
 import {
@@ -162,6 +163,26 @@ test('la fecha de una saga se calcula con la colección completa aunque el filtr
       .map(({ title }) => title),
     ['Visible 2', 'Otra 1'],
   );
+});
+
+test('la Estantería ordena siempre por autor A-Z y dentro de cada autor por saga', () => {
+  const books = [
+    book({ title: 'Saga antigua de Zulema 1', author: 'Zulema Vega', series: 'Saga antigua', seriesPosition: '1', publishDate: '1990' }),
+    book({ title: 'Saga reciente de Ana 1', author: 'Ana Prats', series: 'Saga reciente', seriesPosition: '1', publishDate: '2020' }),
+    book({ title: 'Saga anterior de Ana 2', author: 'Ana Prats', series: 'Saga anterior', seriesPosition: '2', publishDate: '2011' }),
+    book({ title: 'Libro suelto de Ana', author: 'Ana Prats', publishDate: '2000' }),
+    book({ title: 'Saga anterior de Ana 1', author: 'ana prats', series: 'saga anterior', seriesPosition: '1', publishDate: '2010' }),
+    book({ title: 'Libro sin autor', author: '', series: 'Saga anónima', seriesPosition: '1', publishDate: '1980' }),
+  ];
+
+  assert.deepEqual(sortBooksForBookshelf(books).map(({ title }) => title), [
+    'Saga anterior de Ana 1',
+    'Saga anterior de Ana 2',
+    'Saga reciente de Ana 1',
+    'Libro suelto de Ana',
+    'Saga antigua de Zulema 1',
+    'Libro sin autor',
+  ]);
 });
 
 test('el ISBN se normaliza y genera el candidato de lomo correcto', () => {

@@ -797,80 +797,173 @@ input[type='range'].book-slider::-moz-range-thumb {
     inset 0 -2px 3px rgb(0 0 0 / 0.18);
 }
 
-/* Mueble completo de la pestaña Estantería: solo se ven las portadas y la
-   carpintería (fondo, laterales, coronación, baldas y zócalo). */
+/* Librería clásica de la pestaña Estantería: marco lacado en crema, tapa y
+   baldas de pino natural y el fondo interior de la colección. El mueble se
+   dibuja de frente, con cantos escuadrados y carpintería visible, en vez de
+   parecer una tarjeta redondeada. */
 .bookcase {
+  --bookcase-post-width: clamp(24px, 6vw, 54px);
+  --bookcase-foot-width: clamp(20px, 4.2vw, 38px);
+  --bookcase-inner-pad: clamp(12px, 3vw, 30px);
+  --bookcase-paint-light: #f8f3e8;
+  --bookcase-paint: #eee6d5;
+  --bookcase-paint-dark: #cfc1a6;
+  --bookcase-paint-shadow: #aa9a7b;
+  --bookcase-pine-light: #e4bb7f;
+  --bookcase-pine: #d3a15f;
+  --bookcase-pine-dark: #a9783f;
   position: relative;
-  overflow: hidden;
-  border-radius: calc(var(--r-card) + 4px);
-  background: linear-gradient(180deg, var(--shelf-2), var(--shelf-3));
-  box-shadow:
-    var(--shadow-lift),
-    inset 0 1px 0 rgb(255 255 255 / 0.22),
-    inset 0 -18px 32px rgb(0 0 0 / 0.18);
+  isolation: isolate;
+  overflow: visible;
+  margin: 2px 7px 14px;
 }
-.bookcase-top {
-  position: relative;
-  height: clamp(22px, 4.5vw, 42px);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.34), transparent 42%),
-    repeating-linear-gradient(90deg, transparent 0 118px, rgb(0 0 0 / 0.05) 118px 120px),
-    linear-gradient(180deg, var(--shelf-1) 0%, var(--shelf-2) 58%, var(--shelf-3) 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.38),
-    inset 0 -5px 8px rgb(0 0 0 / 0.24),
-    0 10px 18px -10px rgb(0 0 0 / 0.5);
-}
-.bookcase-top::after {
+.bookcase::after {
   content: '';
   position: absolute;
-  left: 3.5%;
-  right: 3.5%;
-  bottom: 5px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.16);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+  z-index: -1;
+  right: 2%;
+  bottom: -13px;
+  left: 2%;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.32) 0%, rgb(0 0 0 / 0.16) 48%, transparent 72%);
+  filter: blur(5px);
+}
+.bookcase-cap {
+  position: relative;
+  z-index: 4;
+  height: clamp(15px, 2.4vw, 23px);
+  margin: 0 -7px;
+  border: 1px solid rgb(125 82 38 / 0.48);
+  border-bottom-color: rgb(91 58 25 / 0.66);
+  border-radius: 3px 3px 2px 2px;
+  background:
+    radial-gradient(ellipse 42px 5px at 18% 60%, rgb(122 76 32 / 0.18), transparent 70%),
+    radial-gradient(ellipse 58px 6px at 76% 42%, rgb(122 76 32 / 0.14), transparent 72%),
+    repeating-linear-gradient(90deg, transparent 0 92px, rgb(110 68 27 / 0.055) 92px 94px),
+    linear-gradient(180deg, #ecc58b 0%, var(--bookcase-pine-light) 34%, var(--bookcase-pine) 78%, #b98347 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.62),
+    inset 0 -4px 6px rgb(104 62 21 / 0.22),
+    0 5px 10px -5px rgb(0 0 0 / 0.55);
+}
+.bookcase-cap::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 5px;
+  background: linear-gradient(180deg, rgb(83 52 21 / 0.48), rgb(83 52 21 / 0.08));
+}
+.bookcase-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--bookcase-paint-shadow);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+  background: var(--bookcase-paint);
+  box-shadow:
+    0 22px 34px -24px rgb(0 0 0 / 0.62),
+    10px 0 22px -20px rgb(0 0 0 / 0.5),
+    -10px 0 22px -20px rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(255 255 255 / 0.42);
+}
+.bookcase-rail {
+  position: relative;
+  z-index: 3;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 118px, rgb(111 91 60 / 0.025) 118px 120px),
+    linear-gradient(90deg, #d9cfb9 0%, var(--bookcase-paint-light) 17%, var(--bookcase-paint) 52%, #f3ecdd 82%, #d5c8ae 100%);
+}
+.bookcase-rail::before,
+.bookcase-rail::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgb(111 91 60 / 0.22);
+  box-shadow: 1px 0 0 rgb(255 255 255 / 0.48);
+}
+.bookcase-rail::before {
+  left: var(--bookcase-post-width);
+}
+.bookcase-rail::after {
+  right: var(--bookcase-post-width);
+}
+.bookcase-rail--top {
+  height: clamp(20px, 3.4vw, 34px);
+  border-bottom: 1px solid rgb(111 91 60 / 0.34);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.72),
+    inset 0 -6px 8px rgb(111 91 60 / 0.12),
+    0 7px 12px -8px rgb(0 0 0 / 0.62);
+}
+.bookcase-rail--bottom {
+  height: clamp(27px, 4.6vw, 45px);
+  border-top: 1px solid rgb(111 91 60 / 0.36);
+  box-shadow:
+    inset 0 6px 9px rgb(74 55 30 / 0.17),
+    inset 0 -1px 0 rgb(255 255 255 / 0.52);
 }
 .bookcase-body {
   display: grid;
-  grid-template-columns: clamp(15px, 4vw, 38px) minmax(0, 1fr) clamp(15px, 4vw, 38px);
+  grid-template-columns: var(--bookcase-post-width) minmax(0, 1fr) var(--bookcase-post-width);
   align-items: stretch;
 }
 .bookcase-side {
   position: relative;
   z-index: 2;
+  overflow: hidden;
   background:
-    repeating-linear-gradient(180deg, transparent 0 92px, rgb(0 0 0 / 0.055) 92px 94px),
-    linear-gradient(90deg, var(--shelf-3) 0%, var(--shelf-1) 45%, var(--shelf-2) 78%, var(--shelf-3) 100%);
+    linear-gradient(180deg, transparent 0 calc(62% - 1px), rgb(111 91 60 / 0.16) calc(62% - 1px) 62%, rgb(255 255 255 / 0.38) calc(62% + 1px), transparent calc(62% + 2px)),
+    repeating-linear-gradient(180deg, transparent 0 96px, rgb(111 91 60 / 0.018) 96px 98px),
+    linear-gradient(90deg, #cdbd9f 0%, #e7ddc9 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
   box-shadow:
-    inset 1px 0 0 rgb(255 255 255 / 0.18),
-    inset -8px 0 14px rgb(0 0 0 / 0.18);
+    inset 1px 0 0 rgb(255 255 255 / 0.62),
+    inset -1px 0 0 rgb(111 91 60 / 0.34),
+    inset -13px 0 17px -12px rgb(65 47 24 / 0.52);
 }
 .bookcase-side--right {
   background:
-    repeating-linear-gradient(180deg, transparent 0 92px, rgb(0 0 0 / 0.055) 92px 94px),
-    linear-gradient(270deg, var(--shelf-3) 0%, var(--shelf-1) 45%, var(--shelf-2) 78%, var(--shelf-3) 100%);
+    linear-gradient(180deg, transparent 0 calc(62% - 1px), rgb(111 91 60 / 0.16) calc(62% - 1px) 62%, rgb(255 255 255 / 0.38) calc(62% + 1px), transparent calc(62% + 2px)),
+    repeating-linear-gradient(180deg, transparent 0 96px, rgb(111 91 60 / 0.018) 96px 98px),
+    linear-gradient(270deg, #cdbd9f 0%, #e7ddc9 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
   box-shadow:
-    inset -1px 0 0 rgb(255 255 255 / 0.18),
-    inset 8px 0 14px rgb(0 0 0 / 0.18);
+    inset -1px 0 0 rgb(255 255 255 / 0.62),
+    inset 1px 0 0 rgb(111 91 60 / 0.34),
+    inset 13px 0 17px -12px rgb(65 47 24 / 0.52);
+}
+.bookcase-side::before {
+  content: '';
+  position: absolute;
+  inset: 18px clamp(6px, 1vw, 11px);
+  border: 1px solid rgb(111 91 60 / 0.2);
+  border-radius: 1px;
+  box-shadow:
+    inset 1px 1px 0 rgb(255 255 255 / 0.5),
+    inset -1px -1px 0 rgb(111 91 60 / 0.1),
+    inset 0 0 12px rgb(111 91 60 / 0.035);
 }
 .bookcase-side::after {
   content: '';
   position: absolute;
-  top: 18px;
-  bottom: 18px;
-  left: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.13);
-  box-shadow: 1px 0 0 rgb(255 255 255 / 0.16);
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.3), transparent);
+}
+.bookcase-side:not(.bookcase-side--right)::after {
+  left: 3px;
+}
+.bookcase-side--right::after {
+  right: 3px;
 }
 .bookcase-back {
   position: relative;
   min-width: 0;
-  padding: clamp(18px, 3.5vw, 34px) clamp(12px, 3vw, 30px) clamp(10px, 2vw, 18px);
+  padding: clamp(18px, 3.5vw, 34px) var(--bookcase-inner-pad) clamp(10px, 2vw, 18px);
   background:
     radial-gradient(ellipse 70% 210px at 50% -70px, rgb(var(--glow) / 0.17), transparent 68%),
     repeating-linear-gradient(90deg, transparent 0 132px, rgb(0 0 0 / 0.045) 132px 134px),
@@ -889,15 +982,51 @@ input[type='range'].book-slider::-moz-range-thumb {
   border: 1px solid rgb(0 0 0 / 0.045);
   box-shadow: inset 0 0 32px rgb(0 0 0 / 0.045);
 }
-.bookcase-plinth {
-  height: clamp(24px, 5vw, 46px);
+.bookcase-shelf {
+  position: relative;
+  height: clamp(12px, 1.9vw, 18px);
+  margin: 2px calc(var(--bookcase-inner-pad) * -1) 0;
+  border-top: 1px solid rgb(255 232 190 / 0.78);
+  border-bottom: 1px solid rgb(91 58 25 / 0.58);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.2), transparent 38%),
-    repeating-linear-gradient(90deg, transparent 0 118px, rgb(0 0 0 / 0.05) 118px 120px),
-    linear-gradient(180deg, var(--shelf-2) 0%, var(--shelf-3) 100%);
+    radial-gradient(ellipse 54px 4px at 22% 58%, rgb(122 76 32 / 0.13), transparent 72%),
+    radial-gradient(ellipse 72px 5px at 78% 46%, rgb(122 76 32 / 0.1), transparent 72%),
+    repeating-linear-gradient(90deg, transparent 0 96px, rgb(110 68 27 / 0.045) 96px 98px),
+    linear-gradient(180deg, #e9c384 0%, var(--bookcase-pine-light) 22%, var(--bookcase-pine) 72%, var(--bookcase-pine-dark) 100%);
   box-shadow:
-    inset 0 5px 9px rgb(0 0 0 / 0.18),
-    inset 0 -1px 0 rgb(255 255 255 / 0.12);
+    inset 8px 0 12px -9px rgb(68 42 16 / 0.55),
+    inset -8px 0 12px -9px rgb(68 42 16 / 0.55),
+    inset 0 -3px 4px rgb(91 58 25 / 0.2),
+    0 8px 12px -7px rgb(0 0 0 / 0.48);
+}
+.bookcase-shelf::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -5px;
+  left: 0;
+  height: 5px;
+  background: linear-gradient(180deg, rgb(54 35 16 / 0.2), transparent);
+}
+.bookcase-feet {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 calc((var(--bookcase-post-width) - var(--bookcase-foot-width)) / 2);
+}
+.bookcase-feet span {
+  display: block;
+  width: var(--bookcase-foot-width);
+  height: clamp(16px, 3vw, 28px);
+  border: 1px solid rgb(111 91 60 / 0.42);
+  border-top: 0;
+  border-radius: 0 0 2px 2px;
+  clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%);
+  background: linear-gradient(90deg, #d6c9ad 0%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
+  box-shadow:
+    inset 0 -5px 7px rgb(111 91 60 / 0.13),
+    0 5px 8px -5px rgb(0 0 0 / 0.5);
 }
 
 /* ---------- Portada con relieve (lomo + brillo) ---------- */
