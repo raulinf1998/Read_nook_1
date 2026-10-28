@@ -68,7 +68,16 @@ export function useBooks() {
     }
     setBooks((prev) => prev.map((b) => (b.id === id ? { ...b, ...effectivePatch } : b)));
     try {
-      await apiClient.updateBook(id, effectivePatch);
+      const saved = await apiClient.updateBook(id, effectivePatch);
+      if ('coverUrl' in effectivePatch || 'coverSourceUrl' in effectivePatch) {
+        // El servidor es la autoridad sobre la copia local: si ha descargado
+        // él la portada, adoptamos su URL sin pisar otros cambios recientes.
+        setBooks((prev) => prev.map((b) => (
+          b.id === id
+            ? { ...b, coverUrl: saved.coverUrl, coverSourceUrl: saved.coverSourceUrl }
+            : b
+        )));
+      }
     } catch {
       /* optimistic update */
     }

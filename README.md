@@ -12,7 +12,9 @@ estadísticas de lectura.
   sobre la zona visible en la que estás (también con el teclado abierto), no
   al final de la página. También muestra pendientes y resumen del reto anual.
 - **Biblioteca**: búsqueda (título, autor, saga y géneros), filtros por estado,
-  ordenación y un selector con **10 formas de verla**: baldas de madera,
+  ordenación (incluida **Autor · saga · fecha**, que mantiene juntas las sagas
+  de cada autor y las ordena por su primera publicación) y un selector con
+  **10 formas de verla**: baldas de madera,
   lomos, baldas flotantes, vitrina, pilas, muro de portadas, galería con
   marcos, fichero de biblioteca, rejilla clásica y lista. La opción elegida se
   recuerda en ese navegador.
@@ -21,7 +23,7 @@ estadísticas de lectura.
   volumen recomendado, la saga en lomos y la ruta de lectura ordenada. Si la
   numeración guardada salta un entero (por ejemplo, tienes el `#1` y el
   `#3`, pero no el `#2`), la ruta marca el hueco en tu colección.
-- **Estantería**: tu colección en baldas, como una librería de verdad.
+- **Estantería**: solo las portadas, sin títulos, autores, notas ni estados, dentro de un mueble con fondo, laterales, coronación, baldas y zócalo.
 - **Descubrir**: recomendación de próxima lectura según tus autores y géneros
   favoritos, ruleta lectora, joyas para releer y pendientes olvidados.
 - **Reto anual**: objetivo editable, anillo de progreso, hitos (25/50/75/100 %),
@@ -38,10 +40,12 @@ estadísticas de lectura.
   idioma amplio, páginas, fecha de publicación, saga y número dentro de la
   saga, tags, sinopsis, notas, actividad y el **diario lector abierto** por
   sesiones. Editar sigue estando disponible con su botón. La portada puede
-  subirse desde el
-  ordenador/móvil o copiarse desde una URL; en ambos casos se guarda el
-  archivo en el servidor de Bilibook para que siga viéndose aunque la URL
-  original desaparezca.
+  subirse desde el ordenador/móvil o copiarse desde una URL. El servidor la
+  guarda automáticamente al crear, editar o importar libros —y al arrancar
+  copia también las portadas antiguas que aún fueran externas—, para que siga
+  viéndose aunque la URL original desaparezca. Las imágenes idénticas comparten
+  un único archivo SHA-256; al sustituir o borrar una portada, el archivo
+  anterior se elimina cuando ya no lo usa ningún otro libro.
 - **Alta por ISBN** con autocompletado desde Google Books y Open Library.
 - **Importación desde TheStoryGraph**: CSV oficial de la biblioteca y, si se
   quiere recuperar el avance por fechas, JSON/CSV del Reading Journal generado
@@ -172,8 +176,10 @@ docker compose up --build
 
 Sirve la app en http://localhost:8080. Los datos persisten en un volumen
 (`book-tracker-data`): `db.json` guarda libros, tags, objetivo y tema, y la
-carpeta `covers/` guarda las imágenes subidas o copiadas desde una URL
-(nombre = hash SHA-256, sin duplicar la misma portada).
+carpeta `covers/` guarda automáticamente las portadas subidas, enlazadas o
+importadas (nombre = hash SHA-256). La misma imagen se almacena una sola vez;
+al sustituirla, quitarla o borrar el libro se retira el archivo anterior si
+ningún otro libro lo comparte, y al arrancar se limpian huérfanos antiguos.
 
 ## Estructura
 
@@ -187,7 +193,7 @@ src/
   api.ts             Cliente de la API REST
   lib.ts             ISBN (Google Books/Open Library) y parser CSV StoryGraph
   bookMetadata.ts    Normalización de idioma, formato, fecha, estado y saga
-  series.ts          Agrupación, orden y huecos de sagas
+  series.ts          Agrupación, orden por autor/fecha y huecos de sagas
   bookSpine.ts       ISBN-13, candidato de lomo y grosor visual
   libraryViews.ts    Las 10 vistas disponibles en Biblioteca
   storyGraphJournal.ts Parser JSON/CSV y fusión idempotente del diario

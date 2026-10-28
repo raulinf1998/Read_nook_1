@@ -271,7 +271,7 @@ export default function App() {
         {/* Contenido */}
         <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 xl:px-8 pt-5 sm:pt-7 pb-28 lg:pb-14">
           {/* Encabezado de página (la ficha de un libro lleva el suyo propio) */}
-          {!selectedBook && !selectedSeriesGroup && <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
+          {!selectedBook && !selectedSeriesGroup && tab !== 'shelf' && <div className="mb-6 animate-fade-up" key={`head-${tab}`}>
             {tab === 'reading' && books.length > 0 && (
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent mb-1">{greeting()}</p>
             )}
