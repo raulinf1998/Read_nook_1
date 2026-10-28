@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Read Nook · Exportar diario de StoryGraph
 // @namespace    https://read-nook.local/
-// @version      1.0.5
+// @version      1.0.6
 // @description  Exporta localmente el Reading Journal de StoryGraph a JSON/CSV para Bilibook.
 // @author       Bilibook
 // @match        https://app.thestorygraph.com/*
@@ -24,7 +24,7 @@
 
   const HOST = 'app.thestorygraph.com';
   const PANEL_ID = 'read-nook-sg-exporter';
-  const EXTRACTOR_VERSION = '1.0.5';
+  const EXTRACTOR_VERSION = '1.0.6';
   const USERNAME_KEY = 'readnook.storygraph.username';
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const REQUEST_DELAY_MS = 140;
@@ -1408,15 +1408,44 @@
   }
 
   function parsePercent(element, rawText) {
-    const styled = [...element.querySelectorAll('[style]')]
-      .map((node) => node.getAttribute('style') || '')
-      .join(' ');
-    const width = styled.match(/width\s*:\s*([0-9]+(?:[.,][0-9]+)?)%/i);
-    if (width) return clamp(parseNumber(width[1]), 0, 100);
-    const aria = element.querySelector('[aria-valuenow]')?.getAttribute('aria-valuenow');
-    if (aria) return clamp(parseNumber(aria), 0, 100);
-    const text = rawText.match(/\b([0-9]+(?:[.,][0-9]+)?)%/);
-    return text ? clamp(parseNumber(text[1]), 0, 100) : null;
+    // El porcentaje visible de la entrada es la fuente más fiable. No se debe
+    // tomar el primer `width: …%` de cualquier nodo: StoryGraph usa anchos de
+    // maquetación (a menudo 100 %) que no representan el avance de esa fecha
+    // y hacían que Bilibook viera todas las sesiones como terminadas.
+    const text = String(rawText || '').match(/\b([0-9]+(?:[.,][0-9]+)?)\s*%/);
+    if (text) return clamp(parseNumber(text[1]), 0, 100);
+
+    const progressbar = element.querySelector?.('[role="progressbar"]');
+    if (progressbar) {
+      const now = parseNumber(progressbar.getAttribute?.('aria-valuenow'));
+      const min = parseNumber(progressbar.getAttribute?.('aria-valuemin')) ?? 0;
+      const max = parseNumber(progressbar.getAttribute?.('aria-valuemax')) ?? 100;
+      if (now !== null && max > min) {
+        return clamp(((now - min) / (max - min)) * 100, 0, 100);
+      }
+    }
+
+    // Como último recurso, solo se acepta el ancho de un nodo identificado
+    // explícitamente como barra de progreso (nunca un ancho genérico).
+    const styled = [...(element.querySelectorAll?.('[style]') || [])];
+    for (const node of styled) {
+      const marker = [
+        node.getAttribute?.('class') || '',
+        typeof node.className === 'string' ? node.className : '',
+        node.id || '',
+        node.getAttribute?.('id') || '',
+        node.getAttribute?.('role') || '',
+        node.getAttribute?.('data-testid') || '',
+      ].join(' ').toLocaleLowerCase('en');
+      const isProgressNode = /progress/.test(marker)
+        || Boolean(node.closest?.('[role="progressbar"], [class*="progress"]'));
+      if (!isProgressNode) continue;
+      const width = (node.getAttribute?.('style') || '')
+        .match(/width\s*:\s*([0-9]+(?:[.,][0-9]+)?)%/i);
+      if (width) return clamp(parseNumber(width[1]), 0, 100);
+    }
+
+    return null;
   }
 
   function parseListening(rawText) {

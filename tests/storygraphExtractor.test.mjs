@@ -49,6 +49,27 @@ function loadMetadataHelpers() {
   );
 }
 
+function loadPercentParser() {
+  const match = source.match(
+    /function parsePercent\(element, rawText\) \{[\s\S]*?\n  \}\n\n  function parseListening/,
+  );
+  assert.ok(match, 'No se encontró parsePercent en el userscript');
+  const functionText = match[0].replace(/\n\n  function parseListening$/, '');
+  const parseNumber = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(String(value).replace(',', '.'));
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  };
+  const clamp = (value, min, max) => (
+    value === null ? null : Math.min(max, Math.max(min, value))
+  );
+  return new Function(
+    'parseNumber',
+    'clamp',
+    `${functionText}\nreturn parsePercent;`,
+  )(parseNumber, clamp);
+}
+
 function loadCoverHelpers() {
   const match = source.match(
     /function bestSrcsetUrl\(srcset\) \{[\s\S]*?\n  function metaImageUrl/,
@@ -85,10 +106,52 @@ describe('extractor local de StoryGraph', () => {
   });
 
   test('publica la versión corregida y no ordena los ID como números', () => {
-    assert.match(source, /\/\/ @version\s+1\.0\.5/);
-    assert.match(source, /const EXTRACTOR_VERSION = '1\.0\.5'/);
+    assert.match(source, /\/\/ @version\s+1\.0\.6/);
+    assert.match(source, /const EXTRACTOR_VERSION = '1\.0\.6'/);
     assert.doesNotMatch(source, /journal_entries\\\/\(\\d\+\)\\\/edit/);
     assert.doesNotMatch(source, /Number\(a\.id\)\s*-\s*Number\(b\.id\)/);
+  });
+
+  test('no confunde un ancho de maquetación del 100 % con el avance lector', () => {
+    const parsePercent = loadPercentParser();
+    const fakeNode = (attributes) => ({
+      className: attributes.class || '',
+      id: attributes.id || '',
+      getAttribute(name) { return attributes[name] ?? null; },
+      closest() { return attributes.inProgress ? {} : null; },
+    });
+    const fakeElement = ({ progressbar = null, styled = [] } = {}) => ({
+      querySelector(selector) {
+        return selector === '[role="progressbar"]' ? progressbar : null;
+      },
+      querySelectorAll(selector) {
+        return selector === '[style]' ? styled : [];
+      },
+    });
+
+    const layoutNode = fakeNode({ class: 'w-full', style: 'width: 100%' });
+    assert.equal(
+      parsePercent(fakeElement({ styled: [layoutNode] }), '24 pages read (36%)'),
+      36,
+    );
+    assert.equal(
+      parsePercent(fakeElement({ styled: [layoutNode] }), '24 pages read'),
+      null,
+    );
+    assert.equal(
+      parsePercent(
+        fakeElement({ styled: [fakeNode({ class: 'reading-progress', style: 'width: 42%' })] }),
+        'Progress update',
+      ),
+      42,
+    );
+
+    const progressbar = {
+      getAttribute(name) {
+        return { 'aria-valuenow': '45', 'aria-valuemin': '0', 'aria-valuemax': '90' }[name] ?? null;
+      },
+    };
+    assert.equal(parsePercent(fakeElement({ progressbar }), 'Progress update'), 50);
   });
 
   test('elige la imagen de portada de mayor resolución y resuelve URLs relativas', () => {

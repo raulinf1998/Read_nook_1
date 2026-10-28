@@ -7,9 +7,10 @@ interface Props {
   books: Book[];
   goal: number;
   onSetGoal: (goal: number) => void;
+  onOpen: (book: Book) => void;
 }
 
-export function ReadingChallenge({ books, goal, onSetGoal }: Props) {
+export function ReadingChallenge({ books, goal, onSetGoal, onOpen }: Props) {
   const [goalInput, setGoalInput] = useState(goal.toString());
   const [editing, setEditing] = useState(false);
 
@@ -188,7 +189,7 @@ export function ReadingChallenge({ books, goal, onSetGoal }: Props) {
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 stagger">
             {readThisYear.map((b) => (
-              <div key={b.id} className="group">
+              <button key={b.id} onClick={() => onOpen(b)} className="group block w-full text-left" aria-label={`Abrir ficha de ${b.title}`}>
                 <BookCover
                   title={b.title}
                   author={b.author}
@@ -201,7 +202,7 @@ export function ReadingChallenge({ books, goal, onSetGoal }: Props) {
                   {b.finishedAt ? new Date(b.finishedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : ''}
                   {b.rating > 0 ? ` · ★ ${b.rating}` : ''}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         )}

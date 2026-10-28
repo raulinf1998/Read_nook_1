@@ -8,10 +8,10 @@ import { useWindowWidth } from '../hooks';
 
 interface Props {
   books: Book[];
-  onEdit: (book: Book) => void;
+  onOpen: (book: Book) => void;
 }
 
-export function Bookshelf({ books, onEdit }: Props) {
+export function Bookshelf({ books, onOpen }: Props) {
   const [shelfFilter, setShelfFilter] = useState<BookStatus | 'all'>('all');
   const width = useWindowWidth();
   // Nº de libros por balda: portadas más pequeñas en móvil y más aire en pantallas grandes.
@@ -63,9 +63,9 @@ export function Bookshelf({ books, onEdit }: Props) {
                 {shelf.map((book) => (
                   <button
                     key={book.id}
-                    onClick={() => onEdit(book)}
+                    onClick={() => onOpen(book)}
                     className="group relative flex h-full min-w-0 flex-col items-center self-start text-center"
-                    aria-label={`Abrir ${book.title}`}
+                    aria-label={`Abrir ficha de ${book.title}`}
                   >
                     <span className="relative block w-full max-w-[86px] shrink-0 transition-all duration-300 group-hover:-translate-y-2.5 group-hover:-rotate-1 min-[420px]:max-w-[96px] sm:max-w-[104px] xl:max-w-[112px]">
                       <BookCover
@@ -120,7 +120,7 @@ export function Bookshelf({ books, onEdit }: Props) {
             </section>
           ))}
           <p className="text-center text-xs text-ink3 pt-1">
-            {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'} en {shelves.length} {shelves.length === 1 ? 'balda' : 'baldas'} · toca un libro para editarlo
+            {filtered.length} {filtered.length === 1 ? 'libro' : 'libros'} en {shelves.length} {shelves.length === 1 ? 'balda' : 'baldas'} · toca un libro para abrir su ficha y su diario
           </p>
         </div>
       )}

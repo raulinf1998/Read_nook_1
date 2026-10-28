@@ -304,7 +304,34 @@ function parseCsvLine(line: string): string[] {
   return result;
 }
 
+/**
+ * Genera un ID también en contextos no seguros (por ejemplo, Bilibook servido
+ * por HTTP en la red local), donde `crypto.randomUUID()` puede no existir.
+ */
+export function createClientId(): string {
+  const cryptoObject = globalThis.crypto;
+  if (cryptoObject) {
+    if (typeof cryptoObject.randomUUID === 'function') {
+      try {
+        return cryptoObject.randomUUID();
+      } catch {
+        // Se prueba el generador de bytes aleatorios como respaldo.
+      }
+    }
+    if (typeof cryptoObject.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      cryptoObject.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  }
+
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // Helper to create a journal entry
 export function makeJournalEntry(pages: number, note: string): JournalEntry {
-  return { id: crypto.randomUUID(), date: Date.now(), pages, note };
+  return { id: createClientId(), date: Date.now(), pages, note };
 }

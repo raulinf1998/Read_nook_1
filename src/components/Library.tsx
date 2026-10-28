@@ -15,11 +15,12 @@ interface Props {
   onUpdate: (id: string, patch: Partial<Book>) => void;
   onDelete: (id: string) => void;
   onEdit: (book: Book) => void;
+  onOpen: (book: Book) => void;
 }
 
 type ViewMode = 'grid' | 'list';
 
-export function Library({ books, onDelete, onEdit }: Props) {
+export function Library({ books, onDelete, onEdit, onOpen }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating' | 'series'>('recent');
@@ -161,11 +162,11 @@ export function Library({ books, onDelete, onEdit }: Props) {
       ) : view === 'grid' ? (
         <div className="grid grid-cols-3 gap-2.5 min-[420px]:gap-3 sm:grid-cols-4 sm:gap-4 lg:grid-cols-5 xl:grid-cols-6 stagger">
           {filtered.map((book) => (
-            <GridCard key={book.id} book={book} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
+            <GridCard key={book.id} book={book} onOpen={() => onOpen(book)} onEdit={() => onEdit(book)} onAskDelete={() => setConfirming(book)} />
           ))}
         </div>
       ) : (
-        <ListView books={filtered} onEdit={onEdit} onAskDelete={setConfirming} />
+        <ListView books={filtered} onOpen={onOpen} onEdit={onEdit} onAskDelete={setConfirming} />
       )}
 
       {/* Confirmación de borrado */}
@@ -223,7 +224,7 @@ function ViewBtn({ active, onClick, icon, label }: { active: boolean; onClick: (
 
 /* ---------- Vista de rejilla ---------- */
 
-function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => void; onAskDelete: () => void }) {
+function GridCard({ book, onOpen, onEdit, onAskDelete }: { book: Book; onOpen: () => void; onEdit: () => void; onAskDelete: () => void }) {
   const pct = book.pages > 0 ? Math.min((book.currentPage / book.pages) * 100, 100) : 0;
   const status = STATUS_META[book.status];
   return (
@@ -232,9 +233,9 @@ function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => voi
       'group relative flex h-full flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-accent/40 hover:shadow-lift',
     )}>
       <button
-        onClick={onEdit}
+        onClick={onOpen}
         className="relative block aspect-[2/3] w-full shrink-0 overflow-hidden bg-sunken text-left"
-        aria-label={`Abrir ${book.title}`}
+        aria-label={`Abrir ficha de ${book.title}`}
       >
         <BookCover
           title={book.title}
@@ -258,7 +259,7 @@ function GridCard({ book, onEdit, onAskDelete }: { book: Book; onEdit: () => voi
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-3.5">
         <h3 className="h-[2.65em] font-display text-[12px] font-semibold leading-snug text-ink line-clamp-2 sm:text-sm">
-          {book.title}
+          <button onClick={onOpen} className="text-left hover:text-accent transition-colors">{book.title}</button>
         </h3>
         <p className="mt-1 h-4 truncate text-[11px] text-ink3 sm:text-xs">{book.author || 'Autor desconocido'}</p>
         <p className="mt-0.5 h-4 truncate text-[9px] font-extrabold uppercase tracking-wide text-accent sm:text-[10px]" title={seriesLabel(book) || undefined}>
@@ -327,7 +328,7 @@ function LibraryStat({ icon, value, label, detail }: {
 
 /* ---------- Vista de lista / tabla ---------- */
 
-function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: Book) => void; onAskDelete: (b: Book) => void }) {
+function ListView({ books, onOpen, onEdit, onAskDelete }: { books: Book[]; onOpen: (b: Book) => void; onEdit: (b: Book) => void; onAskDelete: (b: Book) => void }) {
   return (
     <div className={cx(cardCls, 'overflow-hidden')}>
       {/* Tabla escritorio */}
@@ -343,7 +344,7 @@ function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: B
           {books.map((book) => (
             <tr key={book.id} className="border-b border-line/60 last:border-0 hover:bg-sunken/60 transition-colors group">
               <td className="px-4 py-2.5">
-                <button onClick={() => onEdit(book)} className="flex items-center gap-3 text-left min-w-0">
+                <button onClick={() => onOpen(book)} className="flex items-center gap-3 text-left min-w-0" aria-label={`Abrir ficha de ${book.title}`}>
                   <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[52px] shadow-book" />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold text-ink truncate max-w-[320px]">{book.title}</span>
@@ -378,7 +379,7 @@ function ListView({ books, onEdit, onAskDelete }: { books: Book[]; onEdit: (b: B
       <div className="md:hidden divide-y divide-line/70">
         {books.map((book) => (
           <div key={book.id} className="p-3 flex items-center gap-3">
-            <button onClick={() => onEdit(book)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+            <button onClick={() => onOpen(book)} className="flex items-center gap-3 flex-1 min-w-0 text-left" aria-label={`Abrir ficha de ${book.title}`}>
               <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-9 h-[54px] shadow-book" />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink truncate">{book.title}</span>
