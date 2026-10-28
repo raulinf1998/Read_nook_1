@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { Book } from '../types';
 import { FORMAT_META, formatLabel, languageLabel } from '../types';
-import { useLocalStorage } from '../hooks';
+import type { ChartPreferences } from '../preferences';
 import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
 import { EmptyState, cardCls, cx, selectCls } from './ui';
 
@@ -36,32 +36,10 @@ type TrendChartType = 'bars' | 'line' | 'area';
 type RankingChartType = 'horizontal' | 'columns' | 'donut';
 type DistributionChartType = 'donut' | 'horizontal' | 'columns';
 
-interface ChartPreferences {
-  journal: TrendChartType;
-  books: TrendChartType;
-  extension: TrendChartType;
-  ratings: TrendChartType;
-  topBooks: RankingChartType;
-  authors: RankingChartType;
-  tags: DistributionChartType;
-  format: DistributionChartType;
-  language: DistributionChartType;
-}
-
-const DEFAULT_CHART_PREFERENCES: ChartPreferences = {
-  journal: 'bars',
-  books: 'bars',
-  extension: 'bars',
-  ratings: 'bars',
-  topBooks: 'horizontal',
-  authors: 'horizontal',
-  tags: 'donut',
-  format: 'donut',
-  language: 'donut',
-};
-
 interface Props {
   books: Book[];
+  chartPreferences: ChartPreferences;
+  onSetChartPreference: <K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => void;
 }
 
 function localDateKey(timestamp: number): string {
@@ -104,18 +82,10 @@ function calculateStreaks(activeDays: Set<string>): { longest: number; current: 
   return { longest, current };
 }
 
-export function Statistics({ books }: Props) {
+export function Statistics({ books, chartPreferences, onSetChartPreference: setChartPreference }: Props) {
   const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
-  const [storedChartPreferences, setStoredChartPreferences] = useLocalStorage<Partial<ChartPreferences>>(
-    'bilibook-stats-chart-types',
-    {},
-  );
-  const chartPreferences: ChartPreferences = { ...DEFAULT_CHART_PREFERENCES, ...storedChartPreferences };
-  const setChartPreference = <K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => {
-    setStoredChartPreferences((prev) => ({ ...DEFAULT_CHART_PREFERENCES, ...prev, [key]: value }));
-  };
 
   const allRead = useMemo(() => books.filter((b) => b.status === 'read'), [books]);
 

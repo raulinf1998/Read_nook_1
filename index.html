@@ -22,7 +22,9 @@
         var dark = Boolean(settings && settings.dark) || (theme === 'nocturno' && !hasCustomPalette);
         root.dataset.theme = theme;
         root.classList.toggle('dark', dark);
-        root.style.colorScheme = dark ? 'dark' : 'light';
+        root.dataset.mode = dark ? 'dark' : 'light';
+        root.style.colorScheme = dark ? 'only dark' : 'only light';
+        document.querySelector('meta[name="color-scheme"]').content = dark ? 'only dark' : 'only light';
       } catch (e) {}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

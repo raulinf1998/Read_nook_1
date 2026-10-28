@@ -4,7 +4,6 @@ import type { Book, BookStatus } from '../types';
 import { STATUS_META, formatLabel, seriesLabel } from '../types';
 import { StarRating } from './StarRating';
 import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filterChipCls, iconBtn, selectCls } from './ui';
-import { useLocalStorage } from '../hooks';
 import { LIBRARY_VIEW_OPTIONS, type LibraryViewMode } from '../libraryViews';
 import { LibraryViews } from './LibraryViews';
 import { sortBooksByAuthorAndSeries } from '../series';
@@ -15,6 +14,8 @@ function formatDate(ts: number): string {
 
 interface Props {
   books: Book[];
+  view: LibraryViewMode;
+  onSetView: (view: LibraryViewMode) => void;
   onUpdate: (id: string, patch: Partial<Book>) => void;
   onDelete: (id: string) => void;
   onEdit: (book: Book) => void;
@@ -22,13 +23,10 @@ interface Props {
   onOpenSeries: (seriesName: string) => void;
 }
 
-export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props) {
+export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOpenSeries }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating' | 'series'>('recent');
-  // Clave nueva en esta versión: la Biblioteca se estrena en modo estantería
-  // y, a partir de ahí, recuerda la vista que elija cada persona.
-  const [view, setView] = useLocalStorage<LibraryViewMode>('bilibook-library-view-v2', 'wood');
   const activeView = LIBRARY_VIEW_OPTIONS.find((option) => option.value === view) || LIBRARY_VIEW_OPTIONS[0];
   const [confirming, setConfirming] = useState<Book | null>(null);
 
@@ -124,7 +122,7 @@ export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props
           <span className="sr-only">Estilo de la estantería</span>
           <select
             value={activeView.value}
-            onChange={(e) => setView(e.target.value as LibraryViewMode)}
+            onChange={(e) => onSetView(e.target.value as LibraryViewMode)}
             className={cx(selectCls, 'w-full rounded-full shadow-card')}
             aria-label="Estilo de la estantería"
           >

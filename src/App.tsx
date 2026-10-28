@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Plus, Settings as SettingsIcon } from 'lucide-react';
 import type { Book } from './types';
 import { DEFAULT_TAGS } from './types';
@@ -76,7 +76,14 @@ export default function App() {
     applyCustomPalette,
     saveCustomPalette,
     deleteCustomPalette,
+    libraryView,
+    setLibraryView,
+    chartPreferences,
+    setChartPreference,
     settingsVersion,
+    settingsSyncStatus,
+    settingsSyncError,
+    settingsLastSyncedAt,
     refreshSettings,
   } = useServerSettings();
 
@@ -102,9 +109,10 @@ export default function App() {
     if (showThemes) void refreshSettings();
   }, [refreshSettings, showThemes]);
 
-  // Aplicar tema + modo + paleta personalizada, con transición suave al cambiar
+  // Aplicar tema + modo + paleta personalizada, con transición suave al cambiar.
+  // useLayoutEffect: el DOM queda actualizado antes del siguiente pintado.
   const firstRun = useRef(true);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     // Una paleta personalizada con base «Nocturno» sí tiene variante clara:
     // el «siempre oscuro» se aplica únicamente al tema integrado Nocturno.
@@ -117,7 +125,14 @@ export default function App() {
     }
     firstRun.current = false;
     root.dataset.theme = theme;
+    root.dataset.mode = effectiveDark ? 'dark' : 'light';
     root.classList.toggle('dark', effectiveDark);
+    // `only light`/`only dark`, no solo `light`/`dark`: es la señal que
+    // impide que Chrome Android, Samsung Internet y WebViews con «oscurecer
+    // sitios web» vuelvan a pintar el modo claro casi negro por su cuenta.
+    root.style.colorScheme = effectiveDark ? 'only dark' : 'only light';
+    const colorSchemeMeta = document.querySelector<HTMLMetaElement>('meta[name="color-scheme"]');
+    if (colorSchemeMeta) colorSchemeMeta.content = effectiveDark ? 'only dark' : 'only light';
     applyCustomPaletteToRoot(activeCustomPalette, effectiveDark);
 
     return () => {
@@ -340,9 +355,9 @@ export default function App() {
                 onGoChallenge={() => handleTab('challenge')}
               />
             )}
-            {tab === 'stats' && <Statistics books={books} />}
+            {tab === 'stats' && <Statistics books={books} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
-            {tab === 'library' && <Library books={books} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
+            {tab === 'library' && <Library books={books} view={libraryView} onSetView={setLibraryView} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
             {tab === 'shelf' && <Bookshelf books={books} onOpen={handleOpen} />}
             {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onOpenSeries={handleOpenSeries} onAdd={handleAdd} />}
               </>
@@ -386,11 +401,13 @@ export default function App() {
           darkModeLocked={darkModeLocked}
           activePaletteName={activeCustomPalette?.name || null}
           settingsVersion={settingsVersion}
+          syncStatus={settingsSyncStatus}
+          syncError={settingsSyncError}
+          lastSyncedAt={settingsLastSyncedAt}
           onToggleDark={() => setDark(!isDark)}
           onAppearance={openAppearanceFromSettings}
           onImport={openImportFromSettings}
           onTags={openTagsFromSettings}
-          onRefresh={refreshSettings}
           onClose={() => setShowSettings(false)}
         />
       )}

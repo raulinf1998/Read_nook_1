@@ -246,7 +246,7 @@ export function applyCustomPaletteToRoot(palette: CustomPalette | null | undefin
     }
   }
   for (const key of inlineKeys) root.style.removeProperty(key);
-  root.style.colorScheme = dark ? 'dark' : 'light';
+  root.style.colorScheme = dark ? 'only dark' : 'only light';
 
   try {
     localStorage.removeItem(CUSTOM_PALETTE_CSS_VARS_KEY);

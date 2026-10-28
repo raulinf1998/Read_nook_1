@@ -1,32 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Book, CustomPalette, ThemeId } from './types';
 import { THEMES } from './types';
-import { apiClient, type Settings } from './api';
+import {
+  SETTINGS_EVENTS_URL,
+  SETTINGS_SYNC_PROTOCOL,
+  apiClient,
+  type ApiError,
+  type Settings,
+} from './api';
 import { CUSTOM_PALETTE_CSS_VARS_KEY, sanitizeCustomPalettes } from './themePalettes';
 import { mergeStoryGraphJournal } from './storyGraphJournal';
+import { normalizeChartPreferences, normalizeLibraryView, type ChartPreferences } from './preferences';
+import type { LibraryViewMode } from './libraryViews';
 import type { StoryGraphBookMetadata, StoryGraphJournalEntry } from './storyGraphJournal';
 import { isExternalCoverUrl, localizeBookCover, localizeBookCovers } from './coverStorage';
-
-export function useLocalStorage<T>(key: string, initial: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored ? (JSON.parse(stored) as T) : initial;
-    } catch {
-      return initial;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      /* ignore quota errors */
-    }
-  }, [key, value]);
-
-  return [value, setValue] as const;
-}
 
 // Ancho de ventana reactivo (para la estantería: nº de libros por balda)
 export function useWindowWidth() {
@@ -169,6 +156,17 @@ const CUSTOM_PALETTES_STORAGE_KEY = 'bilibook-custom-palettes';
 const CUSTOM_PALETTE_ID_STORAGE_KEY = 'bilibook-custom-palette-id';
 const SETTINGS_SYNC_MIGRATION_KEY = 'bilibook-settings-sync-v3';
 const SETTINGS_SYNC_INTERVAL_MS = 15_000;
+const SETTINGS_RETRY_BASE_MS = 1_000;
+const SETTINGS_RETRY_MAX_MS = 30_000;
+const LEGACY_MIGRATION_RETRY_MS = 60_000;
+
+export type SettingsSyncStatus = 'connecting' | 'synced' | 'saving' | 'retrying' | 'error';
+
+type SettingsPatch = Parameters<typeof apiClient.setSettings>[0];
+type SettingsWriteOperation =
+  | { kind: 'patch'; patch: SettingsPatch }
+  | { kind: 'savePalette'; palette: CustomPalette; activate: boolean }
+  | { kind: 'deletePalette'; id: string };
 const LEGACY_APPEARANCE_STORAGE_KEYS = [
   'bilibook-theme',
   'readnook-theme',
@@ -183,6 +181,14 @@ const LEGACY_APPEARANCE_STORAGE_KEYS = [
 function normalizeServerSettings(value: unknown): Settings | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Partial<Settings>;
+  if (
+    typeof candidate.dark !== 'boolean'
+    || typeof candidate.theme !== 'string'
+    || !VALID_THEMES.includes(candidate.theme)
+    || !Array.isArray(candidate.customPalettes)
+    || !Number.isSafeInteger(candidate.settingsVersion)
+    || (candidate.settingsVersion as number) < 0
+  ) return null;
   const palettes = sanitizeCustomPalettes(candidate.customPalettes);
   return {
     goal: typeof candidate.goal === 'number' && Number.isFinite(candidate.goal)
@@ -193,6 +199,8 @@ function normalizeServerSettings(value: unknown): Settings | null {
       ? candidate.theme
       : 'calido',
     customPalettes: palettes,
+    libraryView: normalizeLibraryView(candidate.libraryView),
+    chartPreferences: normalizeChartPreferences(candidate.chartPreferences),
     customPaletteId: candidate.customPaletteId
       && palettes.some((palette) => palette.id === candidate.customPaletteId)
       ? candidate.customPaletteId
@@ -201,11 +209,23 @@ function normalizeServerSettings(value: unknown): Settings | null {
       && (candidate.settingsVersion as number) > 0
       ? (candidate.settingsVersion as number)
       : 0,
+    settingsSyncProtocol: Number.isSafeInteger(candidate.settingsSyncProtocol)
+      && (candidate.settingsSyncProtocol as number) > 0
+      ? (candidate.settingsSyncProtocol as number)
+      : 0,
   };
 }
 
 function settingsFingerprint(settings: Settings): string {
   return JSON.stringify(normalizeServerSettings(settings) || settings);
+}
+
+function settingsErrorMessage(error: unknown): string {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return 'Sin conexión con el servidor. Se reintentará automáticamente al volver la red.';
+  }
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return 'No se pudo confirmar el guardado con el servidor.';
 }
 
 /**
@@ -238,15 +258,6 @@ function storedCustomPalettes(): CustomPalette[] {
   }
 }
 
-function storedCustomPaletteId(palettes = storedCustomPalettes()): string | null {
-  try {
-    const id = localStorage.getItem(CUSTOM_PALETTE_ID_STORAGE_KEY);
-    return id && palettes.some((palette) => palette.id === id) ? id : null;
-  } catch {
-    return null;
-  }
-}
-
 export function useServerSettings() {
   const [initialServerSettings] = useState<Settings | null>(embeddedServerSettings);
   const [goal, setGoalState] = useState(initialServerSettings?.goal ?? 24);
@@ -262,122 +273,260 @@ export function useServerSettings() {
   const [customPaletteId, setCustomPaletteIdState] = useState<string | null>(
     initialServerSettings?.customPaletteId ?? null,
   );
+  const [libraryView, setLibraryViewState] = useState<LibraryViewMode>(initialServerSettings?.libraryView ?? 'wood');
+  const [chartPreferences, setChartPreferencesState] = useState<ChartPreferences>(normalizeChartPreferences(initialServerSettings?.chartPreferences));
   const [settingsVersion, setSettingsVersionState] = useState(
     initialServerSettings?.settingsVersion ?? 0,
   );
   const [loaded, setLoaded] = useState(Boolean(initialServerSettings));
+  const [settingsSyncStatus, setSettingsSyncStatus] = useState<SettingsSyncStatus>('connecting');
+  const [settingsSyncError, setSettingsSyncError] = useState<string | null>(null);
+  const [settingsLastSyncedAt, setSettingsLastSyncedAt] = useState<number | null>(null);
 
   const settingsVersionRef = useRef(initialServerSettings?.settingsVersion ?? 0);
   const appliedSettingsFingerprintRef = useRef(
     initialServerSettings ? settingsFingerprint(initialServerSettings) : '',
   );
   const localMutationRef = useRef(0);
-  const pendingSettingsWritesRef = useRef(0);
+  const confirmedSettingsRef = useRef<Settings | null>(initialServerSettings);
+  const writeQueueRef = useRef<SettingsWriteOperation[]>([]);
+  const writeInFlightRef = useRef(false);
+  const activeWriteOperationRef = useRef<SettingsWriteOperation | null>(null);
+  const writeRetryTimerRef = useRef<number | null>(null);
+  const writeRetryAttemptRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshSettingsRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
+  const processWriteQueueRef = useRef<() => Promise<void>>(async () => {});
+  const legacyMigrationInFlightRef = useRef(false);
+  const legacyMigrationDoneRef = useRef(false);
+  const legacyMigrationNextRetryRef = useRef(0);
   const localPalettesSnapshotRef = useRef<CustomPalette[] | null>(null);
   if (!localPalettesSnapshotRef.current) {
     localPalettesSnapshotRef.current = storedCustomPalettes();
   }
-  const localPaletteIdSnapshotRef = useRef<string | null | undefined>(undefined);
-  if (localPaletteIdSnapshotRef.current === undefined) {
-    localPaletteIdSnapshotRef.current = storedCustomPaletteId(localPalettesSnapshotRef.current);
-  }
 
-  const applySettings = useCallback((settings: Settings): boolean => {
+  const hasPendingWrites = useCallback((): boolean => (
+    writeInFlightRef.current || writeQueueRef.current.length > 0
+  ), []);
+
+  const noteServerSettings = useCallback((settings: Settings): Settings | null => {
     const normalized = normalizeServerSettings(settings);
-    if (!normalized) return false;
+    if (!normalized) return null;
     const incomingVersion = normalized.settingsVersion;
     // Una respuesta antigua no puede deshacer un ajuste más reciente que ya
     // se hubiera visto (por ejemplo, el PUT de este dispositivo o un GET
     // posterior al cambio hecho en el otro).
-    if (incomingVersion > 0 && incomingVersion < settingsVersionRef.current) return false;
+    if (incomingVersion < settingsVersionRef.current) return null;
+
+    confirmedSettingsRef.current = normalized;
+    settingsVersionRef.current = Math.max(settingsVersionRef.current, incomingVersion);
+    setSettingsVersionState(settingsVersionRef.current);
+    setSettingsLastSyncedAt(Date.now());
+
+    if ((normalized.settingsSyncProtocol || 0) < SETTINGS_SYNC_PROTOCOL) {
+      // Esto era invisible antes: un frontend nuevo contra un proceso de
+      // servidor antiguo parecía simplemente quedarse en la versión #0.
+      setSettingsSyncError(
+        'El servidor respondió sin el protocolo actual de sincronización. Puede estar ejecutando una versión antigua; Bilibook seguirá reintentándolo automáticamente.',
+      );
+      if (!hasPendingWrites()) setSettingsSyncStatus('error');
+    } else if (!hasPendingWrites()) {
+      setSettingsSyncError(null);
+      setSettingsSyncStatus('synced');
+    }
+    return normalized;
+  }, [hasPendingWrites]);
+
+  const applySettings = useCallback((settings: Settings, force = false): boolean => {
+    const normalized = noteServerSettings(settings);
+    if (!normalized) return false;
 
     const fingerprint = JSON.stringify(normalized);
     // El sondeo periódico no debe repintar ni reanimar el tema si el otro
     // dispositivo no ha cambiado nada desde la última respuesta.
-    if (appliedSettingsFingerprintRef.current === fingerprint) return false;
+    if (!force && appliedSettingsFingerprintRef.current === fingerprint) return false;
     appliedSettingsFingerprintRef.current = fingerprint;
 
-    settingsVersionRef.current = Math.max(settingsVersionRef.current, incomingVersion);
-    setSettingsVersionState(settingsVersionRef.current);
     setGoalState(normalized.goal);
     setDarkState(normalized.dark);
     setThemeState(normalized.theme);
     setCustomPalettesState(normalized.customPalettes);
     setCustomPaletteIdState(normalized.customPaletteId);
+    setLibraryViewState(normalized.libraryView);
+    setChartPreferencesState(normalized.chartPreferences);
     return true;
-  }, []);
+  }, [noteServerSettings]);
 
   const beginLocalMutation = useCallback((): number => {
     localMutationRef.current += 1;
-    pendingSettingsWritesRef.current += 1;
+    setSettingsSyncStatus('saving');
     return localMutationRef.current;
   }, []);
 
-  const runSettingsWrite = useCallback((mutation: number, request: Promise<Settings>) => {
-    void request
-      .then((saved) => {
-        if (localMutationRef.current === mutation) applySettings(saved);
-      })
-      .catch(() => {
-        // Permite que el siguiente refresco vuelva a aplicar los ajustes del
-        // servidor y reconcilie la vista si este guardado no llegó a él.
-        if (localMutationRef.current === mutation) {
+  const clearWriteRetryTimer = useCallback(() => {
+    if (writeRetryTimerRef.current) {
+      window.clearTimeout(writeRetryTimerRef.current);
+      writeRetryTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleWriteRetry = useCallback(() => {
+    if (writeRetryTimerRef.current) return;
+    const delay = Math.min(
+      SETTINGS_RETRY_MAX_MS,
+      SETTINGS_RETRY_BASE_MS * (2 ** writeRetryAttemptRef.current),
+    );
+    writeRetryAttemptRef.current += 1;
+    writeRetryTimerRef.current = window.setTimeout(() => {
+      writeRetryTimerRef.current = null;
+      void processWriteQueueRef.current();
+    }, delay);
+  }, []);
+
+  const executeWriteOperation = useCallback((operation: SettingsWriteOperation): Promise<Settings> => {
+    if (operation.kind === 'patch') return apiClient.setSettings(operation.patch);
+    if (operation.kind === 'savePalette') {
+      return apiClient.saveCustomPalette(operation.palette, operation.activate);
+    }
+    return apiClient.deleteCustomPalette(operation.id);
+  }, []);
+
+  const processWriteQueue = useCallback(async (): Promise<void> => {
+    if (writeInFlightRef.current) return;
+    if (!writeQueueRef.current.length) {
+      if ((confirmedSettingsRef.current?.settingsSyncProtocol || 0) >= SETTINGS_SYNC_PROTOCOL) {
+        setSettingsSyncError(null);
+        setSettingsSyncStatus('synced');
+      }
+      return;
+    }
+
+    clearWriteRetryTimer();
+    writeInFlightRef.current = true;
+    setSettingsSyncStatus('saving');
+
+    while (writeQueueRef.current.length) {
+      const operation = writeQueueRef.current[0];
+      activeWriteOperationRef.current = operation;
+      try {
+        const saved = await executeWriteOperation(operation);
+        if (!normalizeServerSettings(saved)) throw new Error('El servidor no confirmó los ajustes guardados.');
+        if (writeQueueRef.current[0] === operation) writeQueueRef.current.shift();
+        else writeQueueRef.current = writeQueueRef.current.filter((item) => item !== operation);
+        activeWriteOperationRef.current = null;
+        writeRetryAttemptRef.current = 0;
+
+        const confirmed = noteServerSettings(saved);
+        if (confirmed && !writeQueueRef.current.length) applySettings(confirmed, true);
+      } catch (error) {
+        activeWriteOperationRef.current = null;
+        writeInFlightRef.current = false;
+        const status = (error as ApiError)?.status;
+        const permanent = status === 400 || status === 409 || status === 422;
+        setSettingsSyncError(settingsErrorMessage(error));
+
+        if (permanent) {
+          if (writeQueueRef.current[0] === operation) writeQueueRef.current.shift();
+          else writeQueueRef.current = writeQueueRef.current.filter((item) => item !== operation);
           appliedSettingsFingerprintRef.current = '';
+          setSettingsSyncStatus('error');
+          void refreshSettingsRef.current(true);
+          if (writeQueueRef.current.length) void processWriteQueueRef.current();
+          return;
         }
-      })
-      .finally(() => {
-        pendingSettingsWritesRef.current = Math.max(0, pendingSettingsWritesRef.current - 1);
-      });
-  }, [applySettings]);
+
+        // Nada de perder el cambio en silencio ni pedir al usuario que pulse
+        // «sincronizar»: la operación queda en cola y se reintenta sola con
+        // espera creciente, además de al recuperar red/foco.
+        setSettingsSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'error' : 'retrying');
+        scheduleWriteRetry();
+        return;
+      }
+    }
+
+    writeInFlightRef.current = false;
+    if ((confirmedSettingsRef.current?.settingsSyncProtocol || 0) >= SETTINGS_SYNC_PROTOCOL) {
+      setSettingsSyncError(null);
+      setSettingsSyncStatus('synced');
+    } else {
+      setSettingsSyncStatus('error');
+    }
+    // Confirmación final contra el servidor tras vaciar la cola: recoge
+    // también paletas creadas en paralelo desde otro dispositivo.
+    void refreshSettingsRef.current();
+  }, [applySettings, clearWriteRetryTimer, executeWriteOperation, noteServerSettings, scheduleWriteRetry]);
+
+  useEffect(() => {
+    processWriteQueueRef.current = processWriteQueue;
+  }, [processWriteQueue]);
+
+  const enqueueWriteOperation = useCallback((operation: SettingsWriteOperation) => {
+    if (operation.kind === 'patch') {
+      const last = writeQueueRef.current[writeQueueRef.current.length - 1];
+      if (last?.kind === 'patch' && last !== activeWriteOperationRef.current) {
+        last.patch = {
+          ...last.patch,
+          ...operation.patch,
+          ...((last.patch.chartPreferences || operation.patch.chartPreferences) ? {
+            chartPreferences: { ...last.patch.chartPreferences, ...operation.patch.chartPreferences },
+          } : {}),
+        };
+        void processWriteQueueRef.current();
+        return;
+      }
+    }
+    writeQueueRef.current.push(operation);
+    void processWriteQueueRef.current();
+  }, []);
 
   const persistSettings = useCallback((
-    mutation: number,
-    settings: Parameters<typeof apiClient.setSettings>[0],
+    _mutation: number,
+    settings: SettingsPatch,
   ) => {
-    runSettingsWrite(mutation, apiClient.setSettings(settings));
-  }, [runSettingsWrite]);
+    void _mutation;
+    enqueueWriteOperation({ kind: 'patch', patch: settings });
+  }, [enqueueWriteOperation]);
 
   // Migración única de dispositivos que ya tenían paletas solo en su
   // localStorage (el caso de una paleta creada en el móvil que el PC nunca
   // vio). Se suben una a una sin enviar la lista local completa, para unir
   // las de ambos dispositivos en vez de que una lista pise a la otra.
-  const migrateLocalPalettes = useCallback(async (
+  const migrateLegacyPalettesInBackground = useCallback(async (
     serverSettings: Settings,
-    mutationAtStart: number,
-  ): Promise<Settings> => {
-    let alreadyMigrated = false;
-    try {
-      alreadyMigrated = localStorage.getItem(SETTINGS_SYNC_MIGRATION_KEY) === '1';
-    } catch {
-      alreadyMigrated = false;
-    }
-    if (alreadyMigrated) return serverSettings;
-
-    const localPalettes = localPalettesSnapshotRef.current || [];
-    const serverIds = new Set((serverSettings.customPalettes || []).map((palette) => palette.id));
-    const missing = localPalettes.filter((palette) => !serverIds.has(palette.id));
-    let latest = serverSettings;
-
-    for (const palette of missing) {
-      if (localMutationRef.current !== mutationAtStart) return latest;
-      latest = await apiClient.saveCustomPalette(palette, false);
-    }
-
-    const localActiveId = localPaletteIdSnapshotRef.current;
-    const localActive = localActiveId
-      ? localPalettes.find((palette) => palette.id === localActiveId)
-      : null;
+  ): Promise<void> => {
     if (
-      localActive
-      && missing.some((palette) => palette.id === localActive.id)
-      && !serverSettings.customPaletteId
-      && localMutationRef.current === mutationAtStart
-    ) {
-      latest = await apiClient.saveCustomPalette(localActive, true);
-    }
+      legacyMigrationDoneRef.current
+      || legacyMigrationInFlightRef.current
+      || Date.now() < legacyMigrationNextRetryRef.current
+    ) return;
 
-    if (localMutationRef.current === mutationAtStart) {
+    legacyMigrationInFlightRef.current = true;
+    const mutationAtStart = localMutationRef.current;
+    try {
+      let alreadyMigrated = false;
+      try {
+        alreadyMigrated = localStorage.getItem(SETTINGS_SYNC_MIGRATION_KEY) === '1';
+      } catch {
+        alreadyMigrated = false;
+      }
+      if (alreadyMigrated) {
+        legacyMigrationDoneRef.current = true;
+        return;
+      }
+
+      const localPalettes = localPalettesSnapshotRef.current || [];
+      const serverIds = new Set((serverSettings.customPalettes || []).map((palette) => palette.id));
+      const missing = localPalettes.filter((palette) => !serverIds.has(palette.id));
+      let latest = serverSettings;
+
+      for (const palette of missing) {
+        latest = await apiClient.saveCustomPalette(palette, false);
+        noteServerSettings(latest);
+      }
+
+      // Recuperar paletas no debe activar una selección obsoleta: otro
+      // dispositivo puede haber cambiado la apariencia durante la migración.
+
       try {
         localStorage.setItem(SETTINGS_SYNC_MIGRATION_KEY, '1');
       } catch { /* la unión ya está en el servidor aunque no se pueda marcar */ }
@@ -385,25 +534,50 @@ export function useServerSettings() {
       // espejo antiguo impide que un tema/modo/variables CSS de este
       // navegador vuelvan a imponerse en el siguiente arranque.
       clearLegacyAppearanceStorage();
-    }
-    return latest;
-  }, []);
+      legacyMigrationDoneRef.current = true;
 
-  const refreshSettings = useCallback(async (): Promise<void> => {
+      if (
+        latest !== serverSettings
+        && !hasPendingWrites()
+        && localMutationRef.current === mutationAtStart
+      ) {
+        applySettings(latest);
+      }
+    } catch (error) {
+      // Crítico: una paleta antigua que no se pueda subir jamás debe bloquear
+      // la aplicación de los ajustes que el servidor ya ha devuelto. Antes
+      // este error abortaba refreshSettings y el teléfono se quedaba con el
+      // tema por defecto y la versión #0 aunque el GET hubiera ido bien.
+      legacyMigrationNextRetryRef.current = Date.now() + LEGACY_MIGRATION_RETRY_MS;
+      console.warn('No se pudieron migrar todavía las paletas antiguas del navegador:', error);
+    } finally {
+      legacyMigrationInFlightRef.current = false;
+    }
+  }, [applySettings, hasPendingWrites, noteServerSettings]);
+
+  const refreshSettings = useCallback(async (force = false): Promise<void> => {
     if (refreshInFlightRef.current) return refreshInFlightRef.current;
-    if (pendingSettingsWritesRef.current > 0) return;
 
     const mutationAtStart = localMutationRef.current;
     const request = (async () => {
       try {
         const serverSettings = await apiClient.getSettings();
-        const migratedSettings = await migrateLocalPalettes(serverSettings, mutationAtStart);
-        if (localMutationRef.current === mutationAtStart) {
-          applySettings(migratedSettings);
+        if (!normalizeServerSettings(serverSettings)) throw new Error('El servidor devolvió unos ajustes no válidos.');
+        const confirmed = noteServerSettings(serverSettings);
+        if (!confirmed) return; // Llegó una respuesta anterior a otra ya confirmada.
+
+        // El servidor manda de inmediato. La migración de paletas antiguas
+        // se lanza después, en segundo plano, y nunca puede impedir que el
+        // tema/modo confirmados por el servidor se apliquen en esta pantalla.
+        if (localMutationRef.current === mutationAtStart && !hasPendingWrites()) {
+          applySettings(confirmed, force);
         }
-      } catch {
-        // Sin conexión se conserva el último estado del servidor ya cargado;
-        // se reintenta al volver el foco, recuperar la red o en el ciclo.
+        void migrateLegacyPalettesInBackground(confirmed);
+      } catch (error) {
+        if (!hasPendingWrites()) {
+          setSettingsSyncError(settingsErrorMessage(error));
+          setSettingsSyncStatus(typeof navigator !== 'undefined' && !navigator.onLine ? 'error' : 'retrying');
+        }
       } finally {
         setLoaded(true);
       }
@@ -414,28 +588,66 @@ export function useServerSettings() {
       if (refreshInFlightRef.current === request) refreshInFlightRef.current = null;
     });
     return request;
-  }, [applySettings, migrateLocalPalettes]);
+  }, [applySettings, hasPendingWrites, migrateLegacyPalettesInBackground, noteServerSettings]);
 
   useEffect(() => {
+    refreshSettingsRef.current = refreshSettings;
+  }, [refreshSettings]);
+
+  useEffect(() => {
+    void processWriteQueueRef.current();
     void refreshSettings();
 
-    const refreshIfVisible = () => {
+    let eventSource: EventSource | null = null;
+    if (typeof EventSource !== 'undefined') {
+      // Canal continuo servidor -> cliente. Cuando otro dispositivo cambia
+      // el tema, el servidor empuja aquí los ajustes completos y se aplican
+      // sin recargar ni pulsar nada. EventSource reconecta solo; el sondeo
+      // de abajo queda como respaldo para proxies que corten SSE.
+      eventSource = new EventSource(SETTINGS_EVENTS_URL);
+      eventSource.addEventListener('settings', (event) => {
+        try {
+          const parsed = JSON.parse((event as MessageEvent<string>).data) as Settings;
+          const confirmed = noteServerSettings(parsed);
+          if (confirmed && !hasPendingWrites()) applySettings(confirmed);
+          setLoaded(true);
+        } catch {
+          void refreshSettings();
+        }
+      });
+      eventSource.addEventListener('open', () => {
+        void processWriteQueueRef.current();
+        void refreshSettings();
+      });
+      eventSource.addEventListener('error', () => {
+        if (!hasPendingWrites()) {
+          setSettingsSyncStatus((previous) => (previous === 'synced' ? 'retrying' : previous));
+        }
+      });
+    }
+
+    const syncIfVisible = () => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        clearWriteRetryTimer();
+        writeRetryAttemptRef.current = 0;
+        void processWriteQueueRef.current();
         void refreshSettings();
       }
     };
-    const interval = window.setInterval(refreshIfVisible, SETTINGS_SYNC_INTERVAL_MS);
-    window.addEventListener('focus', refreshIfVisible);
-    window.addEventListener('online', refreshIfVisible);
-    document.addEventListener('visibilitychange', refreshIfVisible);
+    const interval = window.setInterval(syncIfVisible, SETTINGS_SYNC_INTERVAL_MS);
+    window.addEventListener('focus', syncIfVisible);
+    window.addEventListener('online', syncIfVisible);
+    document.addEventListener('visibilitychange', syncIfVisible);
 
     return () => {
+      eventSource?.close();
+      clearWriteRetryTimer();
       window.clearInterval(interval);
-      window.removeEventListener('focus', refreshIfVisible);
-      window.removeEventListener('online', refreshIfVisible);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('focus', syncIfVisible);
+      window.removeEventListener('online', syncIfVisible);
+      document.removeEventListener('visibilitychange', syncIfVisible);
     };
-  }, [refreshSettings]);
+  }, [applySettings, clearWriteRetryTimer, hasPendingWrites, noteServerSettings, refreshSettings]);
 
   const setGoal = useCallback((g: number) => {
     const mutation = beginLocalMutation();
@@ -478,15 +690,29 @@ export function useServerSettings() {
     setCustomPaletteIdState(clean.id);
     // Endpoint por paleta: no se manda la lista que este dispositivo tenga en
     // memoria, así no se borran las paletas creadas mientras tanto en otro.
-    runSettingsWrite(mutation, apiClient.saveCustomPalette(clean, true));
-  }, [beginLocalMutation, runSettingsWrite]);
+    void mutation;
+    enqueueWriteOperation({ kind: 'savePalette', palette: clean, activate: true });
+  }, [beginLocalMutation, enqueueWriteOperation]);
 
   const deleteCustomPalette = useCallback((id: string) => {
     const mutation = beginLocalMutation();
     setCustomPalettesState((previous) => previous.filter((palette) => palette.id !== id));
     setCustomPaletteIdState((previous) => (previous === id ? null : previous));
-    runSettingsWrite(mutation, apiClient.deleteCustomPalette(id));
-  }, [beginLocalMutation, runSettingsWrite]);
+    void mutation;
+    enqueueWriteOperation({ kind: 'deletePalette', id });
+  }, [beginLocalMutation, enqueueWriteOperation]);
+
+  const setLibraryView = useCallback((view: LibraryViewMode) => {
+    const mutation = beginLocalMutation();
+    setLibraryViewState(view);
+    persistSettings(mutation, { libraryView: view });
+  }, [beginLocalMutation, persistSettings]);
+
+  const setChartPreference = useCallback(<K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => {
+    const mutation = beginLocalMutation();
+    setChartPreferencesState((previous) => ({ ...previous, [key]: value }));
+    persistSettings(mutation, { chartPreferences: { [key]: value } });
+  }, [beginLocalMutation, persistSettings]);
 
   const activeCustomPalette = customPalettes.find((palette) => palette.id === customPaletteId) || null;
 
@@ -503,7 +729,14 @@ export function useServerSettings() {
     applyCustomPalette,
     saveCustomPalette,
     deleteCustomPalette,
+    libraryView,
+    setLibraryView,
+    chartPreferences,
+    setChartPreference,
     settingsVersion,
+    settingsSyncStatus,
+    settingsSyncError,
+    settingsLastSyncedAt,
     refreshSettings,
     loaded,
   };
