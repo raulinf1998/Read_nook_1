@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -150,4 +150,21 @@ test('la apariencia se comparte en el servidor y las paletas se guardan sin pisa
     body: JSON.stringify({ palette: pcPalette, activate: true }),
   });
   assert.equal(invalid.response.status, 400);
+
+  // Cuando existe la build servida por Express, su HTML debe llegar sin
+  // caché y ya con estos mismos ajustes. Es el arranque compartido que ven
+  // el PC y el teléfono antes incluso de que cargue React.
+  const builtIndexUrl = new URL('../server/dist/index.html', import.meta.url);
+  if (existsSync(builtIndexUrl)) {
+    const builtIndex = await readFile(builtIndexUrl, 'utf8');
+    if (builtIndex.includes('/* __BILIBOOK_SETTINGS__ */ null')) {
+      const indexResponse = await fetch(`${baseUrl}/`, { cache: 'no-store' });
+      const servedIndex = await indexResponse.text();
+      assert.equal(indexResponse.status, 200);
+      assert.match(indexResponse.headers.get('cache-control') || '', /no-store/);
+      assert.match(servedIndex, /"customPaletteId":"custom-pc"/);
+      assert.match(servedIndex, /"settingsVersion":4/);
+      assert.doesNotMatch(servedIndex, /__BILIBOOK_SETTINGS__ \*\/ null/);
+    }
+  }
 });

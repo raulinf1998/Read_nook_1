@@ -121,7 +121,7 @@ completado; si el JSON trae `0` portadas, Bilibook lo avisa antes de importar.
 
 Toda la interfaz usa *tokens* de diseño (variables CSS), así que cambiar de
 paleta recolorea la app entera —incluidos gráficos, estantería y portadas
-generadas—. Se elige desde **Apariencia** (icono de paleta) o desde las muestras
+generadas—. Se elige desde **Ajustes → Apariencia** o desde las muestras
 de la barra lateral, y queda guardado en el servidor:
 
 | Paleta | Descripción |
@@ -143,12 +143,17 @@ aplicarse, editarse y borrarse desde **Apariencia**.
 La apariencia completa —tema, modo claro/oscuro y paletas personalizadas— se
 guarda en el servidor y se sincroniza entre dispositivos sin recargar: la app
 la vuelve a consultar al abrir **Apariencia**, al recuperar el foco y cada
-pocos segundos. Al actualizar desde una versión anterior, las paletas que solo
-estuvieran en el navegador de un dispositivo se suben y se unen a las del
-servidor en vez de sustituirlas.
+pocos segundos. En producción, Express también entrega el HTML sin caché y
+con los ajustes actuales del servidor incrustados, así que el primer pintado
+no depende del `localStorage` de cada navegador. El menú **Ajustes** muestra
+la versión de ajustes del servidor y permite forzar una sincronización.
+Al actualizar desde una versión anterior, las paletas que solo estuvieran en
+el navegador de un dispositivo se suben y se unen a las del servidor en vez
+de sustituirlas; después se borra ese espejo local antiguo.
 
 Todos los temas integrados (excepto Nocturno, oscuro por definición) tienen
-modo claro y oscuro.
+modo claro y oscuro. Una paleta personalizada con base Nocturno sí puede usar
+su variante clara guardada.
 El diseño es responsive: **barra lateral en PC** y **navegación inferior flotante
 en móvil**, con modales que se convierten en hojas inferiores en pantallas pequeñas.
 
@@ -209,6 +214,7 @@ src/
   components/
     ui.tsx           Primitivas: Modal, BookCover, badges, botones…
     ThemePicker.tsx  Selector de apariencia con vistas previas
+    SettingsMenu.tsx Menú superior de ajustes y sincronización
     ReadingNow · Library · LibraryViews · Bookshelf · Discover · ReadingChallenge · Statistics
     BookDetail · SeriesDetail · BookForm · JournalModal · ImportModal · TagManager · Charts · StarRating
 public/tools/

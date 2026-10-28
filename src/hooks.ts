@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Book, CustomPalette, ThemeId } from './types';
 import { THEMES } from './types';
 import { apiClient, type Settings } from './api';
-import { sanitizeCustomPalettes } from './themePalettes';
+import { CUSTOM_PALETTE_CSS_VARS_KEY, sanitizeCustomPalettes } from './themePalettes';
 import { mergeStoryGraphJournal } from './storyGraphJournal';
 import type { StoryGraphBookMetadata, StoryGraphJournalEntry } from './storyGraphJournal';
 import { isExternalCoverUrl, localizeBookCover, localizeBookCovers } from './coverStorage';
@@ -165,32 +165,68 @@ export function useBooks() {
 }
 
 const VALID_THEMES: ThemeId[] = THEMES.map((theme) => theme.id);
-const THEME_STORAGE_KEYS = ['bilibook-theme', 'readnook-theme'];
-const DARK_STORAGE_KEYS = ['bilibook-dark', 'readnook-dark'];
 const CUSTOM_PALETTES_STORAGE_KEY = 'bilibook-custom-palettes';
 const CUSTOM_PALETTE_ID_STORAGE_KEY = 'bilibook-custom-palette-id';
-const SETTINGS_SYNC_MIGRATION_KEY = 'bilibook-settings-sync-v2';
+const SETTINGS_SYNC_MIGRATION_KEY = 'bilibook-settings-sync-v3';
 const SETTINGS_SYNC_INTERVAL_MS = 15_000;
+const LEGACY_APPEARANCE_STORAGE_KEYS = [
+  'bilibook-theme',
+  'readnook-theme',
+  'bilibook-dark',
+  'readnook-dark',
+  CUSTOM_PALETTES_STORAGE_KEY,
+  CUSTOM_PALETTE_ID_STORAGE_KEY,
+  CUSTOM_PALETTE_CSS_VARS_KEY,
+  'bilibook-settings-sync-v2',
+];
 
-function readStoredValue(keys: string[]): string | null {
+function normalizeServerSettings(value: unknown): Settings | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = value as Partial<Settings>;
+  const palettes = sanitizeCustomPalettes(candidate.customPalettes);
+  return {
+    goal: typeof candidate.goal === 'number' && Number.isFinite(candidate.goal)
+      ? candidate.goal
+      : 24,
+    dark: Boolean(candidate.dark),
+    theme: candidate.theme && VALID_THEMES.includes(candidate.theme)
+      ? candidate.theme
+      : 'calido',
+    customPalettes: palettes,
+    customPaletteId: candidate.customPaletteId
+      && palettes.some((palette) => palette.id === candidate.customPaletteId)
+      ? candidate.customPaletteId
+      : null,
+    settingsVersion: Number.isSafeInteger(candidate.settingsVersion)
+      && (candidate.settingsVersion as number) > 0
+      ? (candidate.settingsVersion as number)
+      : 0,
+  };
+}
+
+function settingsFingerprint(settings: Settings): string {
+  return JSON.stringify(normalizeServerSettings(settings) || settings);
+}
+
+/**
+ * En producción el propio servidor incrusta estos ajustes en el HTML que
+ * entrega. Así, el primer estado de apariencia ya es el del servidor en el
+ * PC y en el teléfono; no sale de localStorage.
+ */
+function embeddedServerSettings(): Settings | null {
+  if (typeof window === 'undefined') return null;
+  const raw = (window as Window & { __BILIBOOK_SETTINGS__?: unknown }).__BILIBOOK_SETTINGS__;
+  return normalizeServerSettings(raw);
+}
+
+function clearLegacyAppearanceStorage(): void {
   try {
-    for (const key of keys) {
-      const value = localStorage.getItem(key);
-      if (value !== null) return value;
+    for (const key of LEGACY_APPEARANCE_STORAGE_KEYS) {
+      localStorage.removeItem(key);
     }
   } catch {
     /* almacenamiento no disponible */
   }
-  return null;
-}
-
-function storedTheme(): ThemeId {
-  const t = readStoredValue(THEME_STORAGE_KEYS) as ThemeId | null;
-  return t && VALID_THEMES.includes(t) ? t : 'calido';
-}
-
-function storedDark(): boolean {
-  return readStoredValue(DARK_STORAGE_KEYS) === '1';
 }
 
 function storedCustomPalettes(): CustomPalette[] {
@@ -212,20 +248,29 @@ function storedCustomPaletteId(palettes = storedCustomPalettes()): string | null
 }
 
 export function useServerSettings() {
-  const [goal, setGoalState] = useState(24);
-  // Se inicializa desde localStorage para aplicar el tema sin esperar al servidor.
-  // Ese reflejo local solo evita el parpadeo inicial: la fuente compartida por
-  // móvil y PC es siempre `/api/settings` y se vuelve a consultar mientras la
-  // app está abierta (al recuperar el foco y cada pocos segundos).
-  const [dark, setDarkState] = useState<boolean>(storedDark);
-  const [theme, setThemeState] = useState<ThemeId>(storedTheme);
-  const [customPalettes, setCustomPalettesState] = useState<CustomPalette[]>(storedCustomPalettes);
-  const [customPaletteId, setCustomPaletteIdState] = useState<string | null>(() => storedCustomPaletteId());
-  const [settingsVersion, setSettingsVersionState] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [initialServerSettings] = useState<Settings | null>(embeddedServerSettings);
+  const [goal, setGoalState] = useState(initialServerSettings?.goal ?? 24);
+  // La apariencia no se inicializa desde localStorage. En producción parte
+  // de los ajustes que el servidor incrusta en el HTML y después se confirma
+  // contra `/api/settings`; por eso al abrir la misma web del servidor en el
+  // PC y en el teléfono el punto de partida es exactamente el mismo.
+  const [dark, setDarkState] = useState<boolean>(initialServerSettings?.dark ?? false);
+  const [theme, setThemeState] = useState<ThemeId>(initialServerSettings?.theme ?? 'calido');
+  const [customPalettes, setCustomPalettesState] = useState<CustomPalette[]>(
+    initialServerSettings?.customPalettes ?? [],
+  );
+  const [customPaletteId, setCustomPaletteIdState] = useState<string | null>(
+    initialServerSettings?.customPaletteId ?? null,
+  );
+  const [settingsVersion, setSettingsVersionState] = useState(
+    initialServerSettings?.settingsVersion ?? 0,
+  );
+  const [loaded, setLoaded] = useState(Boolean(initialServerSettings));
 
-  const settingsVersionRef = useRef(0);
-  const appliedSettingsFingerprintRef = useRef('');
+  const settingsVersionRef = useRef(initialServerSettings?.settingsVersion ?? 0);
+  const appliedSettingsFingerprintRef = useRef(
+    initialServerSettings ? settingsFingerprint(initialServerSettings) : '',
+  );
   const localMutationRef = useRef(0);
   const pendingSettingsWritesRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -239,30 +284,15 @@ export function useServerSettings() {
   }
 
   const applySettings = useCallback((settings: Settings): boolean => {
-    const incomingVersion = Number.isSafeInteger(settings.settingsVersion)
-      && settings.settingsVersion > 0
-      ? settings.settingsVersion
-      : 0;
+    const normalized = normalizeServerSettings(settings);
+    if (!normalized) return false;
+    const incomingVersion = normalized.settingsVersion;
     // Una respuesta antigua no puede deshacer un ajuste más reciente que ya
     // se hubiera visto (por ejemplo, el PUT de este dispositivo o un GET
     // posterior al cambio hecho en el otro).
     if (incomingVersion > 0 && incomingVersion < settingsVersionRef.current) return false;
 
-    const palettes = Array.isArray(settings.customPalettes)
-      ? sanitizeCustomPalettes(settings.customPalettes)
-      : null;
-    const activePaletteId = palettes && settings.customPaletteId
-      && palettes.some((palette) => palette.id === settings.customPaletteId)
-      ? settings.customPaletteId
-      : null;
-    const fingerprint = JSON.stringify({
-      version: incomingVersion,
-      goal: settings.goal,
-      dark: Boolean(settings.dark),
-      theme: settings.theme,
-      palettes,
-      activePaletteId,
-    });
+    const fingerprint = JSON.stringify(normalized);
     // El sondeo periódico no debe repintar ni reanimar el tema si el otro
     // dispositivo no ha cambiado nada desde la última respuesta.
     if (appliedSettingsFingerprintRef.current === fingerprint) return false;
@@ -270,17 +300,11 @@ export function useServerSettings() {
 
     settingsVersionRef.current = Math.max(settingsVersionRef.current, incomingVersion);
     setSettingsVersionState(settingsVersionRef.current);
-    if (typeof settings.goal === 'number' && Number.isFinite(settings.goal)) {
-      setGoalState(settings.goal);
-    }
-    setDarkState(Boolean(settings.dark));
-    if (settings.theme && VALID_THEMES.includes(settings.theme)) {
-      setThemeState(settings.theme);
-    }
-    if (palettes) {
-      setCustomPalettesState(palettes);
-      setCustomPaletteIdState(activePaletteId);
-    }
+    setGoalState(normalized.goal);
+    setDarkState(normalized.dark);
+    setThemeState(normalized.theme);
+    setCustomPalettesState(normalized.customPalettes);
+    setCustomPaletteIdState(normalized.customPaletteId);
     return true;
   }, []);
 
@@ -357,6 +381,10 @@ export function useServerSettings() {
       try {
         localStorage.setItem(SETTINGS_SYNC_MIGRATION_KEY, '1');
       } catch { /* la unión ya está en el servidor aunque no se pueda marcar */ }
+      // A partir de aquí la apariencia sale solo del servidor. Borrar el
+      // espejo antiguo impide que un tema/modo/variables CSS de este
+      // navegador vuelvan a imponerse en el siguiente arranque.
+      clearLegacyAppearanceStorage();
     }
     return latest;
   }, []);
@@ -374,8 +402,8 @@ export function useServerSettings() {
           applySettings(migratedSettings);
         }
       } catch {
-        // Sin conexión se conserva el reflejo local; se reintenta al volver
-        // el foco, recuperar la red o en el siguiente ciclo.
+        // Sin conexión se conserva el último estado del servidor ya cargado;
+        // se reintenta al volver el foco, recuperar la red o en el ciclo.
       } finally {
         setLoaded(true);
       }
@@ -408,25 +436,6 @@ export function useServerSettings() {
       document.removeEventListener('visibilitychange', refreshIfVisible);
     };
   }, [refreshSettings]);
-
-  // Reflejo en localStorage: el script de index.html lo usa antes del primer pintado.
-  // Se mantiene también la clave antigua para no perder preferencias al renombrar la app.
-  useEffect(() => {
-    try {
-      localStorage.setItem('bilibook-theme', theme);
-      localStorage.setItem('readnook-theme', theme);
-      localStorage.setItem('bilibook-dark', dark ? '1' : '0');
-      localStorage.setItem('readnook-dark', dark ? '1' : '0');
-    } catch { /* ignore */ }
-  }, [theme, dark]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(CUSTOM_PALETTES_STORAGE_KEY, JSON.stringify(customPalettes));
-      if (customPaletteId) localStorage.setItem(CUSTOM_PALETTE_ID_STORAGE_KEY, customPaletteId);
-      else localStorage.removeItem(CUSTOM_PALETTE_ID_STORAGE_KEY);
-    } catch { /* ignore */ }
-  }, [customPalettes, customPaletteId]);
 
   const setGoal = useCallback((g: number) => {
     const mutation = beginLocalMutation();

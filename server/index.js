@@ -11,6 +11,35 @@ const DATA_DIR = process.env.DATA_DIR || join(__dirname, 'data');
 const DATA_FILE = join(DATA_DIR, 'db.json');
 const COVERS_DIR = join(DATA_DIR, 'covers');
 const STATIC_DIR = join(__dirname, 'dist');
+const INDEX_HTML_PATH = join(STATIC_DIR, 'index.html');
+const EMBEDDED_SETTINGS_PLACEHOLDER = '/* __BILIBOOK_SETTINGS__ */ null';
+
+function sendAppIndex(_req, res, next) {
+  try {
+    // Se lee en cada petición: es un HTML pequeño y así un despliegue nuevo
+    // nunca queda escondido tras una plantilla memorizada por el proceso.
+    const indexHtmlTemplate = readFileSync(INDEX_HTML_PATH, 'utf8');
+    const embeddedSettings = JSON.stringify(publicSettings())
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e')
+      .replace(/&/g, '\\u0026')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+    const html = indexHtmlTemplate.includes(EMBEDDED_SETTINGS_PLACEHOLDER)
+      ? indexHtmlTemplate.replace(EMBEDDED_SETTINGS_PLACEHOLDER, embeddedSettings)
+      : indexHtmlTemplate;
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+      'Content-Type': 'text/html; charset=utf-8',
+    });
+    return res.send(html);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return next();
+    return next(err);
+  }
+}
 const MAX_COVER_BYTES = 10 * 1024 * 1024;
 const SERVER_STARTED_AT = Date.now();
 const MANAGED_COVER_RE = /^[0-9a-f]{64}\.(jpg|png|webp|gif|avif|bmp)$/;
@@ -869,9 +898,17 @@ app.delete('/api/settings/custom-palettes/:id', (req, res) => {
 const PORT = process.env.PORT || 3001;
 
 // Serve static frontend (solo en producción, cuando existe dist/)
-if (existsSync(join(STATIC_DIR, 'index.html'))) {
+if (existsSync(INDEX_HTML_PATH)) {
+  app.get(['/', '/index.html'], sendAppIndex);
   app.use(express.static(STATIC_DIR, {
+    // El HTML no se sirve como un archivo estático más: sendAppIndex lo
+    // entrega sin caché y con los ajustes actuales del servidor incrustados.
+    index: false,
     setHeaders(res, filePath) {
+      if (filePath === INDEX_HTML_PATH) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+      }
       // El extractor se instala desde esta URL: nunca debe servirse una copia
       // cacheada de una versión anterior tras desplegar una corrección.
       if (filePath.endsWith('.user.js')) {
@@ -880,9 +917,7 @@ if (existsSync(join(STATIC_DIR, 'index.html'))) {
       }
     },
   }));
-  app.get('*', (req, res) => {
-    res.sendFile(join(STATIC_DIR, 'index.html'));
-  });
+  app.get('*', sendAppIndex);
 } else {
   app.get('*', (req, res) => {
     res.status(404).json({ error: 'Not found' });

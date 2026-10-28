@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Moon, Sun, Upload, Tag, Palette } from 'lucide-react';
+import { Plus, Settings as SettingsIcon } from 'lucide-react';
 import type { Book } from './types';
 import { DEFAULT_TAGS } from './types';
 import { useBooks, useServerSettings, useServerTags } from './hooks';
@@ -9,6 +9,7 @@ import { BookForm } from './components/BookForm';
 import { ImportModal } from './components/ImportModal';
 import { TagManager } from './components/TagManager';
 import { ThemePicker } from './components/ThemePicker';
+import { SettingsMenu } from './components/SettingsMenu';
 import { ReadingNow } from './components/ReadingNow';
 import { Statistics } from './components/Statistics';
 import { ReadingChallenge } from './components/ReadingChallenge';
@@ -75,6 +76,7 @@ export default function App() {
     applyCustomPalette,
     saveCustomPalette,
     deleteCustomPalette,
+    settingsVersion,
     refreshSettings,
   } = useServerSettings();
 
@@ -92,6 +94,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Al abrir Apariencia se piden los ajustes compartidos en ese mismo
   // momento: una paleta creada en el otro dispositivo aparece sin recargar.
@@ -103,7 +106,9 @@ export default function App() {
   const firstRun = useRef(true);
   useEffect(() => {
     const root = document.documentElement;
-    const effectiveDark = dark || theme === 'nocturno';
+    // Una paleta personalizada con base «Nocturno» sí tiene variante clara:
+    // el «siempre oscuro» se aplica únicamente al tema integrado Nocturno.
+    const effectiveDark = activeCustomPalette ? dark : dark || theme === 'nocturno';
     let timeout: number | undefined;
 
     if (!firstRun.current) {
@@ -219,7 +224,20 @@ export default function App() {
 
   if (loading) return <LoadingShell />;
 
-  const isDark = dark || theme === 'nocturno';
+  const isDark = activeCustomPalette ? dark : dark || theme === 'nocturno';
+  const darkModeLocked = !activeCustomPalette && theme === 'nocturno';
+  const openAppearanceFromSettings = () => {
+    setShowSettings(false);
+    setShowThemes(true);
+  };
+  const openImportFromSettings = () => {
+    setShowSettings(false);
+    setShowImport(true);
+  };
+  const openTagsFromSettings = () => {
+    setShowSettings(false);
+    setShowTagManager(true);
+  };
 
   return (
     <div className="min-h-dvh text-ink">
@@ -250,20 +268,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-0.5">
-              <button onClick={() => setShowTagManager(true)} className={iconBtn} aria-label="Gestionar tags">
-                <Tag size={18} />
+              <button onClick={() => setShowSettings(true)} className={iconBtn} aria-label="Abrir ajustes">
+                <SettingsIcon size={19} />
               </button>
-              <button onClick={() => setShowImport(true)} className={iconBtn} aria-label="Importar CSV">
-                <Upload size={18} />
-              </button>
-              <button onClick={() => setShowThemes(true)} className={iconBtn} aria-label="Cambiar apariencia">
-                <Palette size={18} />
-              </button>
-              {theme !== 'nocturno' && (
-                <button onClick={() => setDark(!dark)} className={iconBtn} aria-label={dark ? 'Modo claro' : 'Modo oscuro'}>
-                  {dark ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-              )}
               <button
                 onClick={handleAdd}
                 className="ml-1 inline-flex items-center gap-1 px-3 py-2 rounded-btn bg-primary text-onprimary text-sm font-bold shadow-card hover:bg-primaryhover active:scale-95 transition-all"
@@ -291,9 +298,7 @@ export default function App() {
               </div>
               {/* Acciones de cabecera en PC */}
               <div className="hidden lg:flex items-center gap-1.5">
-                <HeaderTool icon={<Upload size={16} />} label="Importar" onClick={() => setShowImport(true)} />
-                <HeaderTool icon={<Tag size={16} />} label="Tags" onClick={() => setShowTagManager(true)} />
-                <HeaderTool icon={<Palette size={16} />} label="Apariencia" onClick={() => setShowThemes(true)} />
+                <HeaderTool icon={<SettingsIcon size={16} />} label="Ajustes" onClick={() => setShowSettings(true)} />
               </div>
             </div>
           </div>}
@@ -373,6 +378,21 @@ export default function App() {
       )}
       {showTagManager && (
         <TagManager tags={tags} onAdd={addTag} onRemove={removeTag} onClose={() => setShowTagManager(false)} />
+      )}
+      {showSettings && (
+        <SettingsMenu
+          theme={theme}
+          dark={isDark}
+          darkModeLocked={darkModeLocked}
+          activePaletteName={activeCustomPalette?.name || null}
+          settingsVersion={settingsVersion}
+          onToggleDark={() => setDark(!isDark)}
+          onAppearance={openAppearanceFromSettings}
+          onImport={openImportFromSettings}
+          onTags={openTagsFromSettings}
+          onRefresh={refreshSettings}
+          onClose={() => setShowSettings(false)}
+        />
       )}
       {showThemes && (
         <ThemePicker
