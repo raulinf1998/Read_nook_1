@@ -30,6 +30,7 @@ import {
 interface Props {
   books: Book[];
   onOpen: (book: Book) => void;
+  onOpenSeries: (seriesName: string) => void;
   onAdd: () => void;
 }
 
@@ -67,7 +68,7 @@ function average(stat: TasteStat | undefined): number {
   return stat && stat.ratedCount > 0 ? stat.ratingTotal / stat.ratedCount : 0;
 }
 
-export function Discover({ books, onOpen, onAdd }: Props) {
+export function Discover({ books, onOpen, onOpenSeries, onAdd }: Props) {
   const [recommendationIndex, setRecommendationIndex] = useState(0);
   const [rouletteBookId, setRouletteBookId] = useState<string | null>(null);
 
@@ -246,7 +247,11 @@ export function Discover({ books, onOpen, onAdd }: Props) {
               {heroBook.pages > 0 && <HeroChip>{heroBook.pages} págs</HeroChip>}
               <HeroChip>{formatLabel(heroBook.format)}</HeroChip>
               <HeroChip>{languageLabel(heroBook.language)}</HeroChip>
-              {seriesLabel(heroBook) && <HeroChip>{seriesLabel(heroBook)}</HeroChip>}
+              {seriesLabel(heroBook) && heroBook.series?.trim() && (
+                <HeroChip onClick={() => onOpenSeries(heroBook.series!.trim())} ariaLabel={`Abrir la saga ${heroBook.series}`}>
+                  {seriesLabel(heroBook)}
+                </HeroChip>
+              )}
               {(heroBook.tags || []).slice(0, 3).map((tag) => <HeroChip key={tag}>{tag}</HeroChip>)}
             </div>
 
@@ -461,12 +466,16 @@ export function Discover({ books, onOpen, onAdd }: Props) {
   );
 }
 
-function HeroChip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full bg-ongrad/10 px-2.5 py-1 ring-1 ring-ongrad/20 backdrop-blur-sm">
-      {children}
-    </span>
-  );
+function HeroChip({ children, onClick, ariaLabel }: { children: React.ReactNode; onClick?: () => void; ariaLabel?: string }) {
+  const className = 'rounded-full bg-ongrad/10 px-2.5 py-1 ring-1 ring-ongrad/20 backdrop-blur-sm';
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={`${className} transition-colors hover:bg-ongrad/25`} aria-label={ariaLabel} title={ariaLabel}>
+        {children}
+      </button>
+    );
+  }
+  return <span className={className}>{children}</span>;
 }
 
 function EmptyMini({ text }: { text: string }) {

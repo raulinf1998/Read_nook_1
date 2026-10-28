@@ -33,6 +33,8 @@ export interface Book {
   coverUrl: string;
   /** URL externa de origen cuando `coverUrl` apunta a la copia guardada en el servidor. */
   coverSourceUrl?: string;
+  /** Imagen real/generada del lomo, si una importación o edición futura la aporta. */
+  spineUrl?: string;
   status: BookStatus;
   rating: number; // 0-5, supports halves (e.g. 3.5)
   notes: string;
