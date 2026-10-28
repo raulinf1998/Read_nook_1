@@ -7,6 +7,7 @@ import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filte
 import { useLocalStorage } from '../hooks';
 import { LIBRARY_VIEW_OPTIONS, type LibraryViewMode } from '../libraryViews';
 import { LibraryViews } from './LibraryViews';
+import { sortBooksByAuthorAndSeries } from '../series';
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -44,19 +45,16 @@ export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props
           b.tags.some((t) => t.toLowerCase().includes(q))
       );
     }
+    if (sort === 'series') {
+      // La fecha de cada saga se calcula con toda la colección, no solo con
+      // los libros que deja visibles el filtro de estado o la búsqueda.
+      return sortBooksByAuthorAndSeries(result, books);
+    }
+
     const sorted = [...result];
     if (sort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title, 'es'));
     else if (sort === 'author') sorted.sort((a, b) => a.author.localeCompare(b.author, 'es'));
     else if (sort === 'rating') sorted.sort((a, b) => b.rating - a.rating);
-    else if (sort === 'series') {
-      const position = (book: Book) => {
-        const value = Number.parseFloat((book.seriesPosition || '').replace(',', '.'));
-        return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
-      };
-      sorted.sort((a, b) => (a.series || '￿').localeCompare(b.series || '￿', 'es')
-        || position(a) - position(b)
-        || a.title.localeCompare(b.title, 'es'));
-    }
     else sorted.sort((a, b) => b.createdAt - a.createdAt);
     return sorted;
   }, [books, statusFilter, search, sort]);
@@ -120,7 +118,7 @@ export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props
           <option value="title">Título</option>
           <option value="author">Autor</option>
           <option value="rating">Puntuación</option>
-          <option value="series">Saga y número</option>
+          <option value="series">Autor · saga · fecha</option>
         </select>
         <label className="min-w-[188px] flex-1 sm:flex-none">
           <span className="sr-only">Estilo de la estantería</span>
@@ -157,6 +155,7 @@ export function Library({ books, onDelete, onEdit, onOpen, onOpenSeries }: Props
       </div>
         <p className="px-1 text-[11px] font-medium leading-relaxed text-ink3" role="status">
           <strong className="text-ink2">{activeView.label}.</strong> {activeView.description} Toca un libro para abrir su ficha y el nombre de una saga para verla completa.
+          {sort === 'series' && <> Ordenadas por autor: las sagas de cada autor van juntas y, entre ellas, por su fecha de publicación más antigua; dentro de la saga manda el número.</>}
         </p>
       </section>
 

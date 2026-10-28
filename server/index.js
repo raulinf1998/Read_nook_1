@@ -12,6 +12,8 @@ const DATA_FILE = join(DATA_DIR, 'db.json');
 const COVERS_DIR = join(DATA_DIR, 'covers');
 const STATIC_DIR = join(__dirname, 'dist');
 const MAX_COVER_BYTES = 10 * 1024 * 1024;
+const SERVER_STARTED_AT = Date.now();
+const MANAGED_COVER_RE = /^[0-9a-f]{64}\.(jpg|png|webp|gif|avif|bmp)$/;
 
 mkdirSync(DATA_DIR, { recursive: true });
 mkdirSync(COVERS_DIR, { recursive: true });
@@ -304,10 +306,271 @@ async function downloadCoverFromUrl(rawUrl) {
   throw coverHttpError(502, 'No se pudo descargar la imagen desde esa URL.');
 }
 
+function coverString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function localCoverFilename(value) {
+  const raw = coverString(value);
+  if (!raw) return '';
+
+  let pathname = raw;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      pathname = new URL(raw).pathname;
+    } catch {
+      return '';
+    }
+  }
+  pathname = pathname.split(/[?#]/)[0];
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    return '';
+  }
+  if (!pathname.startsWith('/covers/')) return '';
+
+  const filename = pathname.slice('/covers/'.length);
+  if (!filename || filename.includes('/') || filename.includes('\\')) return '';
+  const extension = filename.split('.').pop()?.toLowerCase() || '';
+  return COVER_TYPES[extension] ? filename : '';
+}
+
+function isHttpCoverUrl(value) {
+  return /^https?:\/\//i.test(coverString(value));
+}
+
+function decodeDataCoverUrl(raw) {
+  const match = raw.match(/^data:([^;,]+)?(;base64)?,([\s\S]*)$/i);
+  if (!match) return null;
+  const contentType = (match[1] || '').toLowerCase();
+  if (contentType && !contentType.startsWith('image/')) return null;
+  try {
+    return match[2]
+      ? Buffer.from(match[3], 'base64')
+      : Buffer.from(decodeURIComponent(match[3]), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function storedLocalCover(filename) {
+  const path = join(COVERS_DIR, filename);
+  const stat = await fsPromises.stat(path);
+  if (!stat.isFile()) throw new Error('La portada local no es un archivo.');
+  if (stat.size > MAX_COVER_BYTES) throw coverHttpError(413, 'La imagen supera el máximo de 10 MB.');
+  const buffer = await fsPromises.readFile(path);
+  // Se vuelve a derivar el nombre desde los bytes: si alguien sustituyó el
+  // contenido de un archivo antiguo, el libro pasa a apuntar al hash nuevo y
+  // no queda servido para siempre con la caché del nombre anterior.
+  return storeCoverBuffer(buffer);
+}
+
+/**
+ * Copia automáticamente al servidor la portada de un libro.
+ *
+ * El nombre final es el SHA-256 de la imagen: los mismos bytes siempre usan
+ * el mismo archivo. Cuando una edición cambia la imagen, la ruta de libros
+ * elimina después el archivo anterior si ya no lo usa ningún otro libro, así
+ * no se acumulan versiones duplicadas. Si la descarga externa falla se
+ * conserva la URL original como respaldo para no bloquear el guardado.
+ */
+async function localizeBookCover(candidate, previousBook = null) {
+  const book = candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+    ? { ...candidate }
+    : {};
+  const raw = coverString(book.coverUrl);
+  const rawSource = coverString(book.coverSourceUrl);
+
+  if (!raw) {
+    return { ...book, coverUrl: '', coverSourceUrl: '' };
+  }
+
+  const localFilename = localCoverFilename(raw);
+  if (localFilename) {
+    try {
+      const stored = await storedLocalCover(localFilename);
+      return {
+        ...book,
+        coverUrl: stored.coverUrl,
+        coverSourceUrl: rawSource && rawSource !== raw ? rawSource : '',
+      };
+    } catch {
+      if (!isHttpCoverUrl(rawSource)) {
+        return { ...book, coverUrl: raw, coverSourceUrl: rawSource };
+      }
+      try {
+        const stored = await storeCoverBuffer(await downloadCoverFromUrl(rawSource));
+        return { ...book, coverUrl: stored.coverUrl, coverSourceUrl: rawSource };
+      } catch {
+        return { ...book, coverUrl: raw, coverSourceUrl: rawSource };
+      }
+    }
+  }
+
+  if (/^data:/i.test(raw)) {
+    try {
+      const buffer = decodeDataCoverUrl(raw);
+      if (!buffer) throw new Error('Portada data: no válida.');
+      const stored = await storeCoverBuffer(buffer);
+      return { ...book, coverUrl: stored.coverUrl, coverSourceUrl: '' };
+    } catch {
+      return { ...book, coverUrl: raw, coverSourceUrl: rawSource };
+    }
+  }
+
+  if (isHttpCoverUrl(raw)) {
+    const previousLocalFilename = previousBook ? localCoverFilename(previousBook.coverUrl) : '';
+    const previousSource = coverString(previousBook?.coverSourceUrl);
+    if (previousLocalFilename && previousSource === raw) {
+      try {
+        const stored = await storedLocalCover(previousLocalFilename);
+        return { ...book, coverUrl: stored.coverUrl, coverSourceUrl: raw };
+      } catch {
+        // Si la copia local ya no está, se intenta descargar otra vez abajo.
+      }
+    }
+
+    try {
+      const stored = await storeCoverBuffer(await downloadCoverFromUrl(raw));
+      return { ...book, coverUrl: stored.coverUrl, coverSourceUrl: raw };
+    } catch {
+      return { ...book, coverUrl: raw, coverSourceUrl: rawSource || raw };
+    }
+  }
+
+  return { ...book, coverUrl: raw, coverSourceUrl: rawSource };
+}
+
+async function localizeBookCoverList(books) {
+  const output = [...books];
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(4, output.length) }, async () => {
+    while (cursor < output.length) {
+      const index = cursor;
+      cursor += 1;
+      output[index] = await localizeBookCover(output[index]);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+
+function referencedCoverFilenames() {
+  return new Set(
+    db.books
+      .map((book) => localCoverFilename(book.coverUrl))
+      .filter(Boolean),
+  );
+}
+
+async function deleteCoverIfUnreferenced(filename) {
+  if (!filename || !MANAGED_COVER_RE.test(filename)) return false;
+  if (referencedCoverFilenames().has(filename)) return false;
+  try {
+    await fsPromises.unlink(join(COVERS_DIR, filename));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupOrphanedCovers({ before = SERVER_STARTED_AT } = {}) {
+  const referenced = referencedCoverFilenames();
+  let entries;
+  try {
+    entries = await fsPromises.readdir(COVERS_DIR, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isFile() || referenced.has(entry.name)) continue;
+    const managed = MANAGED_COVER_RE.test(entry.name);
+    const temporary = entry.name.startsWith('.tmp-');
+    if (!managed && !temporary) continue;
+
+    try {
+      const stat = await fsPromises.stat(join(COVERS_DIR, entry.name));
+      if (before && stat.mtimeMs >= before) continue;
+      await fsPromises.unlink(join(COVERS_DIR, entry.name));
+      removed += 1;
+    } catch {
+      // Si otro proceso lo está usando, se conserva.
+    }
+  }
+  return removed;
+}
+
+let bookMutationQueue = Promise.resolve();
+function enqueueBookMutation(task) {
+  const run = bookMutationQueue.then(task, task);
+  bookMutationQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+/**
+ * Migración de arranque: copia al disco las portadas antiguas que aún sean
+ * externas y retira archivos gestionados que ya no usa ningún libro. Trabaja
+ * sobre instantáneas para no pisar una edición hecha mientras descarga.
+ */
+async function migrateBookCovers() {
+  if (dbLoadFailed) {
+    console.error('Base de datos dañada: no se copiarán ni retirarán portadas en este arranque.');
+    return;
+  }
+
+  const snapshots = db.books.map((book) => ({
+    id: book.id,
+    coverUrl: coverString(book.coverUrl),
+    coverSourceUrl: coverString(book.coverSourceUrl),
+  }));
+  const sameSnapshot = (book, snapshot) => Boolean(book)
+    && coverString(book.coverUrl) === snapshot.coverUrl
+    && coverString(book.coverSourceUrl) === snapshot.coverSourceUrl;
+
+  let cursor = 0;
+  let updated = 0;
+  const workers = Array.from({ length: Math.min(4, snapshots.length) }, async () => {
+    while (cursor < snapshots.length) {
+      const snapshot = snapshots[cursor];
+      cursor += 1;
+
+      const current = db.books.find((book) => book.id === snapshot.id);
+      if (!sameSnapshot(current, snapshot)) continue;
+
+      const localized = await localizeBookCover({ ...current }, current);
+      const currentAfter = db.books.find((book) => book.id === snapshot.id);
+      if (!sameSnapshot(currentAfter, snapshot)) continue;
+      if (
+        currentAfter.coverUrl === localized.coverUrl
+        && coverString(currentAfter.coverSourceUrl) === coverString(localized.coverSourceUrl)
+      ) continue;
+
+      currentAfter.coverUrl = localized.coverUrl;
+      currentAfter.coverSourceUrl = localized.coverSourceUrl;
+      updated += 1;
+      saveDB(db);
+    }
+  });
+  await Promise.all(workers);
+
+  const removed = await cleanupOrphanedCovers();
+  if (updated || removed) {
+    console.log(`Portadas locales: ${updated} actualizadas, ${removed} archivos sin uso retirados.`);
+  }
+}
+
+let dbLoadFailed = false;
+
 function loadDB() {
   if (existsSync(DATA_FILE)) {
     try {
       const parsed = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.books)) {
+        throw new Error('Formato de base de datos no reconocido.');
+      }
       const customPalettes = sanitizeCustomPalettes(parsed.customPalettes);
       return {
         books: Array.isArray(parsed.books) ? parsed.books : [],
@@ -321,7 +584,9 @@ function loadDB() {
           : null,
       };
     } catch {
-      // corrupted, start fresh
+      // Si la base de datos está dañada no se deben interpretar todas las
+      // portadas como huérfanas: la migración/limpieza se detiene abajo.
+      dbLoadFailed = true;
     }
   }
   return { books: [], tags: [], goal: 24, dark: false, theme: 'calido', customPalettes: [], customPaletteId: null };
@@ -337,8 +602,9 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 // --- Portadas guardadas en el servidor ---
-// Se nombran por el hash de la imagen: la misma portada no se duplica y su
-// URL local sigue funcionando si desaparece la URL externa original.
+// Se nombran por el hash de la imagen: la misma portada no se duplica, su URL
+// local sigue funcionando si desaparece la externa y al sustituirla se retira
+// el archivo anterior cuando ningún libro lo sigue usando.
 app.use('/covers', express.static(COVERS_DIR, {
   index: false,
   fallthrough: true,
@@ -386,36 +652,97 @@ app.get('/api/books', (req, res) => {
   res.json(db.books);
 });
 
-app.post('/api/books', (req, res) => {
-  const book = { ...req.body, id: crypto.randomUUID(), createdAt: Date.now() };
-  db.books.unshift(book);
-  saveDB(db);
-  res.json(book);
+app.post('/api/books', async (req, res) => {
+  try {
+    const input = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const book = await enqueueBookMutation(async () => {
+      const initial = { ...input, id: randomUUID(), createdAt: Date.now() };
+      const localized = await localizeBookCover(initial);
+      db.books.unshift(localized);
+      saveDB(db);
+      return localized;
+    });
+    res.json(book);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error?.message || 'No se pudo guardar el libro.' });
+  }
 });
 
-app.put('/api/books/:id', (req, res) => {
-  const idx = db.books.findIndex((b) => b.id === req.params.id);
-  if (idx < 0) return res.status(404).json({ error: 'Not found' });
-  db.books[idx] = { ...db.books[idx], ...req.body };
-  saveDB(db);
-  res.json(db.books[idx]);
+app.put('/api/books/:id', async (req, res) => {
+  try {
+    const patch = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const book = await enqueueBookMutation(async () => {
+      const idx = db.books.findIndex((b) => b.id === req.params.id);
+      if (idx < 0) return null;
+
+      const previous = db.books[idx];
+      const previousCoverFilename = localCoverFilename(previous.coverUrl);
+      let candidate = {
+        ...previous,
+        ...patch,
+        id: previous.id,
+        createdAt: previous.createdAt,
+      };
+      const touchesCover = Object.prototype.hasOwnProperty.call(patch, 'coverUrl')
+        || Object.prototype.hasOwnProperty.call(patch, 'coverSourceUrl');
+
+      if (touchesCover) {
+        candidate = await localizeBookCover(candidate, previous);
+      }
+
+      db.books[idx] = candidate;
+      saveDB(db);
+
+      if (touchesCover && previousCoverFilename) {
+        // La imagen anterior solo desaparece si ningún otro libro la comparte.
+        await deleteCoverIfUnreferenced(previousCoverFilename);
+      }
+      return candidate;
+    });
+
+    if (!book) return res.status(404).json({ error: 'Not found' });
+    return res.json(book);
+  } catch (error) {
+    return res.status(error?.status || 500).json({ error: error?.message || 'No se pudo actualizar el libro.' });
+  }
 });
 
-app.delete('/api/books/:id', (req, res) => {
-  db.books = db.books.filter((b) => b.id !== req.params.id);
-  saveDB(db);
-  res.json({ ok: true });
+app.delete('/api/books/:id', async (req, res) => {
+  try {
+    await enqueueBookMutation(async () => {
+      const previous = db.books.find((b) => b.id === req.params.id);
+      const previousCoverFilename = localCoverFilename(previous?.coverUrl);
+      db.books = db.books.filter((b) => b.id !== req.params.id);
+      saveDB(db);
+      if (previousCoverFilename) await deleteCoverIfUnreferenced(previousCoverFilename);
+      return true;
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error?.message || 'No se pudo eliminar el libro.' });
+  }
 });
 
-app.post('/api/books/import', (req, res) => {
-  const newBooks = (req.body.books || []).map((b) => ({
-    ...b,
-    id: crypto.randomUUID(),
-    createdAt: Date.now(),
-  }));
-  db.books = [...newBooks, ...db.books];
-  saveDB(db);
-  res.json({ imported: newBooks.length });
+app.post('/api/books/import', async (req, res) => {
+  try {
+    const input = Array.isArray(req.body?.books) ? req.body.books : [];
+    const imported = await enqueueBookMutation(async () => {
+      const initial = input
+        .filter((book) => book && typeof book === 'object' && !Array.isArray(book))
+        .map((book) => ({
+          ...book,
+          id: randomUUID(),
+          createdAt: Date.now(),
+        }));
+      const newBooks = await localizeBookCoverList(initial);
+      db.books = [...newBooks, ...db.books];
+      saveDB(db);
+      return newBooks.length;
+    });
+    res.json({ imported });
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error?.message || 'No se pudo importar la biblioteca.' });
+  }
 });
 
 // --- Tags ---
@@ -493,4 +820,8 @@ if (existsSync(join(STATIC_DIR, 'index.html'))) {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Bilibook server running on port ${PORT}`);
+});
+
+void migrateBookCovers().catch((error) => {
+  console.error('No se pudo completar la copia automática de portadas:', error);
 });

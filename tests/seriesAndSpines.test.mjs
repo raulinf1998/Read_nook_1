@@ -7,7 +7,9 @@ import {
   missingSeriesPositions,
   nextSeriesBook,
   normalizeSeriesKey,
+  publicationDateValue,
   seriesBookProgress,
+  sortBooksByAuthorAndSeries,
   sortSeriesBooks,
 } from '../src/series.ts';
 import {
@@ -99,6 +101,67 @@ test('la siguiente lectura prioriza el libro en curso y después el primer pendi
   assert.equal(nextSeriesBook([pending, read])?.title, 'Pendiente');
   assert.equal(seriesBookProgress(reading), 25);
   assert.equal(seriesBookProgress(book({ status: 'reading', pages: 100, currentPage: 140 })), 100);
+});
+
+test('Biblioteca agrupa las sagas por autor y las ordena por fecha de publicación', () => {
+  const books = [
+    book({ title: 'Intermedia 2', author: 'Bruno Autor', series: 'Saga intermedia', seriesPosition: '2', publishDate: '2006' }),
+    book({ title: 'Antigua 2', author: 'Úrsula Autor', series: 'Saga antigua', seriesPosition: '2', publishDate: '2002' }),
+    book({ title: 'Nueva 1', author: 'ursula autor', series: 'Saga nueva', seriesPosition: '1', publishDate: '2020-05-01' }),
+    book({ title: 'Antigua 1', author: 'Úrsula Autor', series: 'Saga antigua', seriesPosition: '1', publishDate: '1 de mayo de 2001' }),
+    book({ title: 'Suelto de Úrsula', author: 'ÚRSULA AUTOR', publishDate: '1990' }),
+    book({ title: 'Intermedia 1', author: 'Bruno Autor', series: 'Saga intermedia', seriesPosition: '1', publishDate: '2005' }),
+    book({ title: 'Posterior 1', author: 'Bruno Autor', series: 'Saga posterior', seriesPosition: '1', publishDate: '2010' }),
+    book({ title: 'Sin autor 1', author: '', series: 'Saga anónima', seriesPosition: '1', publishDate: '1980' }),
+  ];
+
+  assert.equal(
+    new Date(publicationDateValue('1 de mayo de 2001')).toISOString(),
+    '2001-05-01T00:00:00.000Z',
+  );
+  assert.deepEqual(sortBooksByAuthorAndSeries(books).map(({ title }) => title), [
+    'Antigua 1',
+    'Antigua 2',
+    'Nueva 1',
+    'Suelto de Úrsula',
+    'Intermedia 1',
+    'Intermedia 2',
+    'Posterior 1',
+    'Sin autor 1',
+  ]);
+});
+
+test('la fecha de una saga se calcula con la colección completa aunque el filtro oculte un volumen', () => {
+  const hiddenFirst = book({
+    title: 'Oculta 1',
+    author: 'Carmen Autor',
+    series: 'Saga de Carmen',
+    seriesPosition: '1',
+    publishDate: '2000',
+    status: 'read',
+  });
+  const visibleSecond = book({
+    title: 'Visible 2',
+    author: 'Carmen Autor',
+    series: 'Saga de Carmen',
+    seriesPosition: '2',
+    publishDate: '2010',
+    status: 'pending',
+  });
+  const otherSaga = book({
+    title: 'Otra 1',
+    author: 'Bruno Autor',
+    series: 'Saga de Bruno',
+    seriesPosition: '1',
+    publishDate: '2005',
+    status: 'pending',
+  });
+
+  assert.deepEqual(
+    sortBooksByAuthorAndSeries([visibleSecond, otherSaga], [hiddenFirst, visibleSecond, otherSaga])
+      .map(({ title }) => title),
+    ['Visible 2', 'Otra 1'],
+  );
 });
 
 test('el ISBN se normaliza y genera el candidato de lomo correcto', () => {
