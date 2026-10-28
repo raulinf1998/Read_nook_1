@@ -135,8 +135,8 @@ export function ThemePicker({
   return (
     <Modal title="Apariencia" icon={<Palette size={17} />} onClose={onClose} maxWidth="max-w-4xl">
       <p className="text-sm text-ink2 -mt-1 mb-4 leading-relaxed">
-        Ocho paletas listas para usar y un editor para crear las tuyas. Todo se aplica al instante y queda
-        guardado en tu biblioteca.
+        Ocho paletas listas para usar y un editor para crear las tuyas. Todo se aplica al instante y se
+        sincroniza entre tu móvil y tu ordenador.
       </p>
 
       {/* Modo claro / oscuro */}

@@ -20,7 +20,7 @@ estadísticas de lectura.
   recuerda en ese navegador.
 - **Sagas**: el nombre de una saga es clicable y abre su propia página
   (`#/saga/…`) con abanico de portadas, progreso de la colección, siguiente
-  volumen recomendado, la saga en lomos y la ruta de lectura ordenada. Si la
+  volumen recomendado, las portadas de la saga en una balda y la ruta de lectura ordenada. Si la
   numeración guardada salta un entero (por ejemplo, tienes el `#1` y el
   `#3`, pero no el `#2`), la ruta marca el hueco en tu colección.
 - **Estantería**: solo las portadas, sin títulos, autores, notas ni estados, ordenadas siempre por autor y dentro de cada autor por saga, dentro de una librería clásica frontal lacada en crema con tapa y baldas de pino, laterales moldurados y patas.
@@ -140,6 +140,13 @@ para los modos claro y oscuro. Bilibook deriva automáticamente bordes, textos
 secundarios, estados, series de gráficos y baldas. Las paletas guardadas pueden
 aplicarse, editarse y borrarse desde **Apariencia**.
 
+La apariencia completa —tema, modo claro/oscuro y paletas personalizadas— se
+guarda en el servidor y se sincroniza entre dispositivos sin recargar: la app
+la vuelve a consultar al abrir **Apariencia**, al recuperar el foco y cada
+pocos segundos. Al actualizar desde una versión anterior, las paletas que solo
+estuvieran en el navegador de un dispositivo se suben y se unen a las del
+servidor en vez de sustituirlas.
+
 Todos los temas integrados (excepto Nocturno, oscuro por definición) tienen
 modo claro y oscuro.
 El diseño es responsive: **barra lateral en PC** y **navegación inferior flotante
@@ -175,7 +182,7 @@ docker compose up --build
 ```
 
 Sirve la app en http://localhost:8080. Los datos persisten en un volumen
-(`book-tracker-data`): `db.json` guarda libros, tags, objetivo y tema, y la
+(`book-tracker-data`): `db.json` guarda libros, tags, objetivo y toda la apariencia compartida (tema, modo y paletas), y la
 carpeta `covers/` guarda automáticamente las portadas subidas, enlazadas o
 importadas (nombre = hash SHA-256). La misma imagen se almacena una sola vez;
 al sustituirla, quitarla o borrar el libro se retira el archivo anterior si
@@ -212,6 +219,7 @@ tests/
   themePalettes.test.mjs               Pruebas de paletas personalizadas
   coverStorage.test.mjs                Subida y servido de portadas (requiere `npm --prefix server install`)
   seriesAndSpines.test.mjs             Orden de sagas, huecos, ISBN y grosor de lomos
+  settingsSync.test.mjs                Sincronización de apariencia entre dispositivos
 server/
   index.js           API Express, portadas guardadas y servido del build
 ```

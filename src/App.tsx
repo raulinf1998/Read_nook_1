@@ -75,6 +75,7 @@ export default function App() {
     applyCustomPalette,
     saveCustomPalette,
     deleteCustomPalette,
+    refreshSettings,
   } = useServerSettings();
 
   const [tab, setTab] = useState<TabId>('reading');
@@ -91,6 +92,12 @@ export default function App() {
   const [showImport, setShowImport] = useState(false);
   const [showTagManager, setShowTagManager] = useState(false);
   const [showThemes, setShowThemes] = useState(false);
+
+  // Al abrir Apariencia se piden los ajustes compartidos en ese mismo
+  // momento: una paleta creada en el otro dispositivo aparece sin recargar.
+  useEffect(() => {
+    if (showThemes) void refreshSettings();
+  }, [refreshSettings, showThemes]);
 
   // Aplicar tema + modo + paleta personalizada, con transición suave al cambiar
   const firstRun = useRef(true);
