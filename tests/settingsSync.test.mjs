@@ -224,12 +224,26 @@ test('el servidor transmite cambios automáticamente y conserva ajustes tras rei
   assert.equal(pushed.dark, true);
   assert.equal(pushed.libraryView, 'spines');
   assert.equal(pushed.chartPreferences.journal, 'line');
+  const missing = await fetch(`${baseUrl}/api/settings`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme: 'calido', customPaletteId: 'no-existe' }),
+  });
+  assert.equal(missing.status, 409);
+  assert.equal((await (await fetch(`${baseUrl}/api/settings`)).json()).theme, 'oceano');
+  const savedPalette = palette('custom-persistente', 'Mi paleta', '#7c3aed');
+  const saved = await fetch(`${baseUrl}/api/settings/custom-palettes/${savedPalette.id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ palette: savedPalette, activate: true }),
+  });
+  assert.equal((await saved.json()).customPaletteId, savedPalette.id);
   controller.abort();
   await stop();
   await start();
   const restored = await (await fetch(`${baseUrl}/api/settings`)).json();
-  assert.equal(restored.settingsVersion, 1);
+  assert.equal(restored.settingsVersion, 2);
   assert.equal(restored.theme, 'oceano');
+  assert.equal(restored.customPaletteId, savedPalette.id);
+  assert.equal(restored.customPalettes[0].name, 'Mi paleta');
   assert.equal(restored.dark, true);
   assert.equal(restored.libraryView, 'spines');
   assert.equal(restored.chartPreferences.journal, 'line');

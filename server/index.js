@@ -959,6 +959,14 @@ app.get('/api/settings/events', (req, res) => {
 });
 
 function handleSettingsPatch(req, res) {
+  // Nunca confirmar una selección que no existe en el servidor: de otro modo
+  // el cliente cree que se guardó, pero al recargar vuelve a la paleta base.
+  const requestedPalettes = Array.isArray(req.body?.customPalettes)
+    ? sanitizeCustomPalettes(req.body.customPalettes) : db.customPalettes;
+  if (typeof req.body?.customPaletteId === 'string'
+    && !requestedPalettes.some((palette) => palette.id === req.body.customPaletteId)) {
+    return res.status(409).json({ error: 'Esta paleta ya no está guardada en el servidor. Actualiza la lista de paletas.' });
+  }
   const previous = snapshotSettings();
   if (typeof req.body.goal === 'number') db.goal = req.body.goal;
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;

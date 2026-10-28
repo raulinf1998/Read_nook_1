@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { CustomPalette, PaletteColors, ThemeId } from '../types';
+import type { SettingsSyncStatus } from '../hooks';
 import { THEMES } from '../types';
 import {
   generateDarkPaletteColors,
@@ -29,6 +30,8 @@ interface Props {
   onSetDark: (d: boolean) => void;
   customPalettes: CustomPalette[];
   activeCustomPalette: CustomPalette | null;
+  syncStatus: SettingsSyncStatus;
+  syncError: string | null;
   onApplyCustomPalette: (palette: CustomPalette) => void;
   onSaveCustomPalette: (palette: CustomPalette) => void;
   onDeleteCustomPalette: (id: string) => void;
@@ -52,6 +55,8 @@ export function ThemePicker({
   onSetDark,
   customPalettes,
   activeCustomPalette,
+  syncStatus,
+  syncError,
   onApplyCustomPalette,
   onSaveCustomPalette,
   onDeleteCustomPalette,
@@ -140,6 +145,19 @@ export function ThemePicker({
       <p className="text-sm text-ink2 -mt-1 mb-4 leading-relaxed">
         Ocho paletas listas para usar y un editor para crear las tuyas. Todo se aplica al instante y se
         sincroniza entre tu móvil y tu ordenador.
+      </p>
+
+      <p role="status" aria-live="polite" className={cx(
+        'mb-4 rounded-btn border px-3 py-2 text-xs font-semibold',
+        syncStatus === 'error' || syncStatus === 'retrying'
+          ? 'border-danger/35 bg-danger/10 text-danger'
+          : 'border-line bg-sunken/55 text-ink2',
+      )}>
+        {syncStatus === 'synced'
+          ? 'Paleta confirmada en el servidor: se conservará al recargar.'
+          : syncStatus === 'saving' || syncStatus === 'connecting'
+            ? 'Guardando y confirmando la paleta en el servidor…'
+            : `La paleta aún no está confirmada en el servidor. ${syncError || 'Se volverá a intentar automáticamente.'}`}
       </p>
 
       {/* Modo claro / oscuro */}

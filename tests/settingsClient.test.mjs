@@ -67,4 +67,13 @@ test('dos clientes aplican cambios automáticos y reintentan un guardado fallido
   await act(async () => { clients.pc.setTheme('oceano'); await new Promise((r) => setTimeout(r, 100)); });
   assert.equal(clients.phone.theme, 'oceano');
   assert.equal(clients.phone.settingsVersion, 6);
+  // Simula una recarga: desmontar y crear un cliente nuevo sin estado local.
+  await act(async () => {
+    roots[0].unmount();
+    roots[0] = createRoot(document.getElementById('a'));
+    roots[0].render(react.createElement(Client, { id: 'phone' }));
+    await new Promise((r) => setTimeout(r, 100));
+  });
+  assert.equal(clients.phone.theme, 'oceano');
+  assert.equal(clients.phone.settingsVersion, 6);
 });

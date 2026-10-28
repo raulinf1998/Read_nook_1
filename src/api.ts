@@ -126,6 +126,7 @@ export const apiClient = {
       return await api<Settings>('/settings', {
         method: 'PUT',
         body: JSON.stringify(settings),
+        keepalive: true,
         timeoutMs: 12_000,
       });
     } catch (error) {
@@ -134,6 +135,7 @@ export const apiClient = {
       return api<Settings>('/settings', {
         method: 'POST',
         body: JSON.stringify(settings),
+        keepalive: true,
         timeoutMs: 12_000,
       });
     }
@@ -142,11 +144,11 @@ export const apiClient = {
     const path = `/settings/custom-palettes/${encodeURIComponent(palette.id)}`;
     const body = JSON.stringify({ palette, activate });
     try {
-      return await api<Settings>(path, { method: 'PUT', body, timeoutMs: 12_000 });
+      return await api<Settings>(path, { method: 'PUT', body, keepalive: true, timeoutMs: 12_000 });
     } catch (error) {
       const status = (error as ApiError)?.status;
       if (status !== 404 && status !== 405) throw error;
-      return api<Settings>(path, { method: 'POST', body, timeoutMs: 12_000 });
+      return api<Settings>(path, { method: 'POST', body, keepalive: true, timeoutMs: 12_000 });
     }
   },
   deleteCustomPalette: (id: string) =>
