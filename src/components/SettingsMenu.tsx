@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
+  AlertTriangle,
+  CheckCircle2,
   ChevronRight,
   Moon,
   Palette,
@@ -10,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { THEMES, type ThemeId } from '../types';
+import type { SettingsSyncStatus } from '../hooks';
 import { Modal, cx } from './ui';
 
 interface SettingsMenuProps {
@@ -18,11 +21,13 @@ interface SettingsMenuProps {
   darkModeLocked: boolean;
   activePaletteName: string | null;
   settingsVersion: number;
+  syncStatus: SettingsSyncStatus;
+  syncError: string | null;
+  lastSyncedAt: number | null;
   onToggleDark: () => void;
   onAppearance: () => void;
   onImport: () => void;
   onTags: () => void;
-  onRefresh: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -32,28 +37,21 @@ export function SettingsMenu({
   darkModeLocked,
   activePaletteName,
   settingsVersion,
+  syncStatus,
+  syncError,
+  lastSyncedAt,
   onToggleDark,
   onAppearance,
   onImport,
   onTags,
-  onRefresh,
   onClose,
 }: SettingsMenuProps) {
-  const [refreshing, setRefreshing] = useState(false);
   const themeLabel = THEMES.find((item) => item.id === theme)?.label || theme;
   const appearanceSummary = activePaletteName
     ? `Paleta «${activePaletteName}» · ${dark ? 'oscuro' : 'claro'}`
     : `${themeLabel} · ${dark ? 'oscuro' : 'claro'}`;
 
-  const handleRefresh = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      await onRefresh();
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const syncCopy = getSyncCopy(syncStatus, syncError, lastSyncedAt);
 
   return (
     <Modal
@@ -125,30 +123,80 @@ export function SettingsMenu({
         />
       </div>
 
-      <div className="mt-5 rounded-btn border border-line bg-sunken/55 px-3.5 py-3">
+      <div
+        className={cx(
+          'mt-5 rounded-btn border px-3.5 py-3',
+          syncStatus === 'error' || syncStatus === 'retrying'
+            ? 'border-danger/35 bg-danger/10'
+            : 'border-line bg-sunken/55',
+        )}
+        role="status"
+        aria-live="polite"
+      >
         <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-accent/10 text-accent">
-            <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+          <span
+            className={cx(
+              'flex h-9 w-9 shrink-0 items-center justify-center rounded-btn',
+              syncStatus === 'error' || syncStatus === 'retrying'
+                ? 'bg-danger/15 text-danger'
+                : 'bg-accent/10 text-accent',
+            )}
+          >
+            {syncCopy.icon}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-ink">Apariencia del servidor</p>
+            <p className="text-sm font-bold text-ink">{syncCopy.title}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-ink3">
-              Versión de ajustes #{settingsVersion}. Tras sincronizar, debe ser
-              la misma en el PC y en el teléfono.
+              Versión de ajustes del servidor #{settingsVersion}. {syncCopy.description}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void handleRefresh()}
-            disabled={refreshing}
-            className="shrink-0 rounded-btn bg-surface px-3 py-2 text-xs font-bold text-ink2 shadow-card transition-all hover:text-ink active:scale-95 disabled:cursor-wait disabled:opacity-60"
-          >
-            {refreshing ? 'Sincronizando…' : 'Sincronizar ahora'}
-          </button>
         </div>
       </div>
     </Modal>
   );
+}
+
+function getSyncCopy(
+  status: SettingsSyncStatus,
+  error: string | null,
+  lastSyncedAt: number | null,
+): { title: string; description: string; icon: ReactNode } {
+  if (status === 'saving') {
+    return {
+      title: 'Guardando en el servidor…',
+      description: 'El cambio se está confirmando ahora mismo; no tienes que tocar nada.',
+      icon: <RefreshCw size={17} className="animate-spin" />,
+    };
+  }
+  if (status === 'connecting') {
+    return {
+      title: 'Conectando con el servidor…',
+      description: 'En cuanto responda, se aplicará automáticamente la apariencia guardada.',
+      icon: <RefreshCw size={17} className="animate-spin" />,
+    };
+  }
+  if (status === 'retrying' || status === 'error') {
+    return {
+      title: status === 'retrying' ? 'Reintentando automáticamente…' : 'Todavía no confirmado por el servidor',
+      description: `${error || 'No se pudo confirmar el último cambio.'} Bilibook seguirá reintentándolo solo al recuperar la red o el foco.`,
+      icon: <AlertTriangle size={17} />,
+    };
+  }
+
+  const time = lastSyncedAt
+    ? new Intl.DateTimeFormat('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date(lastSyncedAt))
+    : null;
+  return {
+    title: 'Sincronizado con el servidor',
+    description: time
+      ? `Última confirmación a las ${time}. Los cambios llegan solos al PC y al teléfono.`
+      : 'Los cambios llegan solos al PC y al teléfono.',
+    icon: <CheckCircle2 size={17} />,
+  };
 }
 
 function SettingsRow({

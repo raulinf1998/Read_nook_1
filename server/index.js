@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, promises as fsPromises } from 'fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, promises as fsPromises } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash, randomUUID } from 'node:crypto';
@@ -19,7 +19,8 @@ function sendAppIndex(_req, res, next) {
     // Se lee en cada petición: es un HTML pequeño y así un despliegue nuevo
     // nunca queda escondido tras una plantilla memorizada por el proceso.
     const indexHtmlTemplate = readFileSync(INDEX_HTML_PATH, 'utf8');
-    const embeddedSettings = JSON.stringify(publicSettings())
+    const currentSettings = publicSettings();
+    const embeddedSettings = JSON.stringify(currentSettings)
       .replace(/</g, '\\u003c')
       .replace(/>/g, '\\u003e')
       .replace(/&/g, '\\u0026')
@@ -33,6 +34,8 @@ function sendAppIndex(_req, res, next) {
       Pragma: 'no-cache',
       Expires: '0',
       'Content-Type': 'text/html; charset=utf-8',
+      'X-Bilibook-Settings-Version': String(currentSettings.settingsVersion || 0),
+      'X-Bilibook-Settings-Protocol': String(currentSettings.settingsSyncProtocol || 0),
     });
     return res.send(html);
   } catch (err) {
@@ -48,6 +51,18 @@ mkdirSync(DATA_DIR, { recursive: true });
 mkdirSync(COVERS_DIR, { recursive: true });
 
 const VALID_THEMES = ['calido', 'minimal', 'nocturno', 'vibrante', 'oceano', 'bosque', 'atardecer', 'lavanda'];
+const LIBRARY_VIEWS = ['wood', 'spines', 'floating', 'showcase', 'stacks', 'wall', 'gallery', 'catalog', 'grid', 'list'];
+const CHART_DEFAULTS = { journal: 'bars', books: 'bars', extension: 'bars', ratings: 'bars', topBooks: 'horizontal', authors: 'horizontal', tags: 'donut', format: 'donut', language: 'donut' };
+function cleanCharts(value, base = CHART_DEFAULTS) {
+  const out = { ...base };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const key of Object.keys(CHART_DEFAULTS)) {
+    const allowed = ['journal', 'books', 'extension', 'ratings'].includes(key)
+      ? ['bars', 'line', 'area'] : ['horizontal', 'columns', 'donut'];
+    if (allowed.includes(value[key])) out[key] = value[key];
+  }
+  return out;
+}
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 const PALETTE_ID_RE = /^[a-zA-Z0-9_-]{1,90}$/;
 
@@ -608,6 +623,8 @@ function loadDB() {
         dark: Boolean(parsed.dark),
         theme: VALID_THEMES.includes(parsed.theme) ? parsed.theme : 'calido',
         customPalettes,
+        libraryView: LIBRARY_VIEWS.includes(parsed.libraryView) ? parsed.libraryView : 'wood',
+        chartPreferences: cleanCharts(parsed.chartPreferences),
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
@@ -631,12 +648,18 @@ function loadDB() {
     theme: 'calido',
     customPalettes: [],
     customPaletteId: null,
+    libraryView: 'wood',
+    chartPreferences: cleanCharts(null),
     settingsVersion: 0,
   };
 }
 
 function saveDB(db) {
-  writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+  // Escritura atómica: primero a un temporal del mismo volumen y después
+  // renombrado. Así un corte durante el guardado no deja db.json a medias.
+  const tempFile = `${DATA_FILE}.${process.pid}.${randomUUID()}.tmp`;
+  writeFileSync(tempFile, JSON.stringify(db, null, 2));
+  renameSync(tempFile, DATA_FILE);
 }
 
 let db = loadDB();
@@ -808,20 +831,31 @@ app.delete('/api/tags/:tag', (req, res) => {
 // La apariencia (tema, modo y paletas personalizadas) vive en el servidor,
 // no en cada navegador. `settingsVersion` crece con cada cambio para que un
 // dispositivo pueda detectar ajustes hechos desde otro y descartar las
-// respuestas antiguas que lleguen fuera de orden.
+// respuestas antiguas que lleguen fuera de orden. Además, cada cambio se
+// empuja por SSE a los clientes conectados: la sincronización es continua y
+// no depende de que el usuario pulse ningún botón de refresco.
+const SETTINGS_SYNC_PROTOCOL = 2;
+const settingsEventClients = new Set();
+
 const publicSettings = () => ({
   goal: db.goal,
   dark: db.dark,
   theme: db.theme,
   customPalettes: db.customPalettes,
   customPaletteId: db.customPaletteId,
+  libraryView: db.libraryView,
+  chartPreferences: db.chartPreferences,
   settingsVersion: db.settingsVersion || 0,
+  settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
 });
 
 function sendSettings(res) {
   // Nunca debe reutilizarse una copia cacheada de otro momento/dispositivo.
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('X-Bilibook-Settings-Version', String(db.settingsVersion || 0));
+  res.setHeader('X-Bilibook-Settings-Protocol', String(SETTINGS_SYNC_PROTOCOL));
   return res.json(publicSettings());
 }
 
@@ -829,13 +863,110 @@ function touchSettings() {
   db.settingsVersion = (Number.isSafeInteger(db.settingsVersion) ? db.settingsVersion : 0) + 1;
 }
 
+function snapshotSettings() {
+  return {
+    goal: db.goal,
+    dark: db.dark,
+    theme: db.theme,
+    customPalettes: [...db.customPalettes],
+    customPaletteId: db.customPaletteId,
+    libraryView: db.libraryView,
+    chartPreferences: { ...db.chartPreferences },
+    settingsVersion: db.settingsVersion,
+  };
+}
+
+function restoreSettings(snapshot) {
+  db.goal = snapshot.goal;
+  db.dark = snapshot.dark;
+  db.theme = snapshot.theme;
+  db.customPalettes = snapshot.customPalettes;
+  db.customPaletteId = snapshot.customPaletteId;
+  db.libraryView = snapshot.libraryView;
+  db.chartPreferences = snapshot.chartPreferences;
+  db.settingsVersion = snapshot.settingsVersion;
+}
+
+function broadcastSettings() {
+  const payload = `event: settings\ndata: ${JSON.stringify(publicSettings())}\n\n`;
+  for (const client of settingsEventClients) {
+    try {
+      client.write(payload);
+    } catch {
+      settingsEventClients.delete(client);
+    }
+  }
+}
+
+function commitSettings(res, previous) {
+  try {
+    if (dbLoadFailed) throw new Error('La base de datos no se pudo leer; se bloquea la escritura para protegerla.');
+    touchSettings();
+    saveDB(db);
+  } catch (error) {
+    restoreSettings(previous);
+    console.error('No se pudieron guardar los ajustes en el servidor:', error);
+    return res.status(500).json({
+      error: 'El servidor no pudo guardar los ajustes. Se reintentará automáticamente.',
+    });
+  }
+  broadcastSettings();
+  return sendSettings(res);
+}
+
+app.get('/api/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  return res.json({
+    ok: true,
+    settingsVersion: db.settingsVersion || 0,
+    settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
+    serverTime: Date.now(),
+  });
+});
+
 app.get('/api/settings', (req, res) => {
   sendSettings(res);
 });
-app.put('/api/settings', (req, res) => {
+
+app.get('/api/settings/events', (req, res) => {
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('X-Bilibook-Settings-Version', String(db.settingsVersion || 0));
+  res.setHeader('X-Bilibook-Settings-Protocol', String(SETTINGS_SYNC_PROTOCOL));
+  res.flushHeaders?.();
+  res.write(`event: settings\ndata: ${JSON.stringify(publicSettings())}\n\n`);
+
+  settingsEventClients.add(res);
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': ping\n\n');
+    } catch {
+      clearInterval(heartbeat);
+      settingsEventClients.delete(res);
+    }
+  }, 25_000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    settingsEventClients.delete(res);
+  });
+});
+
+function handleSettingsPatch(req, res) {
+  const previous = snapshotSettings();
   if (typeof req.body.goal === 'number') db.goal = req.body.goal;
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;
   if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
+  if (LIBRARY_VIEWS.includes(req.body.libraryView)) db.libraryView = req.body.libraryView;
+  if (req.body.chartPreferences && typeof req.body.chartPreferences === 'object') {
+    db.chartPreferences = cleanCharts(req.body.chartPreferences, db.chartPreferences);
+  }
   if (Array.isArray(req.body.customPalettes)) {
     db.customPalettes = sanitizeCustomPalettes(req.body.customPalettes);
     if (!db.customPalettes.some((palette) => palette.id === db.customPaletteId)) {
@@ -850,21 +981,25 @@ app.put('/api/settings', (req, res) => {
   ) {
     db.customPaletteId = req.body.customPaletteId;
   }
-  touchSettings();
-  saveDB(db);
-  sendSettings(res);
-});
+  return commitSettings(res, previous);
+}
+
+app.put('/api/settings', handleSettingsPatch);
+// Alias por compatibilidad con proxies o navegadores integrados que bloqueen
+// PUT: el cliente reintenta automáticamente con POST si PUT no está permitido.
+app.post('/api/settings', handleSettingsPatch);
 
 // Guardar o borrar una sola paleta, sin enviar la lista completa. Así, un PC
 // que todavía no ha visto la paleta creada en el móvil no puede borrarla al
 // guardar otra desde su lista antigua (ni al revés).
-app.put('/api/settings/custom-palettes/:id', (req, res) => {
+function handleSaveCustomPalette(req, res) {
   const candidate = req.body?.palette ?? req.body;
   const [palette] = sanitizeCustomPalettes([candidate]);
   if (!palette || palette.id !== req.params.id) {
     return res.status(400).json({ error: 'La paleta personalizada no es válida.' });
   }
 
+  const previous = snapshotSettings();
   const existingIndex = db.customPalettes.findIndex((item) => item.id === palette.id);
   if (existingIndex >= 0) {
     db.customPalettes[existingIndex] = palette;
@@ -879,18 +1014,19 @@ app.put('/api/settings/custom-palettes/:id', (req, res) => {
     db.theme = palette.baseTheme;
     db.customPaletteId = palette.id;
   }
-  touchSettings();
-  saveDB(db);
-  return sendSettings(res);
-});
+  return commitSettings(res, previous);
+}
+
+app.put('/api/settings/custom-palettes/:id', handleSaveCustomPalette);
+app.post('/api/settings/custom-palettes/:id', handleSaveCustomPalette);
 
 app.delete('/api/settings/custom-palettes/:id', (req, res) => {
+  const previous = snapshotSettings();
   const previousLength = db.customPalettes.length;
   db.customPalettes = db.customPalettes.filter((palette) => palette.id !== req.params.id);
   if (db.customPaletteId === req.params.id) db.customPaletteId = null;
   if (db.customPalettes.length !== previousLength) {
-    touchSettings();
-    saveDB(db);
+    return commitSettings(res, previous);
   }
   return sendSettings(res);
 });

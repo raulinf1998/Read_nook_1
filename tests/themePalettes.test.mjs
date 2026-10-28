@@ -108,13 +108,13 @@ describe('paletas personalizadas', () => {
     try {
       applyCustomPaletteToRoot(null, false);
       assert.equal(properties.size, 0, 'ninguna variable antigua debe sobrevivir');
-      assert.equal(root.style.colorScheme, 'light');
+      assert.equal(root.style.colorScheme, 'only light');
       assert.equal(root.dataset.customPalette, undefined);
       assert.ok(removedStorageKeys.includes(CUSTOM_PALETTE_CSS_VARS_KEY));
 
       applyCustomPaletteToRoot(validPalette, false);
       assert.equal(properties.get('--bg'), buildPaletteCssVars(validPalette.light, false)['--bg']);
-      assert.equal(root.style.colorScheme, 'light');
+      assert.equal(root.style.colorScheme, 'only light');
       assert.equal(root.dataset.customPalette, validPalette.id);
 
       applyCustomPaletteToRoot(validPalette, true);
@@ -123,7 +123,7 @@ describe('paletas personalizadas', () => {
         buildPaletteCssVars(validPalette.light, false)['--bg'],
         buildPaletteCssVars(validPalette.dark, true)['--bg'],
       );
-      assert.equal(root.style.colorScheme, 'dark');
+      assert.equal(root.style.colorScheme, 'only dark');
     } finally {
       delete globalThis.document;
       delete globalThis.localStorage;

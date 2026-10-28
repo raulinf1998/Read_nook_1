@@ -17,7 +17,7 @@ estadísticas de lectura.
   **10 formas de verla**: baldas de madera,
   lomos, baldas flotantes, vitrina, pilas, muro de portadas, galería con
   marcos, fichero de biblioteca, rejilla clásica y lista. La opción elegida se
-  recuerda en ese navegador.
+  guarda en el servidor y se comparte entre dispositivos.
 - **Sagas**: el nombre de una saga es clicable y abre su propia página
   (`#/saga/…`) con abanico de portadas, progreso de la colección, siguiente
   volumen recomendado, las portadas de la saga en una balda y la ruta de lectura ordenada. Si la
@@ -140,16 +140,21 @@ para los modos claro y oscuro. Bilibook deriva automáticamente bordes, textos
 secundarios, estados, series de gráficos y baldas. Las paletas guardadas pueden
 aplicarse, editarse y borrarse desde **Apariencia**.
 
-La apariencia completa —tema, modo claro/oscuro y paletas personalizadas— se
-guarda en el servidor y se sincroniza entre dispositivos sin recargar: la app
-la vuelve a consultar al abrir **Apariencia**, al recuperar el foco y cada
-pocos segundos. En producción, Express también entrega el HTML sin caché y
-con los ajustes actuales del servidor incrustados, así que el primer pintado
-no depende del `localStorage` de cada navegador. El menú **Ajustes** muestra
-la versión de ajustes del servidor y permite forzar una sincronización.
-Al actualizar desde una versión anterior, las paletas que solo estuvieran en
-el navegador de un dispositivo se suben y se unen a las del servidor en vez
-de sustituirlas; después se borra ese espejo local antiguo.
+La apariencia completa —tema, modo claro/oscuro y paletas personalizadas—, la
+vista de Biblioteca y los tipos de gráficos se guardan en el servidor. Los
+cambios llegan automáticamente a los dispositivos conectados mediante SSE;
+si la conexión se interrumpe, se vuelve a consultar al recuperar el foco y cada
+15 segundos. Los cambios de ajustes no confirmados se reintentan mientras la
+página siga abierta; si se cierra antes de confirmarlos no se garantiza su
+conservación. **Ajustes** muestra si el servidor confirmó el cambio o si hay
+un problema, sin exigir ninguna acción para sincronizar.
+
+En producción, Express entrega el HTML sin caché con los ajustes actuales
+incrustados. Al actualizar desde una versión anterior, las paletas que solo
+estuvieran en un navegador se intentan subir en segundo plano sin bloquear los
+ajustes del servidor ni activar una selección antigua. Las antiguas preferencias
+locales de vista y gráficos no se importan automáticamente para evitar que un
+dispositivo sobrescriba las del servidor.
 
 Todos los temas integrados (excepto Nocturno, oscuro por definición) tienen
 modo claro y oscuro. Una paleta personalizada con base Nocturno sí puede usar
@@ -187,7 +192,7 @@ docker compose up --build
 ```
 
 Sirve la app en http://localhost:8080. Los datos persisten en un volumen
-(`book-tracker-data`): `db.json` guarda libros, tags, objetivo y toda la apariencia compartida (tema, modo y paletas), y la
+(`book-tracker-data`): `db.json` guarda libros, tags, objetivo, apariencia, vista de biblioteca y preferencias de gráficos, y la
 carpeta `covers/` guarda automáticamente las portadas subidas, enlazadas o
 importadas (nombre = hash SHA-256). La misma imagen se almacena una sola vez;
 al sustituirla, quitarla o borrar el libro se retira el archivo anterior si

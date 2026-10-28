@@ -168,3 +168,70 @@ test('la apariencia se comparte en el servidor y las paletas se guardan sin pisa
     }
   }
 });
+
+test('el servidor transmite cambios automáticamente y conserva ajustes tras reiniciar', {
+  skip: expressInstalled ? false : 'Instala las dependencias del servidor',
+}, async (t) => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'bilibook-live-test-'));
+  const port = 33125;
+  const baseUrl = `http://127.0.0.1:${port}`;
+  let child;
+  const start = async () => {
+    child = spawn(process.execPath, ['server/index.js'], {
+      cwd: new URL('../', import.meta.url),
+      env: { ...process.env, DATA_DIR: dataDir, PORT: String(port) },
+      stdio: 'ignore',
+    });
+    await waitForServer(baseUrl);
+  };
+  const stop = async () => {
+    if (child && child.exitCode === null) {
+      const exited = new Promise((resolve) => child.once('exit', resolve));
+      child.kill('SIGTERM');
+      await exited;
+    }
+  };
+  t.after(async () => { await stop(); await rm(dataDir, { recursive: true, force: true }); });
+  await start();
+  const controller = new AbortController();
+  const eventResponse = await fetch(`${baseUrl}/api/settings/events`, { signal: controller.signal });
+  assert.match(eventResponse.headers.get('content-type'), /text\/event-stream/);
+  assert.match(eventResponse.headers.get('cache-control'), /no-store/);
+  const reader = eventResponse.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  async function nextEvent() {
+    while (!buffer.includes('\n\n')) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error('Canal SSE cerrado');
+      buffer += decoder.decode(value, { stream: true });
+    }
+    const end = buffer.indexOf('\n\n');
+    const event = buffer.slice(0, end);
+    buffer = buffer.slice(end + 2);
+    return JSON.parse(event.match(/^data: (.+)$/m)[1]);
+  }
+  assert.equal((await nextEvent()).settingsVersion, 0);
+  const response = await fetch(`${baseUrl}/api/settings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme: 'oceano', dark: true, libraryView: 'spines', chartPreferences: { journal: 'line' } }),
+  });
+  assert.equal(response.status, 200);
+  const pushed = await nextEvent();
+  assert.equal(pushed.settingsVersion, 1);
+  assert.equal(pushed.settingsSyncProtocol, 2);
+  assert.equal(pushed.theme, 'oceano');
+  assert.equal(pushed.dark, true);
+  assert.equal(pushed.libraryView, 'spines');
+  assert.equal(pushed.chartPreferences.journal, 'line');
+  controller.abort();
+  await stop();
+  await start();
+  const restored = await (await fetch(`${baseUrl}/api/settings`)).json();
+  assert.equal(restored.settingsVersion, 1);
+  assert.equal(restored.theme, 'oceano');
+  assert.equal(restored.dark, true);
+  assert.equal(restored.libraryView, 'spines');
+  assert.equal(restored.chartPreferences.journal, 'line');
+  assert.equal(restored.chartPreferences.books, 'bars');
+});
