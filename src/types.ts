@@ -22,6 +22,8 @@ export interface JournalEntry {
   percent?: number | null;
   cumulativePages?: number | null;
   kind?: JournalEntryKind;
+  /** Marca protegida que separa una relectura manual. */
+  rereadBoundary?: boolean;
   source?: 'storygraph';
   sourceEntryId?: string;
 }
@@ -55,6 +57,8 @@ export interface Book {
   startedAt: number | null;
   finishedAt: number | null;
   journal: JournalEntry[];
+  /** Lecturas anteriores completadas; la lectura actual usa status/finishedAt. */
+  previousReadings?: { finishedAt: number | null; pages: number }[];
 }
 
 /** Clases basadas en tokens del tema (ver index.css): funcionan en todas las paletas y en modo oscuro. */

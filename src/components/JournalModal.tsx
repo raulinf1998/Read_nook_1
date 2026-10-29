@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useState } from 'react';
 import { Clock3, NotebookPen, Plus, Trash2 } from 'lucide-react';
 import type { Book, JournalEntry, JournalEntryKind } from '../types';
 import { makeJournalEntry } from '../lib';
@@ -448,7 +448,10 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
 
     setEntries(newEntries);
     setKnownCurrentPage(nextCurrentPage);
-    pushUpdate(newEntries, nextCurrentPage);
+    const removed = entries.find((entry) => entry.id === entryId);
+    const reopened = removed?.kind === 'finished' && book.status === 'read'
+      && book.pages > 0 && nextCurrentPage < book.pages;
+    pushUpdate(newEntries, nextCurrentPage, reopened ? { status: 'reading', finishedAt: null } : {});
   };
 
   const currentPage = knownCurrentPage;
@@ -510,12 +513,18 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
                 'relative space-y-2.5 pr-1 before:absolute before:left-[17px] before:top-2 before:bottom-2 before:w-px before:bg-line',
                 embedded ? '' : 'max-h-72 overflow-y-auto',
               )}>
-                {visibleEntries.map((entry) => {
+                {visibleEntries.map((entry, index) => {
                   const point = pointsByEntryId.get(entry.id);
+                  const previousPoint = index > 0 ? pointsByEntryId.get(visibleEntries[index - 1].id) : null;
+                  const showHeading = index === 0 || point?.segmentIndex !== previousPoint?.segmentIndex;
                   const cumulativePages = point?.isProgressPoint ? point.cumulativePages : null;
                   const percent = point?.isProgressPoint ? point.percent : null;
                   return (
-                    <li key={entry.id} className="relative flex items-start gap-3 group">
+                    <Fragment key={entry.id}>
+                    {showHeading && <li className="relative z-10 rounded-btn border border-accent/30 bg-surface px-3 py-2 text-xs font-extrabold text-accent">
+                      {point?.segmentIndex ? `Relectura ${point.segmentIndex}` : 'Primera lectura'}
+                    </li>}
+                    <li className="relative flex items-start gap-3 group">
                       <span className="relative z-10 shrink-0 w-[35px] h-[35px] rounded-full bg-accent/10 ring-4 ring-surface flex flex-col items-center justify-center text-accent">
                         <span className="text-[11px] font-extrabold leading-none tabular-nums">{new Date(entry.date).getDate()}</span>
                         <span className="text-[7px] font-bold uppercase leading-none mt-px">
@@ -553,15 +562,16 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
                         )}
                         {entry.note && <p className="text-xs text-ink2 mt-1.5 leading-relaxed whitespace-pre-line break-words">{entry.note}</p>}
                       </div>
-                      <button
+                      {!entry.rereadBoundary && <button
                         type="button"
                         onClick={() => handleDelete(entry.id)}
                         className={cx(iconBtn, 'p-1.5 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 hover:!text-danger hover:!bg-danger/10 shrink-0 mt-1')}
                         aria-label="Eliminar avance"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </button>}
                     </li>
+                    </Fragment>
                   );
                 })}
               </ol>
