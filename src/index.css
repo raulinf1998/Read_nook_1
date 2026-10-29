@@ -1081,6 +1081,8 @@ input[type='range'].book-slider::-moz-range-thumb {
   background: #050b1a;
   box-shadow: inset 0 0 48px rgb(0 0 0 / .5);
 }
+.space-viewport { cursor: grab; }
+.space-viewport--dragging { cursor: grabbing; user-select: none; }
 .space-universe {
   position: absolute;
   inset: 0 auto auto 0;
