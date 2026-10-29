@@ -1,3 +1,4 @@
+import { normalizePlanetStyle, type PlanetStyle } from './space';
 import { normalizeShelfColors, type ShelfColors } from './shelfColors';
 import { selectedAccount } from './accounts';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -204,6 +205,7 @@ function normalizeServerSettings(value: unknown): Settings | null {
     libraryView: normalizeLibraryView(candidate.libraryView),
     chartPreferences: normalizeChartPreferences(candidate.chartPreferences),
     shelfColors: normalizeShelfColors(candidate.shelfColors),
+    planetStyle: normalizePlanetStyle(candidate.planetStyle),
     customPaletteId: candidate.customPaletteId
       && palettes.some((palette) => palette.id === candidate.customPaletteId)
       ? candidate.customPaletteId
@@ -277,6 +279,7 @@ export function useServerSettings() {
     initialServerSettings?.customPaletteId ?? null,
   );
   const [libraryView, setLibraryViewState] = useState<LibraryViewMode>(initialServerSettings?.libraryView ?? 'wood');
+  const [planetStyle, setPlanetStyleState] = useState<PlanetStyle>(normalizePlanetStyle(initialServerSettings?.planetStyle));
   const [shelfColors, setShelfColorsState] = useState<ShelfColors>(normalizeShelfColors(initialServerSettings?.shelfColors));
   const [chartPreferences, setChartPreferencesState] = useState<ChartPreferences>(normalizeChartPreferences(initialServerSettings?.chartPreferences));
   const [settingsVersion, setSettingsVersionState] = useState(
@@ -360,6 +363,7 @@ export function useServerSettings() {
     setLibraryViewState(normalized.libraryView);
     setChartPreferencesState(normalized.chartPreferences);
     setShelfColorsState(normalized.shelfColors);
+    setPlanetStyleState(normalized.planetStyle);
     return true;
   }, [noteServerSettings]);
 
@@ -731,6 +735,13 @@ export function useServerSettings() {
     persistSettings(mutation, { libraryView: view });
   }, [beginLocalMutation, persistSettings]);
 
+  const setPlanetStyle = useCallback((style: PlanetStyle) => {
+    const value = normalizePlanetStyle(style);
+    const mutation = beginLocalMutation();
+    setPlanetStyleState(value);
+    persistSettings(mutation, { planetStyle: value });
+  }, [beginLocalMutation, persistSettings]);
+
   const setShelfColor = useCallback((key: keyof ShelfColors, value: string) => {
     if (!/^#[0-9a-f]{6}$/i.test(value)) return;
     const mutation = beginLocalMutation();
@@ -765,6 +776,8 @@ export function useServerSettings() {
     setChartPreference,
     shelfColors,
     setShelfColor,
+    planetStyle,
+    setPlanetStyle,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,

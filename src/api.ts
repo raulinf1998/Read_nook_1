@@ -1,3 +1,4 @@
+import type { PlanetStyle } from './space';
 import type { ShelfColors } from './shelfColors';
 import type { Book, CustomPalette, ThemeId } from './types';
 import type { LibraryViewMode } from './libraryViews';
@@ -81,6 +82,7 @@ export interface Settings {
   libraryView: LibraryViewMode;
   chartPreferences: ChartPreferences;
   shelfColors: ShelfColors;
+  planetStyle: PlanetStyle;
   /** Crece en el servidor con cada cambio; sirve para sincronizar dispositivos. */
   settingsVersion: number;
   /** Versión del protocolo continuo de ajustes que ofrece el servidor. */

@@ -1,16 +1,17 @@
 import {
-  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Plus, Upload, Tag, Palette, Moon, Sun,
+  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, Plus, Upload, Tag, Palette, Moon, Sun,
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
 import { BrandMark, cx, btnPrimary, iconBtn } from './ui';
 
-export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf';
+export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space';
 
 const TABS: { id: TabId; label: string; short: string; icon: typeof BookOpen }[] = [
   { id: 'reading', label: 'Inicio', short: 'Inicio', icon: BookOpen },
   { id: 'library', label: 'Biblioteca', short: 'Libros', icon: Library },
   { id: 'shelf', label: 'Estantería', short: 'Balda', icon: BookMarked },
+  { id: 'space', label: 'Espacio', short: 'Espacio', icon: Orbit },
   { id: 'discover', label: 'Descubrir', short: 'Ideas', icon: Compass },
   { id: 'challenge', label: 'Reto anual', short: 'Reto', icon: Target },
   { id: 'stats', label: 'Estadísticas', short: 'Datos', icon: BarChart3 },
@@ -195,7 +196,7 @@ export function MobileNav({ active, onChange }: MobileNavProps) {
       style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
       aria-label="Secciones"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-0.5 overflow-x-auto no-scrollbar">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = active === tab.id;
@@ -206,8 +207,8 @@ export function MobileNav({ active, onChange }: MobileNavProps) {
               aria-current={isActive ? 'page' : undefined}
               aria-label={tab.label}
               className={cx(
-                'flex items-center justify-center gap-1.5 rounded-full transition-all duration-300 active:scale-95',
-                isActive ? 'bg-primary text-onprimary px-3 py-2 shadow-card' : 'text-ink3 hover:text-ink px-2 py-2'
+                'flex shrink-0 items-center justify-center gap-1.5 rounded-full transition-all duration-300 active:scale-95',
+                isActive ? 'bg-primary text-onprimary px-3 py-2 shadow-card' : 'text-ink3 hover:text-ink px-1.5 py-2'
               )}
             >
               <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />

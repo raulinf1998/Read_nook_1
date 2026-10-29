@@ -42,9 +42,9 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   await reader.read(); // primer estado de Pequeñaja
   const nextEvent = reader.read();
   const update = (account, body) => request(account, '/api/settings', { method: 'PUT', body: JSON.stringify(body) });
-  await update('raul', { theme: 'oceano', shelfColors: { frame: '#123456', wood: '#654321' } });
+  await update('raul', { theme: 'oceano', planetStyle: 'saturno', shelfColors: { frame: '#123456', wood: '#654321' } });
   assert.equal(await Promise.race([nextEvent.then(() => 'mensaje'), new Promise((r) => setTimeout(() => r('sin mensaje'), 100))]), 'sin mensaje');
-  await update('pequenaja', { theme: 'lavanda', goal: 12, shelfColors: { background: '#abcdef' } });
+  await update('pequenaja', { theme: 'lavanda', goal: 12, planetStyle: 'neon', shelfColors: { background: '#abcdef' } });
   assert.match(new TextDecoder().decode((await nextEvent).value), /"theme":"lavanda"/);
   controller.abort();
   assert.equal((await request('raul', '/api/settings')).data.theme, 'oceano');
@@ -76,5 +76,7 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   assert.equal((await request('pequenaja', '/api/books')).data[0].title, 'Otro');
   assert.equal((await request('pequenaja', '/api/settings')).data.theme, 'lavanda');
   assert.equal((await request('raul', '/api/settings')).data.shelfColors.frame, '#123456');
+  assert.equal((await request('raul', '/api/settings')).data.planetStyle, 'saturno');
+  assert.equal((await request('pequenaja', '/api/settings')).data.planetStyle, 'neon');
   assert.equal((await request('pequenaja', '/api/settings')).data.shelfColors.background, '#abcdef');
 });

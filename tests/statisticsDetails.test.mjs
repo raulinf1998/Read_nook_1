@@ -29,7 +29,7 @@ test('idiomas, géneros y formatos abren lecturas del periodo en todos los tipos
     await React.act(async () => yearButton.click());
     const english = document.querySelector('[role=button][aria-label="Ver lecturas de Inglés: 2"]');
     assert.ok(english, kind);
-    if (kind === 'donut') assert.ok([...document.querySelectorAll('[role=button][aria-label="Ver lecturas de Inglés: 2"]')].some((item) => item.querySelector('svg')));
+    if (kind === 'donut') assert.ok([...document.querySelectorAll('div[role=button][aria-label="Ver lecturas de Inglés: 2"]')].every((item) => !item.querySelector('svg')));
     await React.act(async () => english.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     assert.match(document.body.textContent, /2 lecturas completadas/);
     assert.equal([...document.querySelectorAll('button')].filter((button) => button.textContent.includes('Relectura')).length, 2);

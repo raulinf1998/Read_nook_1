@@ -610,6 +610,7 @@ async function migrateBookCovers() {
 let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
+const PLANET_STYLES = ['orbita', 'saturno', 'luna', 'aurora', 'cristal', 'eclipse', 'neon', 'acuario', 'vintage', 'cometa'];
 const DEFAULT_SHELF_COLORS = { frame: '#eee6d5', wood: '#d3a15f', background: '#ded7c9' };
 function cleanShelfColors(value, base = DEFAULT_SHELF_COLORS) {
   const result = { ...base };
@@ -635,6 +636,7 @@ function normalizeAccount(parsed) {
         libraryView: LIBRARY_VIEWS.includes(parsed.libraryView) ? parsed.libraryView : 'wood',
         chartPreferences: cleanCharts(parsed.chartPreferences),
         shelfColors: cleanShelfColors(parsed.shelfColors),
+        planetStyle: PLANET_STYLES.includes(parsed.planetStyle) ? parsed.planetStyle : 'orbita',
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
@@ -895,6 +897,7 @@ const publicSettings = () => ({
   libraryView: db.libraryView,
   chartPreferences: db.chartPreferences,
   shelfColors: db.shelfColors,
+  planetStyle: db.planetStyle,
   settingsVersion: db.settingsVersion || 0,
   settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
 });
@@ -923,6 +926,7 @@ function snapshotSettings() {
     libraryView: db.libraryView,
     chartPreferences: { ...db.chartPreferences },
     shelfColors: { ...db.shelfColors },
+    planetStyle: db.planetStyle,
     settingsVersion: db.settingsVersion,
   };
 }
@@ -936,6 +940,7 @@ function restoreSettings(snapshot) {
   db.libraryView = snapshot.libraryView;
   db.chartPreferences = snapshot.chartPreferences;
   db.shelfColors = snapshot.shelfColors;
+  db.planetStyle = snapshot.planetStyle;
   db.settingsVersion = snapshot.settingsVersion;
 }
 
@@ -1025,6 +1030,7 @@ function handleSettingsPatch(req, res) {
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;
   if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
   if (LIBRARY_VIEWS.includes(req.body.libraryView)) db.libraryView = req.body.libraryView;
+  if (PLANET_STYLES.includes(req.body.planetStyle)) db.planetStyle = req.body.planetStyle;
   if (req.body.shelfColors) db.shelfColors = cleanShelfColors(req.body.shelfColors, db.shelfColors);
   if (req.body.chartPreferences && typeof req.body.chartPreferences === 'object') {
     db.chartPreferences = cleanCharts(req.body.chartPreferences, db.chartPreferences);
