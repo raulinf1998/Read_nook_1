@@ -3,7 +3,7 @@ import {
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
-import { BrandMark, cx, btnPrimary } from './ui';
+import { BrandMark, cx, btnPrimary, iconBtn } from './ui';
 
 export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf';
 
@@ -161,6 +161,22 @@ function SideTool({ icon: Icon, label, onClick }: { icon: typeof Upload; label: 
     >
       <Icon size={16} className="text-ink3" />
       {label}
+    </button>
+  );
+}
+
+/** Acceso rápido de la cabecera móvil; respeta el bloqueo de Nocturno. */
+export function MobileThemeToggle({ dark, locked, onToggle }: { dark: boolean; locked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      disabled={locked}
+      className={`${iconBtn} disabled:opacity-40 disabled:cursor-not-allowed`}
+      aria-label={locked ? 'Modo oscuro fijo con el tema Nocturno' : dark ? 'Activar modo claro' : 'Activar modo oscuro'}
+      title={locked ? 'El tema Nocturno integrado siempre es oscuro' : dark ? 'Activar modo claro' : 'Activar modo oscuro'}
+    >
+      {dark ? <Sun size={19} /> : <Moon size={19} />}
     </button>
   );
 }

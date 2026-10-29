@@ -1050,3 +1050,22 @@ input[type='range'].book-slider::-moz-range-thumb {
 [data-theme='nocturno'] .bg-grad-primary {
   background-image: linear-gradient(120deg, rgb(var(--gold)), rgb(228 197 130) 55%, rgb(var(--accent-2)));
 }
+
+/* Barras vistas por el corte del libro: tapas coloreadas y hojas con textura. */
+.stat-book-bar {
+  border-radius: 5px 3px 3px 5px;
+  padding: 2px 3px 2px 5px;
+  box-shadow: inset 1px 0 1px rgb(255 255 255 / 0.45), inset -1px 0 2px rgb(0 0 0 / 0.32), 1px 3px 4px rgb(0 0 0 / 0.25);
+  overflow: hidden;
+}
+.stat-book-pages {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 3px 1px 1px 3px;
+  background:
+    linear-gradient(90deg, rgb(65 38 15 / 0.24), transparent 25%, rgb(255 255 255 / 0.17) 68%, rgb(60 34 11 / 0.19)),
+    repeating-linear-gradient(180deg, rgb(105 68 38 / 0.18) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #e8d3ac, #c9a87b 48%, #e4c89b);
+  box-shadow: inset 1px 0 3px rgb(42 26 11 / 0.28), inset 0 1px 1px rgb(255 255 255 / 0.55);
+}

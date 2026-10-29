@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Activity,
+  ArrowLeft,
   AreaChart,
   BarChart3,
   BookOpen,
@@ -19,7 +20,9 @@ import { FORMAT_META, formatLabel, languageLabel } from '../types';
 import type { ChartPreferences } from '../preferences';
 import { completedReadings } from '../rereads';
 import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
-import { EmptyState, cardCls, cx, selectCls } from './ui';
+import { EmptyState, BookCover, btnGhost, cardCls, cx, selectCls } from './ui';
+import { StatisticCategoryIcon } from './StatisticCategoryIcon';
+import { formatReadingDate } from '../readingDate';
 
 // Colores desde los tokens del tema: los gráficos se tiñen solos al cambiar de tema
 const CH = (n: number) => `rgb(var(--chart-${n}))`;
@@ -39,6 +42,7 @@ type DistributionChartType = 'donut' | 'horizontal' | 'columns';
 
 interface Props {
   books: Book[];
+  onOpen: (book: Book) => void;
   chartPreferences: ChartPreferences;
   onSetChartPreference: <K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => void;
 }
@@ -83,10 +87,11 @@ function calculateStreaks(activeDays: Set<string>): { longest: number; current: 
   return { longest, current };
 }
 
-export function Statistics({ books, chartPreferences, onSetChartPreference: setChartPreference }: Props) {
+export function Statistics({ books, onOpen, chartPreferences, onSetChartPreference: setChartPreference }: Props) {
   const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const [detail, setDetail] = useState<{ type: 'language' | 'tag' | 'format'; label: string } | null>(null);
 
   // Cada finalización es una lectura: las anteriores siguen contando incluso
   // mientras el mismo libro está en curso de relectura.
@@ -346,15 +351,39 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
     centerLabel: string,
     centerValue?: string,
     size = 140,
+    type?: 'language' | 'tag' | 'format',
   ) => {
+    const onSelect = type ? (label: string) => { setDetail({ type, label }); window.scrollTo({ top: 0 }); } : undefined;
+    const renderLabel = type ? (label: string) => <><StatisticCategoryIcon type={type} label={label} /> <span>{label}</span></> : undefined;
     if (chartType === 'horizontal') {
-      return <HBarChart data={data.slice(0, 10)} maxItems={10} />;
+      return <HBarChart data={data} maxItems={data.length} onSelect={onSelect} renderLabel={renderLabel} />;
     }
     if (chartType === 'columns') {
-      return <BarChart data={data.slice(0, 10)} height={155} />;
+      return <div className="overflow-x-auto"><div style={{ minWidth: `${Math.max(0, data.length * 70)}px` }}><BarChart data={data} height={155} onSelect={onSelect} renderLabel={renderLabel} /></div></div>;
     }
-    return <DonutChart data={data} size={size} centerLabel={centerLabel} centerValue={centerValue} />;
+    return <DonutChart data={data} size={size} centerLabel={centerLabel} centerValue={centerValue} onSelect={onSelect} renderLabel={renderLabel} />;
   };
+
+  if (detail) {
+    const readings = readBooks.filter((book) => detail.type === 'language'
+      ? languageLabel(book.language) === detail.label
+      : detail.type === 'format' ? formatLabel(book.format) === detail.label : (book.tags || []).includes(detail.label));
+    return <section className="space-y-5">
+      <button type="button" className={btnGhost} onClick={() => setDetail(null)}><ArrowLeft size={16} /> Volver a estadísticas</button>
+      <div className={cx(cardCls, 'p-5 sm:p-7')}>
+        <p className="text-xs font-extrabold uppercase tracking-wider text-ink3">{detail.type === 'language' ? 'Idioma' : detail.type === 'format' ? 'Formato' : 'Género o tag'} · {periodLabel}</p>
+        <h2 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold text-ink"><StatisticCategoryIcon type={detail.type} label={detail.label} /> {detail.label}</h2>
+        <p className="mt-2 text-sm text-ink2">{readings.length} {readings.length === 1 ? 'lectura completada' : 'lecturas completadas'} · {readings.reduce((sum, book) => sum + (book.pages || 0), 0).toLocaleString('es')} páginas</p>
+        <p className="mt-1 text-xs text-ink3">Las relecturas aparecen por separado.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {readings.map((reading, index) => <button key={`${reading.id}-${reading.finishedAt}-${index}`} type="button" onClick={() => onOpen(books.find((book) => book.id === reading.id) || reading)} className={cx(cardCls, 'flex min-w-0 items-center gap-3 p-3 text-left hover:border-accent transition-colors')}>
+          <BookCover title={reading.title} author={reading.author} coverUrl={reading.coverUrl} detail="sm" className="h-[72px] w-12 shrink-0 shadow-book" />
+          <span className="min-w-0"><span className="block truncate font-display text-base font-semibold text-ink">{reading.title}</span><span className="block truncate text-xs text-ink3">{reading.author || 'Autor desconocido'}</span><span className="mt-1 block text-xs text-ink2">{formatReadingDate(reading)} · {reading.pages || 0} págs.</span></span>
+        </button>)}
+      </div>
+    </section>;
+  }
 
   if (allRead.length === 0 && allJournalSessions.length === 0) {
     return (
@@ -538,7 +567,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
         <Card
           title="Géneros y tags"
-          subtitle={`Distribución · ${periodLabel}`}
+          subtitle={`Toca un género para ver sus lecturas · ${periodLabel}`}
           action={(
             <DistributionTypeControl
               value={chartPreferences.tags}
@@ -547,7 +576,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
           )}
         >
           {stats.tagData.length > 0 ? (
-            renderDistributionChart(stats.tagData, chartPreferences.tags, 'tags', stats.tagData.length.toString())
+            renderDistributionChart(stats.tagData, chartPreferences.tags, 'tags', stats.tagData.length.toString(), 140, 'tag')
           ) : (
             <EmptyChart />
           )}
@@ -577,7 +606,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
 
         <Card
           title="Formato"
-          subtitle={`Físico vs ebook · ${periodLabel}`}
+          subtitle={`Toca un formato para ver sus lecturas · ${periodLabel}`}
           action={(
             <DistributionTypeControl
               value={chartPreferences.format}
@@ -586,13 +615,13 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
           )}
         >
           {stats.formatData.length > 0
-            ? renderDistributionChart(stats.formatData, chartPreferences.format, 'libros', undefined, 124)
+            ? renderDistributionChart(stats.formatData, chartPreferences.format, 'libros', undefined, 124, 'format')
             : <EmptyChart />}
         </Card>
 
         <Card
           title="Idioma"
-          subtitle={`Español vs inglés · ${periodLabel}`}
+          subtitle={`Toca un idioma para ver sus lecturas · ${periodLabel}`}
           action={(
             <DistributionTypeControl
               value={chartPreferences.language}
@@ -601,7 +630,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
           )}
         >
           {stats.langData.length > 0
-            ? renderDistributionChart(stats.langData, chartPreferences.language, 'libros', undefined, 124)
+            ? renderDistributionChart(stats.langData, chartPreferences.language, 'libros', undefined, 124, 'language')
             : <EmptyChart />}
         </Card>
       </div>
