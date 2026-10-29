@@ -1,3 +1,6 @@
+import { useState, type CSSProperties } from 'react';
+import { Palette } from 'lucide-react';
+import { DEFAULT_SHELF_COLORS, type ShelfColors } from '../shelfColors';
 import type { Book } from '../types';
 import { BookCover } from './ui';
 import { useWindowWidth } from '../hooks';
@@ -5,6 +8,8 @@ import { sortBooksForBookshelf } from '../series';
 
 interface Props {
   books: Book[];
+  colors: ShelfColors;
+  onSetColor: (key: keyof ShelfColors, color: string) => void;
   onOpen: (book: Book) => void;
 }
 
@@ -31,7 +36,8 @@ function chunk<T>(items: T[], size: number): T[][] {
  * ordenadas siempre por autor y saga, dentro de una librería clásica frontal
  * de madera lacada en crema con tapa y baldas de pino.
  */
-export function Bookshelf({ books, onOpen }: Props) {
+export function Bookshelf({ books, onOpen, colors, onSetColor }: Props) {
+  const [showColors, setShowColors] = useState(false);
   const width = useWindowWidth();
   const perShelf = width < 380 ? 3 : width < 640 ? 4 : width < 900 ? 5 : width < 1200 ? 6 : 7;
   const sortedBooks = sortBooksForBookshelf(books);
@@ -44,7 +50,19 @@ export function Bookshelf({ books, onOpen }: Props) {
     : Array.from({ length: 4 }, () => Array.from({ length: perShelf }, () => null));
 
   return (
-    <div className="bookcase" aria-label={books.length ? 'Estantería' : 'Estantería vacía'}>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => setShowColors(!showColors)} aria-expanded={showColors} aria-controls="shelf-colors" className="inline-flex items-center gap-2 rounded-btn border border-line bg-surface px-4 py-2 text-sm font-bold text-ink hover:text-accent">
+          <Palette size={16} /> Colores de la estantería
+        </button>
+      </div>
+      {showColors && <div id="shelf-colors" className="mb-5 flex flex-wrap items-end gap-4 rounded-card border border-line bg-surface p-4">
+        {([['frame', 'Bordes'], ['wood', 'Madera'], ['background', 'Fondo']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm font-semibold text-ink">
+          <input type="color" value={colors[key]} onChange={(event) => onSetColor(key, event.target.value)} aria-label={`Color de ${label.toLowerCase()}`} className="h-10 w-12 cursor-pointer rounded border border-line bg-surface p-1" /> {label}
+        </label>)}
+        <button type="button" onClick={() => (Object.keys(DEFAULT_SHELF_COLORS) as (keyof ShelfColors)[]).forEach((key) => onSetColor(key, DEFAULT_SHELF_COLORS[key]))} className="rounded-btn border border-line px-3 py-2 text-sm font-bold text-ink2 hover:text-accent">Restablecer colores</button>
+      </div>}
+    <div className="bookcase" style={{ '--bookcase-paint': colors.frame, '--bookcase-pine': colors.wood, '--bookcase-background': colors.background } as CSSProperties} aria-label={books.length ? 'Estantería' : 'Estantería vacía'}>
       <span className="sr-only">
         {books.length
           ? 'Estantería visual ordenada por autor y saga. Cada portada abre la ficha del libro.'
@@ -117,6 +135,7 @@ export function Bookshelf({ books, onOpen }: Props) {
         <span />
         <span />
       </div>
+    </div>
     </div>
   );
 }

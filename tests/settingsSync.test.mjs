@@ -214,7 +214,7 @@ test('el servidor transmite cambios automáticamente y conserva ajustes tras rei
   assert.equal((await nextEvent()).settingsVersion, 0);
   const response = await fetch(`${baseUrl}/api/settings`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme: 'oceano', dark: true, libraryView: 'spines', chartPreferences: { journal: 'line' } }),
+    body: JSON.stringify({ theme: 'oceano', dark: true, libraryView: 'spines', chartPreferences: { journal: 'line' }, shelfColors: { wood: '#123abc', background: '#aabbcc' } }),
   });
   assert.equal(response.status, 200);
   const pushed = await nextEvent();
@@ -224,6 +224,7 @@ test('el servidor transmite cambios automáticamente y conserva ajustes tras rei
   assert.equal(pushed.dark, true);
   assert.equal(pushed.libraryView, 'spines');
   assert.equal(pushed.chartPreferences.journal, 'line');
+  assert.deepEqual(pushed.shelfColors, { frame: '#eee6d5', wood: '#123abc', background: '#aabbcc' });
   const missing = await fetch(`${baseUrl}/api/settings`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ theme: 'calido', customPaletteId: 'no-existe' }),
@@ -248,4 +249,6 @@ test('el servidor transmite cambios automáticamente y conserva ajustes tras rei
   assert.equal(restored.libraryView, 'spines');
   assert.equal(restored.chartPreferences.journal, 'line');
   assert.equal(restored.chartPreferences.books, 'bars');
+  assert.equal(restored.shelfColors.wood, '#123abc');
+  assert.equal(restored.shelfColors.background, '#aabbcc');
 });

@@ -1,3 +1,4 @@
+import type { ShelfColors } from './shelfColors';
 import type { Book, CustomPalette, ThemeId } from './types';
 import type { LibraryViewMode } from './libraryViews';
 import type { ChartPreferences } from './preferences';
@@ -79,6 +80,7 @@ export interface Settings {
   customPaletteId: string | null;
   libraryView: LibraryViewMode;
   chartPreferences: ChartPreferences;
+  shelfColors: ShelfColors;
   /** Crece en el servidor con cada cambio; sirve para sincronizar dispositivos. */
   settingsVersion: number;
   /** Versión del protocolo continuo de ajustes que ofrece el servidor. */
@@ -122,7 +124,7 @@ export const apiClient = {
     cache: 'no-store',
     timeoutMs: 12_000,
   }),
-  setSettings: async (settings: Partial<Omit<Settings, 'settingsVersion' | 'settingsSyncProtocol' | 'chartPreferences'>> & { chartPreferences?: Partial<ChartPreferences> }) => {
+  setSettings: async (settings: Partial<Omit<Settings, 'settingsVersion' | 'settingsSyncProtocol' | 'chartPreferences' | 'shelfColors'>> & { chartPreferences?: Partial<ChartPreferences>; shelfColors?: Partial<ShelfColors> }) => {
     try {
       return await api<Settings>('/settings', {
         method: 'PUT',

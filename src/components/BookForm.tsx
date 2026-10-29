@@ -5,6 +5,7 @@ import { STATUS_META, FORMAT_META, languageOptions } from '../types';
 import { StarRating } from './StarRating';
 import { JournalModal } from './JournalModal';
 import { fetchByIsbn } from '../lib';
+import { parseReadingDate, readingDateInput } from '../readingDate';
 import { apiClient } from '../api';
 import { isExternalCoverUrl, isLocalCoverUrl } from '../coverStorage';
 import { BookCover, Modal, btnGhost, btnPrimary, btnSoft, cx, inputCls, labelCls, selectCls } from './ui';
@@ -39,6 +40,8 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
   const [coverNotice, setCoverNotice] = useState('');
   const coverFileRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<BookStatus>(editingBook?.status ?? 'pending');
+  const [finishDate, setFinishDate] = useState(() => readingDateInput(editingBook?.finishedAt, editingBook?.finishedAtPrecision));
+  const [finishDateDirty, setFinishDateDirty] = useState(false);
   const [rating, setRating] = useState(editingBook?.rating ?? 0);
   const [notes, setNotes] = useState(editingBook?.notes ?? '');
   const [pages, setPages] = useState(editingBook?.pages ?? 0);
@@ -196,6 +199,11 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || submitting) return;
+    const parsedFinishDate = finishDate.trim() ? parseReadingDate(finishDate) : null;
+    if (status === 'read' && finishDate.trim() && !parsedFinishDate) {
+      setSubmitError('Introduce una fecha válida: AAAA, AAAA-MM o AAAA-MM-DD.');
+      return;
+    }
     setSubmitting(true);
     setSubmitError('');
     setCoverError('');
@@ -220,7 +228,8 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
         series: seriesEnabled ? series.trim() : '',
         seriesPosition: seriesEnabled ? seriesPosition.trim().replace(/^#\s*/, '') : '',
         startedAt: editingBook?.startedAt ?? (status === 'reading' ? Date.now() : null),
-        finishedAt: editingBook?.finishedAt ?? (status === 'read' ? Date.now() : null),
+        finishedAt: status === 'read' && finishDateDirty ? parsedFinishDate?.timestamp ?? null : editingBook?.finishedAt ?? (status === 'read' ? Date.now() : null),
+        finishedAtPrecision: status === 'read' && finishDateDirty ? parsedFinishDate?.precision ?? null : editingBook?.finishedAtPrecision,
         journal: editingBook?.journal ?? [],
       });
       onClose();
@@ -425,6 +434,12 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
               />
             </div>
           )}
+
+          {status === 'read' && <div>
+            <label className={labelCls} htmlFor="f-finished">Fecha de fin de lectura</label>
+            <input id="f-finished" value={finishDate} onChange={(e) => { setFinishDate(e.target.value); setFinishDateDirty(true); }} placeholder="AAAA, AAAA-MM o AAAA-MM-DD" className={inputCls} />
+            <p className="mt-1 text-xs text-ink3">Indica solo el año, el año y mes o la fecha completa. No se creará una entrada en el diario.</p>
+          </div>}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

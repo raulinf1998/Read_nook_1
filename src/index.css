@@ -805,13 +805,13 @@ input[type='range'].book-slider::-moz-range-thumb {
   --bookcase-post-width: clamp(24px, 6vw, 54px);
   --bookcase-foot-width: clamp(20px, 4.2vw, 38px);
   --bookcase-inner-pad: clamp(12px, 3vw, 30px);
-  --bookcase-paint-light: #f8f3e8;
+  --bookcase-paint-light: color-mix(in srgb, var(--bookcase-paint) 70%, white);
   --bookcase-paint: #eee6d5;
   --bookcase-paint-dark: #cfc1a6;
-  --bookcase-paint-shadow: #aa9a7b;
-  --bookcase-pine-light: #e4bb7f;
+  --bookcase-paint-shadow: color-mix(in srgb, var(--bookcase-paint) 65%, black);
+  --bookcase-pine-light: color-mix(in srgb, var(--bookcase-pine) 72%, white);
   --bookcase-pine: #d3a15f;
-  --bookcase-pine-dark: #a9783f;
+  --bookcase-pine-dark: color-mix(in srgb, var(--bookcase-pine) 70%, black);
   position: relative;
   isolation: isolate;
   overflow: visible;
@@ -841,7 +841,7 @@ input[type='range'].book-slider::-moz-range-thumb {
     radial-gradient(ellipse 42px 5px at 18% 60%, rgb(122 76 32 / 0.18), transparent 70%),
     radial-gradient(ellipse 58px 6px at 76% 42%, rgb(122 76 32 / 0.14), transparent 72%),
     repeating-linear-gradient(90deg, transparent 0 92px, rgb(110 68 27 / 0.055) 92px 94px),
-    linear-gradient(180deg, #ecc58b 0%, var(--bookcase-pine-light) 34%, var(--bookcase-pine) 78%, #b98347 100%);
+    linear-gradient(180deg, var(--bookcase-pine-light) 0%, var(--bookcase-pine-light) 34%, var(--bookcase-pine) 78%, var(--bookcase-pine-dark) 100%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.62),
     inset 0 -4px 6px rgb(104 62 21 / 0.22),
@@ -874,7 +874,7 @@ input[type='range'].book-slider::-moz-range-thumb {
   z-index: 3;
   background:
     repeating-linear-gradient(90deg, transparent 0 118px, rgb(111 91 60 / 0.025) 118px 120px),
-    linear-gradient(90deg, #d9cfb9 0%, var(--bookcase-paint-light) 17%, var(--bookcase-paint) 52%, #f3ecdd 82%, #d5c8ae 100%);
+    linear-gradient(90deg, var(--bookcase-paint-shadow) 0%, var(--bookcase-paint-light) 17%, var(--bookcase-paint) 52%, var(--bookcase-paint-light) 82%, var(--bookcase-paint-shadow) 100%);
 }
 .bookcase-rail::before,
 .bookcase-rail::after {
@@ -919,7 +919,7 @@ input[type='range'].book-slider::-moz-range-thumb {
   background:
     linear-gradient(180deg, transparent 0 calc(62% - 1px), rgb(111 91 60 / 0.16) calc(62% - 1px) 62%, rgb(255 255 255 / 0.38) calc(62% + 1px), transparent calc(62% + 2px)),
     repeating-linear-gradient(180deg, transparent 0 96px, rgb(111 91 60 / 0.018) 96px 98px),
-    linear-gradient(90deg, #cdbd9f 0%, #e7ddc9 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
+    linear-gradient(90deg, var(--bookcase-paint-shadow) 0%, var(--bookcase-paint) 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, var(--bookcase-paint-shadow) 100%);
   box-shadow:
     inset 1px 0 0 rgb(255 255 255 / 0.62),
     inset -1px 0 0 rgb(111 91 60 / 0.34),
@@ -929,7 +929,7 @@ input[type='range'].book-slider::-moz-range-thumb {
   background:
     linear-gradient(180deg, transparent 0 calc(62% - 1px), rgb(111 91 60 / 0.16) calc(62% - 1px) 62%, rgb(255 255 255 / 0.38) calc(62% + 1px), transparent calc(62% + 2px)),
     repeating-linear-gradient(180deg, transparent 0 96px, rgb(111 91 60 / 0.018) 96px 98px),
-    linear-gradient(270deg, #cdbd9f 0%, #e7ddc9 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
+    linear-gradient(270deg, var(--bookcase-paint-shadow) 0%, var(--bookcase-paint) 10%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, var(--bookcase-paint-shadow) 100%);
   box-shadow:
     inset -1px 0 0 rgb(255 255 255 / 0.62),
     inset 1px 0 0 rgb(111 91 60 / 0.34),
@@ -965,10 +965,9 @@ input[type='range'].book-slider::-moz-range-thumb {
   min-width: 0;
   padding: clamp(18px, 3.5vw, 34px) var(--bookcase-inner-pad) clamp(10px, 2vw, 18px);
   background:
-    radial-gradient(ellipse 70% 210px at 50% -70px, rgb(var(--glow) / 0.17), transparent 68%),
     repeating-linear-gradient(90deg, transparent 0 132px, rgb(0 0 0 / 0.045) 132px 134px),
-    repeating-linear-gradient(180deg, transparent 0 178px, rgb(0 0 0 / 0.025) 178px 180px),
-    linear-gradient(180deg, rgb(var(--sunken)) 0%, rgb(var(--surface)) 42%, rgb(var(--sunken) / 0.72) 100%);
+    repeating-linear-gradient(180deg, rgb(0 0 0 / 0.24) 0, transparent 110px, rgb(255 255 255 / 0.15) 210px, rgb(0 0 0 / 0.24) 360px),
+    var(--bookcase-background, #ded7c9);
   box-shadow:
     inset 14px 0 24px -18px rgb(0 0 0 / 0.55),
     inset -14px 0 24px -18px rgb(0 0 0 / 0.55),
@@ -992,7 +991,7 @@ input[type='range'].book-slider::-moz-range-thumb {
     radial-gradient(ellipse 54px 4px at 22% 58%, rgb(122 76 32 / 0.13), transparent 72%),
     radial-gradient(ellipse 72px 5px at 78% 46%, rgb(122 76 32 / 0.1), transparent 72%),
     repeating-linear-gradient(90deg, transparent 0 96px, rgb(110 68 27 / 0.045) 96px 98px),
-    linear-gradient(180deg, #e9c384 0%, var(--bookcase-pine-light) 22%, var(--bookcase-pine) 72%, var(--bookcase-pine-dark) 100%);
+    linear-gradient(180deg, var(--bookcase-pine-light) 0%, var(--bookcase-pine-light) 22%, var(--bookcase-pine) 72%, var(--bookcase-pine-dark) 100%);
   box-shadow:
     inset 8px 0 12px -9px rgb(68 42 16 / 0.55),
     inset -8px 0 12px -9px rgb(68 42 16 / 0.55),
@@ -1023,7 +1022,7 @@ input[type='range'].book-slider::-moz-range-thumb {
   border-top: 0;
   border-radius: 0 0 2px 2px;
   clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%);
-  background: linear-gradient(90deg, #d6c9ad 0%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, #c9b995 100%);
+  background: linear-gradient(90deg, var(--bookcase-paint-shadow) 0%, var(--bookcase-paint-light) 38%, var(--bookcase-paint) 72%, var(--bookcase-paint-shadow) 100%);
   box-shadow:
     inset 0 -5px 7px rgb(111 91 60 / 0.13),
     0 5px 8px -5px rgb(0 0 0 / 0.5);

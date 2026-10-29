@@ -115,6 +115,7 @@ function buildManualProgressUpdate(
     if (book.pages > 0 && plan.nextCurrentPage >= book.pages) {
       patch.status = 'read';
       patch.finishedAt = entryDate;
+      patch.finishedAtPrecision = 'day';
     } else if (plan.nextCurrentPage > 0) {
       patch.status = 'reading';
       if (!book.startedAt) patch.startedAt = entryDate;
@@ -415,6 +416,7 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
     };
     if (book.pages > 0 && nextCurrentPage >= book.pages && patch.status === undefined) {
       patch.status = 'read';
+      patch.finishedAtPrecision = 'day';
       patch.finishedAt = newEntries.length ? Math.max(...newEntries.map((entry) => entry.date)) : Date.now();
     }
     onUpdate(book.id, patch);
@@ -526,15 +528,15 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
                     </li>}
                     <li className="relative flex items-start gap-3 group">
                       <span className="relative z-10 shrink-0 w-[35px] h-[35px] rounded-full bg-accent/10 ring-4 ring-surface flex flex-col items-center justify-center text-accent">
-                        <span className="text-[11px] font-extrabold leading-none tabular-nums">{new Date(entry.date).getDate()}</span>
+                        <span className="text-[11px] font-extrabold leading-none tabular-nums">{entry.datePrecision === 'unknown' ? '—' : entry.datePrecision === 'year' ? new Date(entry.date).getFullYear() : entry.datePrecision === 'month' ? '—' : new Date(entry.date).getDate()}</span>
                         <span className="text-[7px] font-bold uppercase leading-none mt-px">
-                          {new Date(entry.date).toLocaleDateString('es', { month: 'short' }).replace('.', '')}
+                          {entry.datePrecision === 'year' || entry.datePrecision === 'unknown' ? '' : new Date(entry.date).toLocaleDateString('es', { month: 'short' }).replace('.', '')}
                         </span>
                       </span>
                       <div className="flex-1 min-w-0 bg-sunken/60 rounded-btn px-3 py-2.5">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-bold text-ink capitalize">
-                            {new Date(entry.date).toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                            {entry.datePrecision === 'unknown' ? 'Fecha desconocida' : new Date(entry.date).toLocaleDateString('es', entry.datePrecision === 'year' ? { year: 'numeric' } : entry.datePrecision === 'month' ? { month: 'long', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                           </span>
                           {entry.pages > 0 && (
                             <span className="text-[10px] font-extrabold bg-accent/15 text-accent px-1.5 py-0.5 rounded-full">+{entry.pages} págs</span>
