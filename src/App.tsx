@@ -82,6 +82,8 @@ export default function App() {
     setLibraryView,
     chartPreferences,
     setChartPreference,
+    shelfColors,
+    setShelfColor,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
@@ -379,6 +381,8 @@ export default function App() {
               </div>
               {sharedError && sharedShelf && <p role="alert">No se pudo cargar la estantería compartida.</p>}
               <Bookshelf
+                colors={shelfColors}
+                onSetColor={setShelfColor}
                 books={sharedShelf ? sharedBooks.map((book) => ({ ...book, id: book.owner === account ? book.id : `shared:${book.owner}:${book.id}` })) : books}
                 onOpen={(book) => {
                   const other = sharedBooks.find((item) => item.owner !== account && book.id === `shared:${item.owner}:${item.id}`);

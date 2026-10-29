@@ -610,6 +610,16 @@ async function migrateBookCovers() {
 let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
+const DEFAULT_SHELF_COLORS = { frame: '#eee6d5', wood: '#d3a15f', background: '#ded7c9' };
+function cleanShelfColors(value, base = DEFAULT_SHELF_COLORS) {
+  const result = { ...base };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return result;
+  for (const key of Object.keys(DEFAULT_SHELF_COLORS)) {
+    if (typeof value[key] === 'string' && /^#[0-9a-f]{6}$/i.test(value[key])) result[key] = value[key];
+  }
+  return result;
+}
+
 function normalizeAccount(parsed) {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.books)) {
         throw new Error('Formato de base de datos no reconocido.');
@@ -624,6 +634,7 @@ function normalizeAccount(parsed) {
         customPalettes,
         libraryView: LIBRARY_VIEWS.includes(parsed.libraryView) ? parsed.libraryView : 'wood',
         chartPreferences: cleanCharts(parsed.chartPreferences),
+        shelfColors: cleanShelfColors(parsed.shelfColors),
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
@@ -883,6 +894,7 @@ const publicSettings = () => ({
   customPaletteId: db.customPaletteId,
   libraryView: db.libraryView,
   chartPreferences: db.chartPreferences,
+  shelfColors: db.shelfColors,
   settingsVersion: db.settingsVersion || 0,
   settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
 });
@@ -910,6 +922,7 @@ function snapshotSettings() {
     customPaletteId: db.customPaletteId,
     libraryView: db.libraryView,
     chartPreferences: { ...db.chartPreferences },
+    shelfColors: { ...db.shelfColors },
     settingsVersion: db.settingsVersion,
   };
 }
@@ -922,6 +935,7 @@ function restoreSettings(snapshot) {
   db.customPaletteId = snapshot.customPaletteId;
   db.libraryView = snapshot.libraryView;
   db.chartPreferences = snapshot.chartPreferences;
+  db.shelfColors = snapshot.shelfColors;
   db.settingsVersion = snapshot.settingsVersion;
 }
 
@@ -1011,6 +1025,7 @@ function handleSettingsPatch(req, res) {
   if (typeof req.body.dark === 'boolean') db.dark = req.body.dark;
   if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
   if (LIBRARY_VIEWS.includes(req.body.libraryView)) db.libraryView = req.body.libraryView;
+  if (req.body.shelfColors) db.shelfColors = cleanShelfColors(req.body.shelfColors, db.shelfColors);
   if (req.body.chartPreferences && typeof req.body.chartPreferences === 'object') {
     db.chartPreferences = cleanCharts(req.body.chartPreferences, db.chartPreferences);
   }

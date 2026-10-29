@@ -1,3 +1,4 @@
+import { formatReadingDate } from '../readingDate';
 import { useState, useMemo } from 'react';
 import { BookOpen, FileText, Search, Pencil, Star, Trash2, SearchX, TriangleAlert } from 'lucide-react';
 import type { Book, BookStatus } from '../types';
@@ -8,10 +9,6 @@ import { LIBRARY_VIEW_OPTIONS, type LibraryViewMode } from '../libraryViews';
 import { LibraryViews } from './LibraryViews';
 import { sortBooksByAuthorAndSeries } from '../series';
 import { compareRecentlyFinished } from '../librarySort';
-
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
 
 interface Props {
   books: Book[];
@@ -396,7 +393,7 @@ function ListView({ books, onOpen, onOpenSeries, onEdit, onAskDelete }: { books:
               <td className="px-4 py-2.5"><StatusBadge status={book.status} /></td>
               <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{formatLabel(book.format)}</td>
               <td className="px-4 py-2.5 text-xs text-ink2 tabular-nums">{book.pages || '—'}</td>
-              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{book.finishedAt ? formatDate(book.finishedAt) : '—'}</td>
+              <td className="px-4 py-2.5 text-xs text-ink2 whitespace-nowrap">{formatReadingDate(book)}</td>
               <td className="px-4 py-2.5">
                 {book.rating > 0 ? <StarRating value={book.rating} size={12} /> : <span className="text-xs text-ink3">—</span>}
               </td>

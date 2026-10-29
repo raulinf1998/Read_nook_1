@@ -1,3 +1,4 @@
+import { formatReadingDate } from '../readingDate';
 import { useMemo, useState } from 'react';
 import { Target, TrendingUp, TrendingDown, Minus, Trophy, Pencil, Check, PartyPopper, Flag, CalendarDays, Gauge } from 'lucide-react';
 import type { Book } from '../types';
@@ -201,7 +202,7 @@ export function ReadingChallenge({ books, goal, onSetGoal, onOpen }: Props) {
                 />
                 <p className="text-[11px] font-semibold text-ink leading-tight line-clamp-2 mt-2">{b.title}</p>
                 <p className="text-[10px] text-ink3 mt-0.5 capitalize">
-                  {b.finishedAt ? new Date(b.finishedAt).toLocaleDateString('es', { day: 'numeric', month: 'short' }) : ''}
+                  {b.finishedAt ? formatReadingDate(b) : ''}
                   {b.rating > 0 ? ` · ★ ${b.rating}` : ''}
                 </p>
               </button>

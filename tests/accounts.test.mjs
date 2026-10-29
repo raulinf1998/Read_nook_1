@@ -42,14 +42,16 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   await reader.read(); // primer estado de Pequeñaja
   const nextEvent = reader.read();
   const update = (account, body) => request(account, '/api/settings', { method: 'PUT', body: JSON.stringify(body) });
-  await update('raul', { theme: 'oceano' });
+  await update('raul', { theme: 'oceano', shelfColors: { frame: '#123456', wood: '#654321' } });
   assert.equal(await Promise.race([nextEvent.then(() => 'mensaje'), new Promise((r) => setTimeout(() => r('sin mensaje'), 100))]), 'sin mensaje');
-  await update('pequenaja', { theme: 'lavanda', goal: 12 });
+  await update('pequenaja', { theme: 'lavanda', goal: 12, shelfColors: { background: '#abcdef' } });
   assert.match(new TextDecoder().decode((await nextEvent).value), /"theme":"lavanda"/);
   controller.abort();
   assert.equal((await request('raul', '/api/settings')).data.theme, 'oceano');
   assert.equal((await request('pequenaja', '/api/settings')).data.theme, 'lavanda');
   assert.equal((await request('raul', '/api/settings')).data.goal, 20);
+  assert.deepEqual((await request('raul', '/api/settings')).data.shelfColors, { frame: '#123456', wood: '#654321', background: '#ded7c9' });
+  assert.equal((await request('pequenaja', '/api/settings')).data.shelfColors.background, '#abcdef');
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'db.before-accounts.json'), 'utf8')), old);
   const book = { title: 'Otro', author: 'Otra autora', coverUrl: '', tags: [], journal: [] };
   const created = await request('pequenaja', '/api/books', { method: 'POST', body: JSON.stringify(book) });
@@ -73,4 +75,6 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   assert.equal((await request('raul', '/api/books')).data[0].title, 'Original');
   assert.equal((await request('pequenaja', '/api/books')).data[0].title, 'Otro');
   assert.equal((await request('pequenaja', '/api/settings')).data.theme, 'lavanda');
+  assert.equal((await request('raul', '/api/settings')).data.shelfColors.frame, '#123456');
+  assert.equal((await request('pequenaja', '/api/settings')).data.shelfColors.background, '#abcdef');
 });

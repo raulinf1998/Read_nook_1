@@ -24,6 +24,7 @@ function setPage(book: Book, page: number, onUpdate: Props['onUpdate']) {
   if (book.pages > 0 && clamped >= book.pages) {
     patch.status = 'read';
     patch.finishedAt = Date.now();
+    patch.finishedAtPrecision = 'day';
   }
   onUpdate(book.id, patch);
 }

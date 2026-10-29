@@ -1,3 +1,4 @@
+import { normalizeShelfColors, type ShelfColors } from './shelfColors';
 import { selectedAccount } from './accounts';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Book, CustomPalette, ThemeId } from './types';
@@ -202,6 +203,7 @@ function normalizeServerSettings(value: unknown): Settings | null {
     customPalettes: palettes,
     libraryView: normalizeLibraryView(candidate.libraryView),
     chartPreferences: normalizeChartPreferences(candidate.chartPreferences),
+    shelfColors: normalizeShelfColors(candidate.shelfColors),
     customPaletteId: candidate.customPaletteId
       && palettes.some((palette) => palette.id === candidate.customPaletteId)
       ? candidate.customPaletteId
@@ -275,6 +277,7 @@ export function useServerSettings() {
     initialServerSettings?.customPaletteId ?? null,
   );
   const [libraryView, setLibraryViewState] = useState<LibraryViewMode>(initialServerSettings?.libraryView ?? 'wood');
+  const [shelfColors, setShelfColorsState] = useState<ShelfColors>(normalizeShelfColors(initialServerSettings?.shelfColors));
   const [chartPreferences, setChartPreferencesState] = useState<ChartPreferences>(normalizeChartPreferences(initialServerSettings?.chartPreferences));
   const [settingsVersion, setSettingsVersionState] = useState(
     initialServerSettings?.settingsVersion ?? 0,
@@ -356,6 +359,7 @@ export function useServerSettings() {
     setCustomPaletteIdState(normalized.customPaletteId);
     setLibraryViewState(normalized.libraryView);
     setChartPreferencesState(normalized.chartPreferences);
+    setShelfColorsState(normalized.shelfColors);
     return true;
   }, [noteServerSettings]);
 
@@ -484,6 +488,7 @@ export function useServerSettings() {
         last.patch = {
           ...last.patch,
           ...operation.patch,
+          ...((last.patch.shelfColors || operation.patch.shelfColors) ? { shelfColors: { ...last.patch.shelfColors, ...operation.patch.shelfColors } } : {}),
           ...((last.patch.chartPreferences || operation.patch.chartPreferences) ? {
             chartPreferences: { ...last.patch.chartPreferences, ...operation.patch.chartPreferences },
           } : {}),
@@ -726,6 +731,13 @@ export function useServerSettings() {
     persistSettings(mutation, { libraryView: view });
   }, [beginLocalMutation, persistSettings]);
 
+  const setShelfColor = useCallback((key: keyof ShelfColors, value: string) => {
+    if (!/^#[0-9a-f]{6}$/i.test(value)) return;
+    const mutation = beginLocalMutation();
+    setShelfColorsState((previous) => ({ ...previous, [key]: value }));
+    persistSettings(mutation, { shelfColors: { [key]: value } });
+  }, [beginLocalMutation, persistSettings]);
+
   const setChartPreference = useCallback(<K extends keyof ChartPreferences>(key: K, value: ChartPreferences[K]) => {
     const mutation = beginLocalMutation();
     setChartPreferencesState((previous) => ({ ...previous, [key]: value }));
@@ -751,6 +763,8 @@ export function useServerSettings() {
     setLibraryView,
     chartPreferences,
     setChartPreference,
+    shelfColors,
+    setShelfColor,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,

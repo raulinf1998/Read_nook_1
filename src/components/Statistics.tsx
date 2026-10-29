@@ -99,7 +99,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
       if (!b.finishedAt) return false;
       const d = new Date(b.finishedAt);
       if (d.getFullYear() !== year) return false;
-      if (filterMode === 'month' && d.getMonth() !== month) return false;
+      if (filterMode === 'month' && (b.finishedAtPrecision === 'year' || d.getMonth() !== month)) return false;
       return true;
     });
   }, [allRead, filterMode, year, month]);
@@ -268,7 +268,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
     allRead.forEach((b) => {
       if (!b.finishedAt) return;
       const d = new Date(b.finishedAt);
-      if (d.getFullYear() === year) monthly[d.getMonth()].value++;
+      if (d.getFullYear() === year && b.finishedAtPrecision !== 'year') monthly[d.getMonth()].value++;
     });
 
     // Diario: días 1..31 del mes seleccionado
@@ -278,7 +278,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
       allRead.forEach((b) => {
         if (!b.finishedAt) return;
         const d = new Date(b.finishedAt);
-        if (d.getFullYear() === year && d.getMonth() === month) daily[d.getDate() - 1].value++;
+        if (d.getFullYear() === year && d.getMonth() === month && b.finishedAtPrecision !== 'year' && b.finishedAtPrecision !== 'month') daily[d.getDate() - 1].value++;
       });
     }
 
@@ -510,7 +510,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
       {filterMode === 'month' ? (
         <Card
           title="Libros por día"
-          subtitle={`${MONTHS[month].label} ${year}`}
+          subtitle={`${MONTHS[month].label} ${year} · Solo lecturas con día conocido`}
           action={(
             <TrendTypeControl
               value={chartPreferences.books}
@@ -523,7 +523,7 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
       ) : (
         <Card
           title="Libros por mes"
-          subtitle={`Año ${year}`}
+          subtitle={`Año ${year} · Solo lecturas con mes conocido`}
           action={(
             <TrendTypeControl
               value={chartPreferences.books}

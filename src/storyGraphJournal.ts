@@ -1483,7 +1483,7 @@ function applyEntriesToBook<T extends JournalMergeBookLike>(
     ...(pages !== book.pages ? { pages } : {}),
     ...(currentPage !== book.currentPage ? { currentPage } : {}),
     ...(startedAt !== book.startedAt ? { startedAt } : {}),
-    ...(finishedAt !== book.finishedAt ? { finishedAt } : {}),
+    ...(finishedAt !== book.finishedAt ? { finishedAt, finishedAtPrecision: 'day' as const } : {}),
   };
   const providedMetadata = hasMetadata(metadataCandidate) ? 1 : 0;
   const updatedMetadata = Object.keys(metadataPatch).length > 0 ? 1 : 0;

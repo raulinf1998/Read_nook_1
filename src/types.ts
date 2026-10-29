@@ -24,6 +24,8 @@ export interface JournalEntry {
   kind?: JournalEntryKind;
   /** Marca protegida que separa una relectura manual. */
   rereadBoundary?: boolean;
+  /** Precisión del cierre sintético cuando no existe diario histórico. */
+  datePrecision?: 'year' | 'month' | 'unknown';
   source?: 'storygraph';
   sourceEntryId?: string;
 }
@@ -56,9 +58,11 @@ export interface Book {
   storyGraphId?: string;
   startedAt: number | null;
   finishedAt: number | null;
+  /** Precisión conocida de la fecha; ausente equivale a día exacto (datos antiguos). */
+  finishedAtPrecision?: 'year' | 'month' | 'day' | null;
   journal: JournalEntry[];
   /** Lecturas anteriores completadas; la lectura actual usa status/finishedAt. */
-  previousReadings?: { finishedAt: number | null; pages: number }[];
+  previousReadings?: { finishedAt: number | null; pages: number; finishedAtPrecision?: 'year' | 'month' | 'day' | null }[];
 }
 
 /** Clases basadas en tokens del tema (ver index.css): funcionan en todas las paletas y en modo oscuro. */

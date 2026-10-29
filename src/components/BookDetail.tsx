@@ -1,3 +1,4 @@
+import { formatReadingDate } from '../readingDate';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Activity,
@@ -167,7 +168,7 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
     ['Posición en la saga', book.seriesPosition?.trim() ? `#${book.seriesPosition.trim().replace(/^#\s*/, '')}` : '—'],
     ['Añadido a Bilibook', formatDate(book.createdAt)],
     ['Empezado', formatDate(book.startedAt)],
-    ['Terminado', formatDate(book.finishedAt)],
+    ['Terminado', formatReadingDate(book)],
   ].filter(([, value]) => value && value !== '—') as [string, string][];
 
   const scrollToJournal = () => {
@@ -296,7 +297,7 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] font-semibold text-ink3">
                 {remaining !== null && book.status === 'reading' && <span>Te quedan {remaining.toLocaleString('es')} págs</span>}
                 {book.startedAt && <span>Empezado: {formatDate(book.startedAt)}</span>}
-                {book.finishedAt && <span>Terminado: {formatDate(book.finishedAt)}</span>}
+                {book.finishedAt && <span>Terminado: {formatReadingDate(book)}</span>}
                 <span>Añadido: {formatDate(book.createdAt)}</span>
               </div>
             </div>
