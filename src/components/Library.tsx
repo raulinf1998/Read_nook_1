@@ -7,6 +7,7 @@ import { BookCover, EmptyState, Modal, StatusBadge, btnGhost, cardCls, cx, filte
 import { LIBRARY_VIEW_OPTIONS, type LibraryViewMode } from '../libraryViews';
 import { LibraryViews } from './LibraryViews';
 import { sortBooksByAuthorAndSeries } from '../series';
+import { compareRecentlyFinished } from '../librarySort';
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString('es', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -64,7 +65,7 @@ export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOp
     if (sort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title, 'es'));
     else if (sort === 'author') sorted.sort((a, b) => a.author.localeCompare(b.author, 'es'));
     else if (sort === 'rating') sorted.sort((a, b) => b.rating - a.rating);
-    else sorted.sort((a, b) => b.createdAt - a.createdAt);
+    else sorted.sort(compareRecentlyFinished);
     return sorted;
   }, [books, statusFilter, tagFilter, search, sort]);
 
