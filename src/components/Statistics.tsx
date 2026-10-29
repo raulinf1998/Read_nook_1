@@ -17,6 +17,7 @@ import {
 import type { Book } from '../types';
 import { FORMAT_META, formatLabel, languageLabel } from '../types';
 import type { ChartPreferences } from '../preferences';
+import { completedReadings } from '../rereads';
 import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
 import { EmptyState, cardCls, cx, selectCls } from './ui';
 
@@ -87,7 +88,9 @@ export function Statistics({ books, chartPreferences, onSetChartPreference: setC
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
 
-  const allRead = useMemo(() => books.filter((b) => b.status === 'read'), [books]);
+  // Cada finalización es una lectura: las anteriores siguen contando incluso
+  // mientras el mismo libro está en curso de relectura.
+  const allRead = useMemo(() => books.flatMap(completedReadings), [books]);
 
   // Libros del periodo elegido (todo excepto el gráfico mensual)
   const readBooks = useMemo(() => {

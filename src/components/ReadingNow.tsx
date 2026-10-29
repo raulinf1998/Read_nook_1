@@ -3,6 +3,7 @@ import { BookOpen, Bookmark, ChevronRight, Sparkles, Plus, Library, Target, Chec
 import type { Book } from '../types';
 import { seriesLabel } from '../types';
 import { ProgressLogModal } from './JournalModal';
+import { completedReadings } from '../rereads';
 import { BookCover, EmptyState, ProgressBar, SectionHeader, bookProgress, btnSoft, cardCls, cx } from './ui';
 
 interface Props {
@@ -31,8 +32,8 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onOpenSeries
   const reading = books.filter((b) => b.status === 'reading');
   const pending = books.filter((b) => b.status === 'pending');
   const year = new Date().getFullYear();
-  const readThisYear = books.filter(
-    (b) => b.status === 'read' && b.finishedAt && new Date(b.finishedAt).getFullYear() === year
+  const readThisYear = books.flatMap(completedReadings).filter(
+    (b) => b.finishedAt && new Date(b.finishedAt).getFullYear() === year
   ).length;
   const [progressBookId, setProgressBookId] = useState<string | null>(null);
   const progressBook = progressBookId ? books.find((book) => book.id === progressBookId) || null : null;
@@ -299,7 +300,7 @@ function ReadingCard({
 
           {book.pages > 0 && (
             <div className="mt-3">
-              <input
+              {!(book.previousReadings?.length) && <input
                 type="range"
                 min={0}
                 max={book.pages}
@@ -310,7 +311,8 @@ function ReadingCard({
                   background: `linear-gradient(to right, rgb(var(--primary)) ${pct}%, rgb(var(--line)) ${pct}%)`,
                 }}
                 aria-label={`Página actual de ${book.title}`}
-              />
+              />}
+              {Boolean(book.previousReadings?.length) && <p className="text-xs text-ink3">En la relectura, registra el avance para que las páginas se guarden en el diario.</p>}
               {progressActions}
             </div>
           )}

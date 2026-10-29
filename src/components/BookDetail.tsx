@@ -20,6 +20,8 @@ import {
 import type { Book } from '../types';
 import { STATUS_META, formatLabel, languageLabel, seriesLabel } from '../types';
 import { calculateJournalCurrentPage } from '../storyGraphJournal';
+import { startReread } from '../rereads';
+import { createClientId } from '../lib';
 import { JournalPanel } from './JournalModal';
 import { StarRating } from './StarRating';
 import {
@@ -308,6 +310,16 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
                 <button type="button" onClick={scrollToJournal} className={btnPrimary}>
                   <NotebookPen size={16} /> {book.status === 'read' ? 'Ver diario lector' : 'Registrar avance'}
                 </button>
+              )}
+              {book.status === 'read' && (
+                <button type="button" className={btnSoft} onClick={() => {
+                  const patch = startReread(book, Date.now(), createClientId);
+                  if (!patch) {
+                    window.alert('No se puede iniciar la relectura porque hay fechas futuras en el diario o en la fecha de finalización.');
+                    return;
+                  }
+                  onUpdate(book.id, patch);
+                }}><Play size={14} /> Empezar relectura</button>
               )}
               {book.status === 'pending' && (
                 <button type="button" onClick={scrollToJournal} className={btnSoft}>

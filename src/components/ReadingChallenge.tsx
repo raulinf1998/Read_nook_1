@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Target, TrendingUp, TrendingDown, Minus, Trophy, Pencil, Check, PartyPopper, Flag, CalendarDays, Gauge } from 'lucide-react';
 import type { Book } from '../types';
+import { completedReadings } from '../rereads';
 import { BookCover, cx, cardCls } from './ui';
 
 interface Props {
@@ -18,7 +19,8 @@ export function ReadingChallenge({ books, goal, onSetGoal, onOpen }: Props) {
   const readThisYear = useMemo(
     () =>
       books
-        .filter((b) => b.status === 'read' && b.finishedAt && new Date(b.finishedAt).getFullYear() === year)
+        .flatMap(completedReadings)
+        .filter((b) => b.finishedAt && new Date(b.finishedAt).getFullYear() === year)
         .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0)),
     [books, year]
   );
@@ -188,8 +190,8 @@ export function ReadingChallenge({ books, goal, onSetGoal, onOpen }: Props) {
           </div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3 stagger">
-            {readThisYear.map((b) => (
-              <button key={b.id} onClick={() => onOpen(b)} className="group block w-full text-left" aria-label={`Abrir ficha de ${b.title}`}>
+            {readThisYear.map((b, index) => (
+              <button key={`${b.id}-${b.finishedAt}-${index}`} onClick={() => onOpen(books.find((book) => book.id === b.id) ?? b)} className="group block w-full text-left" aria-label={`Abrir ficha de ${b.title}`}>
                 <BookCover
                   title={b.title}
                   author={b.author}

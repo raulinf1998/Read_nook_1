@@ -26,6 +26,16 @@ interface Props {
 export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOpenSeries }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<BookStatus | 'all'>('all');
+  const [tagFilter, setTagFilter] = useState('');
+  const tags = useMemo(() => {
+    const unique = new Map<string, string>();
+    books.forEach((book) => (book.tags || []).forEach((tag) => {
+      const label = tag.trim();
+      const key = label.toLocaleLowerCase('es');
+      if (key && !unique.has(key)) unique.set(key, label);
+    }));
+    return [...unique.entries()].sort((a, b) => a[1].localeCompare(b[1], 'es'));
+  }, [books]);
   const [sort, setSort] = useState<'recent' | 'title' | 'author' | 'rating' | 'series'>('recent');
   const activeView = LIBRARY_VIEW_OPTIONS.find((option) => option.value === view) || LIBRARY_VIEW_OPTIONS[0];
   const [confirming, setConfirming] = useState<Book | null>(null);
@@ -33,6 +43,7 @@ export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOp
   const filtered = useMemo(() => {
     let result = books;
     if (statusFilter !== 'all') result = result.filter((b) => b.status === statusFilter);
+    if (tagFilter) result = result.filter((b) => (b.tags || []).some((tag) => tag.trim().toLocaleLowerCase('es') === tagFilter));
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -55,7 +66,7 @@ export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOp
     else if (sort === 'rating') sorted.sort((a, b) => b.rating - a.rating);
     else sorted.sort((a, b) => b.createdAt - a.createdAt);
     return sorted;
-  }, [books, statusFilter, search, sort]);
+  }, [books, statusFilter, tagFilter, search, sort]);
 
   const libraryStats = useMemo(() => {
     const rated = books.filter((book) => book.rating > 0);
@@ -106,6 +117,19 @@ export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOp
             className="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface border border-line text-ink placeholder:text-ink3 focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none transition-all text-sm shadow-card"
           />
         </div>
+        <label className="min-w-[160px] flex-1 sm:flex-none">
+          <span className="sr-only">Filtrar por etiqueta</span>
+          <select
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className={cx(selectCls, 'w-full rounded-full shadow-card')}
+            aria-label="Filtrar por etiqueta"
+          >
+            <option value="">Todas las etiquetas</option>
+            {tagFilter && !tags.some(([key]) => key === tagFilter) && <option value={tagFilter}>{tagFilter}</option>}
+            {tags.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
         <select
           value={sort}
           onChange={(e) => setSort(e.target.value as typeof sort)}
@@ -163,10 +187,10 @@ export function Library({ books, view, onSetView, onDelete, onEdit, onOpen, onOp
           title="No se encontraron libros"
           description="Prueba con otro filtro o término de búsqueda. La búsqueda también mira autores y géneros."
         >
-          {(search || statusFilter !== 'all') && (
+          {(search || statusFilter !== 'all' || tagFilter) && (
             <button
               className={btnGhost}
-              onClick={() => { setSearch(''); setStatusFilter('all'); }}
+              onClick={() => { setSearch(''); setStatusFilter('all'); setTagFilter(''); }}
             >
               Limpiar filtros
             </button>
