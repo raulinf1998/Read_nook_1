@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { JSDOM } from 'jsdom';
+import { createServer } from 'vite';
+
+test('idiomas, géneros y formatos abren lecturas del periodo en todos los tipos de gráfico', async (t) => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://bilibook.test/' });
+  globalThis.window = dom.window; globalThis.document = dom.window.document;
+  Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  dom.window.scrollTo = () => {};
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  const { Statistics } = await vite.ssrLoadModule('/src/components/Statistics.tsx');
+  const { DEFAULT_CHART_PREFERENCES } = await vite.ssrLoadModule('/src/preferences.ts');
+  const root = createRoot(document.getElementById('root'));
+  t.after(async () => { await React.act(async () => root.unmount()); await vite.close(); dom.window.close(); delete globalThis.window; delete globalThis.document; delete globalThis.navigator; delete globalThis.IS_REACT_ACT_ENVIRONMENT; });
+  const thisYear = new Date().getFullYear();
+  const book = (id, title, language, tags, date, extra = {}) => ({ id, title, language, tags, author: 'Autora', status: 'read', pages: 100, currentPage: 100, rating: 0, createdAt: 1, finishedAt: date, format: 'paperback', journal: [], ...extra });
+  const old = new Date(thisYear - 1, 2, 1).getTime();
+  const now = new Date(thisYear, 2, 1).getTime();
+  const books = [book('1', 'Antiguo', 'en', ['Fantasía'], old), book('2', 'Relectura', 'en', ['Fantasía', 'Personal'], now, { previousReadings: [{ finishedAt: now - 1000, pages: 100 }] }), book('3', 'Otro', 'es', ['Terror'], now, { format: 'ebook' })];
+  let opened;
+  const render = async (kind) => React.act(async () => root.render(React.createElement(Statistics, { books, onOpen: (book) => { opened = book; }, chartPreferences: { ...DEFAULT_CHART_PREFERENCES, tags: kind, language: kind, format: kind }, onSetChartPreference() {} })));
+  for (const kind of ['donut', 'horizontal', 'columns']) {
+    await render(kind);
+    const yearButton = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Por año');
+    await React.act(async () => yearButton.click());
+    const english = document.querySelector('[role=button][aria-label="Ver lecturas de Inglés: 2"]');
+    assert.ok(english, kind);
+    if (kind === 'donut') assert.ok([...document.querySelectorAll('[role=button][aria-label="Ver lecturas de Inglés: 2"]')].some((item) => item.querySelector('svg')));
+    await React.act(async () => english.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    assert.match(document.body.textContent, /2 lecturas completadas/);
+    assert.equal([...document.querySelectorAll('button')].filter((button) => button.textContent.includes('Relectura')).length, 2);
+    assert.ok(!document.body.textContent.includes('Antiguo'));
+    const read = [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Relectura'));
+    await React.act(async () => read.click());
+    assert.equal(opened, books[1]);
+    await React.act(async () => [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Volver a estadísticas')).click());
+    const fantasy = document.querySelector('[role=button][aria-label="Ver lecturas de Fantasía: 2"]');
+    assert.ok(fantasy, kind);
+    await React.act(async () => fantasy.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
+    assert.match(document.body.textContent, /2 lecturas completadas/);
+    await React.act(async () => [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Volver a estadísticas')).click());
+    const ebook = document.querySelector('[role=button][aria-label="Ver lecturas de Ebook: 1"]');
+    assert.ok(ebook, kind);
+    if (kind === 'columns') assert.ok(ebook.querySelector('.stat-book-pages'));
+    await React.act(async () => ebook.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
+    assert.match(document.body.textContent, /1 lectura completada/);
+    assert.ok(document.body.textContent.includes('Otro'));
+    assert.ok(!document.body.textContent.includes('Relectura'));
+    assert.ok(document.querySelector('h2 svg'));
+    await React.act(async () => [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Volver a estadísticas')).click());
+  }
+});

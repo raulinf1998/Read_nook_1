@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Palette } from 'lucide-react';
 import { DEFAULT_SHELF_COLORS, type ShelfColors } from '../shelfColors';
 import type { Book } from '../types';
@@ -11,6 +11,8 @@ interface Props {
   colors: ShelfColors;
   onSetColor: (key: keyof ShelfColors, color: string) => void;
   onOpen: (book: Book) => void;
+  libraryControls?: ReactNode;
+  notice?: ReactNode;
 }
 
 function hashBook(book: Book): number {
@@ -36,7 +38,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  * ordenadas siempre por autor y saga, dentro de una librería clásica frontal
  * de madera lacada en crema con tapa y baldas de pino.
  */
-export function Bookshelf({ books, onOpen, colors, onSetColor }: Props) {
+export function Bookshelf({ books, onOpen, colors, onSetColor, libraryControls, notice }: Props) {
   const [showColors, setShowColors] = useState(false);
   const width = useWindowWidth();
   const perShelf = width < 380 ? 3 : width < 640 ? 4 : width < 900 ? 5 : width < 1200 ? 6 : 7;
@@ -51,11 +53,13 @@ export function Bookshelf({ books, onOpen, colors, onSetColor }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => setShowColors(!showColors)} aria-expanded={showColors} aria-controls="shelf-colors" className="inline-flex items-center gap-2 rounded-btn border border-line bg-surface px-4 py-2 text-sm font-bold text-ink hover:text-accent">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {libraryControls}
+        <button type="button" onClick={() => setShowColors(!showColors)} aria-expanded={showColors} aria-controls="shelf-colors" className="ml-auto inline-flex items-center gap-2 rounded-btn border border-line bg-surface px-4 py-2 text-sm font-bold text-ink hover:text-accent">
           <Palette size={16} /> Colores de la estantería
         </button>
       </div>
+      {notice}
       {showColors && <div id="shelf-colors" className="mb-5 flex flex-wrap items-end gap-4 rounded-card border border-line bg-surface p-4">
         {([['frame', 'Bordes'], ['wood', 'Madera'], ['background', 'Fondo']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm font-semibold text-ink">
           <input type="color" value={colors[key]} onChange={(event) => onSetColor(key, event.target.value)} aria-label={`Color de ${label.toLowerCase()}`} className="h-10 w-12 cursor-pointer rounded border border-line bg-surface p-1" /> {label}

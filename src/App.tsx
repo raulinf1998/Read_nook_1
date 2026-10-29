@@ -5,7 +5,7 @@ import { selectedAccount, ACCOUNT_NAMES, selectAccount } from './accounts';
 import { apiClient } from './api';
 import { DEFAULT_TAGS } from './types';
 import { useBooks, useServerSettings, useServerTags } from './hooks';
-import { Sidebar, MobileNav } from './components/Navigation';
+import { Sidebar, MobileNav, MobileThemeToggle } from './components/Navigation';
 import type { TabId } from './components/Navigation';
 import { BookForm } from './components/BookForm';
 import { ImportModal } from './components/ImportModal';
@@ -298,7 +298,8 @@ export default function App() {
                 <p className="text-[11px] text-ink3 mt-0.5 truncate">{selectedBook ? selectedBook.title : selectedSeriesGroup ? selectedSeriesGroup.name : TAB_TITLES[tab].title}</p>
               </div>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className="flex shrink-0 items-center gap-0.5">
+              <MobileThemeToggle dark={isDark} locked={darkModeLocked} onToggle={() => setDark(!isDark)} />
               <button onClick={() => setShowSettings(true)} className={iconBtn} aria-label="Abrir ajustes">
                 <SettingsIcon size={19} />
               </button>
@@ -371,16 +372,16 @@ export default function App() {
                 onGoChallenge={() => handleTab('challenge')}
               />
             )}
-            {tab === 'stats' && <Statistics books={books} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
+            {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
             {tab === 'library' && <Library books={books} view={libraryView} onSetView={setLibraryView} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
             {tab === 'shelf' && <>
-              <div className="mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Bibliotecas en la estantería">
-                <button aria-pressed={!sharedShelf} onClick={() => setSharedShelf(false)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-surface border border-line' : 'px-4 py-2 rounded-btn bg-primary text-onprimary'}>Mi estantería</button>
-                <button aria-pressed={sharedShelf} onClick={() => setSharedShelf(true)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-primary text-onprimary' : 'px-4 py-2 rounded-btn bg-surface border border-line'}>Las dos bibliotecas</button>
-              </div>
-              {sharedError && sharedShelf && <p role="alert">No se pudo cargar la estantería compartida.</p>}
               <Bookshelf
+                libraryControls={<div className="flex flex-wrap items-center gap-2" role="group" aria-label="Bibliotecas en la estantería">
+                  <button aria-pressed={!sharedShelf} onClick={() => setSharedShelf(false)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-surface border border-line' : 'px-4 py-2 rounded-btn bg-primary text-onprimary'}>Mi estantería</button>
+                  <button aria-pressed={sharedShelf} onClick={() => setSharedShelf(true)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-primary text-onprimary' : 'px-4 py-2 rounded-btn bg-surface border border-line'}>Las dos bibliotecas</button>
+                </div>}
+                notice={sharedError && sharedShelf ? <p role="alert" className="mb-4">No se pudo cargar la estantería compartida.</p> : null}
                 colors={shelfColors}
                 onSetColor={setShelfColor}
                 books={sharedShelf ? sharedBooks.map((book) => ({ ...book, id: book.owner === account ? book.id : `shared:${book.owner}:${book.id}` })) : books}
