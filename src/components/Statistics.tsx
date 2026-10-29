@@ -354,7 +354,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     type?: 'language' | 'tag' | 'format',
   ) => {
     const onSelect = type ? (label: string) => { setDetail({ type, label }); window.scrollTo({ top: 0 }); } : undefined;
-    const renderLabel = type ? (label: string) => <><StatisticCategoryIcon type={type} label={label} /> <span>{label}</span></> : undefined;
+    const renderLabel = type && type !== 'language' ? (label: string) => <><StatisticCategoryIcon type={type} label={label} /> <span>{label}</span></> : undefined;
     if (chartType === 'horizontal') {
       return <HBarChart data={data} maxItems={data.length} onSelect={onSelect} renderLabel={renderLabel} />;
     }
@@ -372,7 +372,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
       <button type="button" className={btnGhost} onClick={() => setDetail(null)}><ArrowLeft size={16} /> Volver a estadísticas</button>
       <div className={cx(cardCls, 'p-5 sm:p-7')}>
         <p className="text-xs font-extrabold uppercase tracking-wider text-ink3">{detail.type === 'language' ? 'Idioma' : detail.type === 'format' ? 'Formato' : 'Género o tag'} · {periodLabel}</p>
-        <h2 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold text-ink"><StatisticCategoryIcon type={detail.type} label={detail.label} /> {detail.label}</h2>
+        <h2 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold text-ink">{detail.type !== 'language' && <StatisticCategoryIcon type={detail.type} label={detail.label} />} {detail.label}</h2>
         <p className="mt-2 text-sm text-ink2">{readings.length} {readings.length === 1 ? 'lectura completada' : 'lecturas completadas'} · {readings.reduce((sum, book) => sum + (book.pages || 0), 0).toLocaleString('es')} páginas</p>
         <p className="mt-1 text-xs text-ink3">Las relecturas aparecen por separado.</p>
       </div>

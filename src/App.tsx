@@ -17,6 +17,7 @@ import { Statistics } from './components/Statistics';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
+import { Space } from './components/Space';
 import { Discover } from './components/Discover';
 import { BookDetail } from './components/BookDetail';
 import { SeriesDetail } from './components/SeriesDetail';
@@ -28,6 +29,7 @@ import { BrandMark, iconBtn } from './components/ui';
 const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   reading: { title: 'Inicio', subtitle: 'Tu lectura de hoy, de un vistazo' },
   library: { title: 'Biblioteca', subtitle: 'Todos tus libros: busca, filtra y ordena' },
+  space: { title: 'Espacio', subtitle: 'Tu universo de lecturas, órbita a órbita' },
   shelf: { title: 'Estantería', subtitle: 'Tu colección, balda a balda' },
   discover: { title: 'Descubrir', subtitle: 'Ideas para tu próxima lectura, según tus gustos' },
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
@@ -84,6 +86,8 @@ export default function App() {
     setChartPreference,
     shelfColors,
     setShelfColor,
+    planetStyle,
+    setPlanetStyle,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
@@ -395,6 +399,7 @@ export default function App() {
                 }}
               />
             </>}
+            {tab === 'space' && <Space books={books} onOpen={handleOpen} planetStyle={planetStyle} onSetPlanetStyle={setPlanetStyle} />}
             {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onOpenSeries={handleOpenSeries} onAdd={handleAdd} />}
               </>
             )}
