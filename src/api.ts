@@ -90,6 +90,7 @@ export const SETTINGS_EVENTS_URL = '/api/settings/events';
 
 export const apiClient = {
   getBooks: () => api<Book[]>('/books'),
+  getSharedBooks: () => api<(Book & { owner: 'raul' | 'pequenaja' })[]>('/books/shared', { cache: 'no-store' }),
   addBook: (book: Omit<Book, 'id' | 'createdAt'>) =>
     api<Book>('/books', { method: 'POST', body: JSON.stringify(book) }),
   updateBook: (id: string, patch: Partial<Book>) =>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Plus, Settings as SettingsIcon } from 'lucide-react';
 import type { Book } from './types';
+import { selectedAccount, ACCOUNT_NAMES, selectAccount } from './accounts';
+import { apiClient } from './api';
 import { DEFAULT_TAGS } from './types';
 import { useBooks, useServerSettings, useServerTags } from './hooks';
 import { Sidebar, MobileNav } from './components/Navigation';
@@ -88,6 +90,18 @@ export default function App() {
   } = useServerSettings();
 
   const [tab, setTab] = useState<TabId>('reading');
+  const account = selectedAccount() || 'raul';
+  const [sharedShelf, setSharedShelf] = useState(false);
+  const [sharedBooks, setSharedBooks] = useState<(Book & { owner: 'raul' | 'pequenaja' })[]>([]);
+  const [sharedError, setSharedError] = useState(false);
+  useEffect(() => {
+    if (tab !== 'shelf' || !sharedShelf) return;
+    let active = true;
+    const update = () => { apiClient.getSharedBooks().then((result) => { if (active) { setSharedBooks(result); setSharedError(false); } }).catch(() => { if (active) setSharedError(true); }); };
+    update();
+    const timer = window.setInterval(update, 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [tab, sharedShelf, books]);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(() => {
     const route = routeFromHash();
     return route?.kind === 'book' ? route.id : null;
@@ -358,7 +372,24 @@ export default function App() {
             {tab === 'stats' && <Statistics books={books} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
             {tab === 'library' && <Library books={books} view={libraryView} onSetView={setLibraryView} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
-            {tab === 'shelf' && <Bookshelf books={books} onOpen={handleOpen} />}
+            {tab === 'shelf' && <>
+              <div className="mb-5 flex flex-wrap items-center gap-2" role="group" aria-label="Bibliotecas en la estantería">
+                <button aria-pressed={!sharedShelf} onClick={() => setSharedShelf(false)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-surface border border-line' : 'px-4 py-2 rounded-btn bg-primary text-onprimary'}>Mi estantería</button>
+                <button aria-pressed={sharedShelf} onClick={() => setSharedShelf(true)} className={sharedShelf ? 'px-4 py-2 rounded-btn bg-primary text-onprimary' : 'px-4 py-2 rounded-btn bg-surface border border-line'}>Las dos bibliotecas</button>
+              </div>
+              {sharedError && sharedShelf && <p role="alert">No se pudo cargar la estantería compartida.</p>}
+              <Bookshelf
+                books={sharedShelf ? sharedBooks.map((book) => ({ ...book, id: book.owner === account ? book.id : `shared:${book.owner}:${book.id}` })) : books}
+                onOpen={(book) => {
+                  const other = sharedBooks.find((item) => item.owner !== account && book.id === `shared:${item.owner}:${item.id}`);
+                  if (!other) return handleOpen(book);
+                  const pendingWarning = settingsSyncStatus !== 'synced' ? ' Hay ajustes sin confirmar que podrían perderse.' : '';
+                  if (window.confirm(`Este libro pertenece a ${ACCOUNT_NAMES[other.owner]}. ¿Quieres cambiar de cuenta para abrirlo?${pendingWarning}`)) {
+                    selectAccount(other.owner, `#/libro/${encodeURIComponent(other.id)}`);
+                  }
+                }}
+              />
+            </>}
             {tab === 'discover' && <Discover books={books} onOpen={handleOpen} onOpenSeries={handleOpenSeries} onAdd={handleAdd} />}
               </>
             )}
@@ -398,6 +429,11 @@ export default function App() {
         <SettingsMenu
           theme={theme}
           dark={isDark}
+          accountName={ACCOUNT_NAMES[account]}
+          onSwitchAccount={() => {
+            if (settingsSyncStatus !== 'synced' && !window.confirm('Puede haber cambios de ajustes aún sin confirmar. Al cambiar de cuenta podrían perderse. ¿Quieres continuar?')) return;
+            selectAccount(account === 'raul' ? 'pequenaja' : 'raul');
+          }}
           darkModeLocked={darkModeLocked}
           activePaletteName={activeCustomPalette?.name || null}
           settingsVersion={settingsVersion}

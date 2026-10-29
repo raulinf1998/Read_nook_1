@@ -1,3 +1,4 @@
+import { selectedAccount } from './accounts';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Book, CustomPalette, ThemeId } from './types';
 import { THEMES } from './types';
@@ -510,6 +511,7 @@ export function useServerSettings() {
   const migrateLegacyPalettesInBackground = useCallback(async (
     serverSettings: Settings,
   ): Promise<void> => {
+    if (selectedAccount() === 'pequenaja') return;
     if (
       legacyMigrationDoneRef.current
       || legacyMigrationInFlightRef.current

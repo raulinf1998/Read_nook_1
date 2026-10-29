@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BookOpen,
   Check,
@@ -63,7 +63,11 @@ export function ThemePicker({
   onClose,
 }: Props) {
   const [editorOpen, setEditorOpen] = useState(false);
+  const editorRef = useRef<HTMLElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  useEffect(() => {
+    if (editorOpen) editorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [editorOpen, editingId]);
   const [paletteName, setPaletteName] = useState('Mi paleta');
   const [baseTheme, setBaseTheme] = useState<ThemeId>(activeCustomPalette?.baseTheme || theme);
   const [lightColors, setLightColors] = useState<PaletteColors>(() => (
@@ -296,7 +300,7 @@ export function ThemePicker({
                   </span>
                 </button>
 
-                <div className="absolute right-3 top-3 flex gap-1.5">
+                <div className="absolute z-10 right-3 top-3 flex gap-1.5">
                   <button
                     onClick={() => beginEdit(palette)}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-surface/90 text-ink2 shadow-card backdrop-blur transition-all hover:text-ink active:scale-95"
@@ -349,7 +353,7 @@ export function ThemePicker({
       ) : null}
 
       {editorOpen && (
-        <section className="mt-4 rounded-card border border-line bg-sunken/45 p-4 sm:p-5" aria-labelledby="custom-palette-editor-title">
+        <section id="custom-palette-editor" ref={editorRef} className="mt-4 rounded-card border border-line bg-sunken/45 p-4 sm:p-5" aria-labelledby="custom-palette-editor-title">
           <div className="flex items-start gap-3 flex-wrap">
             <span className="flex h-10 w-10 items-center justify-center rounded-btn bg-accent/10 text-accent shrink-0">
               <Sparkles size={19} />

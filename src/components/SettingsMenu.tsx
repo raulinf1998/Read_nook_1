@@ -10,6 +10,7 @@ import {
   Sun,
   Tag,
   Upload,
+  Users,
 } from 'lucide-react';
 import { THEMES, type ThemeId } from '../types';
 import type { SettingsSyncStatus } from '../hooks';
@@ -19,6 +20,8 @@ interface SettingsMenuProps {
   theme: ThemeId;
   dark: boolean;
   darkModeLocked: boolean;
+  accountName: string;
+  onSwitchAccount: () => void;
   activePaletteName: string | null;
   settingsVersion: number;
   syncStatus: SettingsSyncStatus;
@@ -35,6 +38,8 @@ export function SettingsMenu({
   theme,
   dark,
   darkModeLocked,
+  accountName,
+  onSwitchAccount,
   activePaletteName,
   settingsVersion,
   syncStatus,
@@ -61,6 +66,7 @@ export function SettingsMenu({
       maxWidth="max-w-md"
     >
       <div className="space-y-2.5">
+        <SettingsRow icon={<Users size={19} />} title={`Cuenta: ${accountName}`} description="Cambiar a la otra cuenta" onClick={onSwitchAccount} />
         <SettingsRow
           icon={<Palette size={19} />}
           title="Apariencia"

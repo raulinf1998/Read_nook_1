@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { JSDOM } from 'jsdom';
+import { createServer } from 'vite';
+
+test('editar una paleta abre y desplaza hasta el editor', async (t) => {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://bilibook.test/' });
+  globalThis.window = dom.window; globalThis.document = dom.window.document;
+  Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  let scrolled = false;
+  dom.window.HTMLElement.prototype.scrollIntoView = function () { scrolled = this.id === 'custom-palette-editor'; };
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  const { ThemePicker } = await vite.ssrLoadModule('/src/components/ThemePicker.tsx');
+  const colors = { bg: '#ffffff', surface: '#ffffff', ink: '#000000', primary: '#332211', accent: '#ff00ff', accent2: '#00ffff' };
+  const palette = { id: 'chocolate', name: 'Chocolate', baseTheme: 'bosque', light: colors, dark: colors, createdAt: 1 };
+  const noop = () => {};
+  let saved = null;
+  const root = createRoot(document.getElementById('root'));
+  t.after(async () => { await React.act(async () => root.unmount()); await vite.close(); dom.window.close(); delete globalThis.window; delete globalThis.document; delete globalThis.navigator; delete globalThis.IS_REACT_ACT_ENVIRONMENT; });
+  await React.act(async () => root.render(React.createElement(ThemePicker, { theme: 'bosque', dark: false, customPalettes: [palette], activeCustomPalette: palette, syncStatus: 'synced', syncError: null, onSetTheme: noop, onSetDark: noop, onApplyCustomPalette: noop, onSaveCustomPalette: (value) => { saved = value; }, onDeleteCustomPalette: noop, onClose: noop })));
+  const button = document.querySelector('button[aria-label="Editar Chocolate"]');
+  assert.ok(button);
+  await React.act(async () => button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
+  assert.ok(document.getElementById('custom-palette-editor'));
+  assert.equal(scrolled, true);
+  assert.equal(document.querySelector('#custom-palette-editor input').value, 'Chocolate');
+  const save = [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Guardar y aplicar'));
+  assert.ok(save);
+  await React.act(async () => save.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
+  assert.equal(saved?.id, 'chocolate');
+  assert.equal(saved?.name, 'Chocolate');
+});

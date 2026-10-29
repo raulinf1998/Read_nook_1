@@ -4,6 +4,23 @@ Aplicación web de seguimiento de lecturas: registra tus libros, sigue tu progre
 página a página, ponte un reto anual, mira crecer tu estantería y explora tus
 estadísticas de lectura.
 
+## Cuentas familiares
+
+Bilibook ofrece dos cuentas sin contraseña: **Raúl** y **Pequeñaja**. Al abrirlo
+por primera vez en cada navegador se elige una cuenta; una cookie recuerda esa
+selección durante un año. En Ajustes se puede cambiar de cuenta. No es un sistema
+de autenticación: cualquier persona con acceso a la aplicación puede cambiar de
+cuenta. Si se borran las cookies, hay que volver a elegir.
+
+Los libros, diarios, estadísticas, etiquetas, objetivo, apariencia y preferencias
+pertenecen a cada cuenta. Los datos anteriores a esta versión pasan a Raúl; el
+servidor guarda `db.before-accounts.json` antes de la primera escritura migrada.
+Haz igualmente una copia de seguridad del volumen completo antes de actualizar.
+El nuevo formato de datos no es compatible con servidores anteriores sin restaurar
+la copia de seguridad. En Estantería puedes elegir tu colección o las dos juntas;
+al abrir una portada de la otra cuenta, Bilibook pide confirmación para cambiar a
+esa cuenta y abrir su ficha.
+
 ## Funcionalidades
 
 - **Inicio**: libros en curso con anillo de progreso, slider y botón

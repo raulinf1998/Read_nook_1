@@ -1,10 +1,11 @@
 import express from 'express';
-import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, promises as fsPromises } from 'fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, copyFileSync, constants as fsConstants, promises as fsPromises } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash, randomUUID } from 'node:crypto';
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || join(__dirname, 'data');
@@ -502,7 +503,7 @@ async function localizeBookCoverList(books) {
 
 function referencedCoverFilenames() {
   return new Set(
-    db.books
+    Object.values(accounts).flatMap((account) => account.books)
       .map((book) => localCoverFilename(book.coverUrl))
       .filter(Boolean),
   );
@@ -607,11 +608,9 @@ async function migrateBookCovers() {
 }
 
 let dbLoadFailed = false;
+let legacyDatabaseLoaded = false;
 
-function loadDB() {
-  if (existsSync(DATA_FILE)) {
-    try {
-      const parsed = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+function normalizeAccount(parsed) {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Array.isArray(parsed.books)) {
         throw new Error('Formato de base de datos no reconocido.');
       }
@@ -634,37 +633,71 @@ function loadDB() {
           ? parsed.settingsVersion
           : 0,
       };
+}
+
+function emptyAccount() {
+  return normalizeAccount({ books: [] });
+}
+
+function loadDB() {
+  if (existsSync(DATA_FILE)) {
+    try {
+      const parsed = JSON.parse(readFileSync(DATA_FILE, 'utf-8'));
+      if (parsed?.accounts) {
+        if (!parsed.accounts.raul || !parsed.accounts.pequenaja) throw new Error('Cuentas incompletas');
+        return { raul: normalizeAccount(parsed.accounts.raul), pequenaja: normalizeAccount(parsed.accounts.pequenaja) };
+      }
+      // Migración no destructiva: la biblioteca anterior pertenece a Raúl.
+      legacyDatabaseLoaded = true;
+      return { raul: normalizeAccount(parsed), pequenaja: emptyAccount() };
     } catch {
       // Si la base de datos está dañada no se deben interpretar todas las
       // portadas como huérfanas: la migración/limpieza se detiene abajo.
       dbLoadFailed = true;
     }
   }
-  return {
-    books: [],
-    tags: [],
-    goal: 24,
-    dark: false,
-    theme: 'calido',
-    customPalettes: [],
-    customPaletteId: null,
-    libraryView: 'wood',
-    chartPreferences: cleanCharts(null),
-    settingsVersion: 0,
-  };
+  return { raul: emptyAccount(), pequenaja: emptyAccount() };
 }
 
 function saveDB(db) {
   // Escritura atómica: primero a un temporal del mismo volumen y después
   // renombrado. Así un corte durante el guardado no deja db.json a medias.
   const tempFile = `${DATA_FILE}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(tempFile, JSON.stringify(db, null, 2));
+  if (dbLoadFailed) throw new Error('Base de datos ilegible; escritura bloqueada para proteger los datos.');
+  if (legacyDatabaseLoaded) {
+    try { copyFileSync(DATA_FILE, join(DATA_DIR, 'db.before-accounts.json'), fsConstants.COPYFILE_EXCL); }
+    catch (error) { if (error.code !== 'EEXIST') throw error; }
+    legacyDatabaseLoaded = false;
+  }
+  writeFileSync(tempFile, JSON.stringify({ accounts }, null, 2));
   renameSync(tempFile, DATA_FILE);
 }
 
-let db = loadDB();
+const accounts = loadDB();
+const accountContext = new AsyncLocalStorage();
+const currentAccountId = () => accountContext.getStore() || 'raul';
+// Cada petición conserva su cuenta también a través de operaciones asíncronas.
+const db = new Proxy({}, {
+  get(_target, key) { return accounts[currentAccountId()][key]; },
+  set(_target, key, value) { accounts[currentAccountId()][key] = value; return true; },
+});
 
 const app = express();
+app.use((req, _res, next) => {
+  const cookie = (req.headers.cookie || '').split(';').map((part) => part.trim()).find((part) => part.startsWith('bilibook-account='));
+  const value = cookie?.slice('bilibook-account='.length);
+  const account = value === 'pequenaja' ? 'pequenaja' : 'raul';
+  accountContext.run(account, next);
+});
+app.use('/api', (req, res, next) => {
+  // Una respuesta de una cuenta nunca debe reutilizarse en otra.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.vary('Cookie');
+  if (dbLoadFailed && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return res.status(503).json({ error: 'La base de datos no se ha podido leer; se bloquea la escritura para proteger tus datos.' });
+  }
+  next();
+});
 app.use(express.json({ limit: '50mb' }));
 
 // --- Portadas guardadas en el servidor ---
@@ -714,6 +747,11 @@ app.post('/api/covers/from-url', async (req, res) => {
 });
 
 // --- Books ---
+app.get('/api/books/shared', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(Object.entries(accounts).flatMap(([owner, account]) => account.books.map((book) => ({ ...book, owner }))));
+});
+
 app.get('/api/books', (req, res) => {
   res.json(db.books);
 });
@@ -835,7 +873,7 @@ app.delete('/api/tags/:tag', (req, res) => {
 // empuja por SSE a los clientes conectados: la sincronización es continua y
 // no depende de que el usuario pulse ningún botón de refresco.
 const SETTINGS_SYNC_PROTOCOL = 2;
-const settingsEventClients = new Set();
+const settingsEventClients = new Map([['raul', new Set()], ['pequenaja', new Set()]]);
 
 const publicSettings = () => ({
   goal: db.goal,
@@ -889,11 +927,11 @@ function restoreSettings(snapshot) {
 
 function broadcastSettings() {
   const payload = `event: settings\ndata: ${JSON.stringify(publicSettings())}\n\n`;
-  for (const client of settingsEventClients) {
+  for (const client of settingsEventClients.get(currentAccountId())) {
     try {
       client.write(payload);
     } catch {
-      settingsEventClients.delete(client);
+      settingsEventClients.get(currentAccountId()).delete(client);
     }
   }
 }
@@ -942,19 +980,20 @@ app.get('/api/settings/events', (req, res) => {
   res.flushHeaders?.();
   res.write(`event: settings\ndata: ${JSON.stringify(publicSettings())}\n\n`);
 
-  settingsEventClients.add(res);
+  const clients = settingsEventClients.get(currentAccountId());
+  clients.add(res);
   const heartbeat = setInterval(() => {
     try {
       res.write(': ping\n\n');
     } catch {
       clearInterval(heartbeat);
-      settingsEventClients.delete(res);
+      clients.delete(res);
     }
   }, 25_000);
 
   req.on('close', () => {
     clearInterval(heartbeat);
-    settingsEventClients.delete(res);
+    clients.delete(res);
   });
 });
 
@@ -1072,6 +1111,8 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Bilibook server running on port ${PORT}`);
 });
 
-void migrateBookCovers().catch((error) => {
-  console.error('No se pudo completar la copia automática de portadas:', error);
-});
+for (const account of ['raul', 'pequenaja']) {
+  void accountContext.run(account, () => migrateBookCovers()).catch((error) => {
+    console.error('No se pudo completar la copia automática de portadas:', error);
+  });
+}
