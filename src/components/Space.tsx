@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Crosshair, Minus, Plus, Sparkles } from 'lucide-react';
-import type { Book } from '../types';
+import { languageLabel, type Book } from '../types';
 import { PLANET_STYLES, buildSpaceOrbits, buildSpaceReadings, type PlanetStyle } from '../space';
 import { formatReadingDate } from '../readingDate';
 import { normalizeLanguageCode } from '../bookMetadata';
@@ -15,7 +15,7 @@ interface Props {
 
 export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
   const data = useMemo(() => buildSpaceReadings(books), [books]);
-  const [language, setLanguage] = useState<'all' | 'en' | 'es' | 'other'>('all');
+  const [language, setLanguage] = useState<'separated' | 'together' | 'en' | 'es' | 'other'>('separated');
   const [fromYear, setFromYear] = useState('');
   const [toYear, setToYear] = useState('');
   const availableYears = useMemo(() => [...new Set([
@@ -28,12 +28,13 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
     const year = new Date(book.finishedAt).getFullYear();
     return Number.isFinite(year) && (!fromYear || year >= Number(fromYear)) && (!toYear || year <= Number(toYear));
   };
-  const visibleReadings = data.orbiting.filter((entry) => (language === 'all' || language === entry.language) && matchesYear(entry.reading));
+  const candidates = language === 'together' ? [...data.orbiting, ...data.otherOrbiting] : data.orbiting;
+  const visibleReadings = candidates.filter((entry) => (language === 'separated' || language === 'together' || language === entry.language) && matchesYear(entry.reading));
   const visibleYears = [...new Set(visibleReadings.map((entry) => entry.year))].sort((a, b) => a - b);
-  const orbits = buildSpaceOrbits(visibleReadings, visibleYears);
-  const withoutYear = data.withoutYear.filter((book) => (language === 'all' || normalizeLanguageCode(book.language) === language) && matchesYear(book));
-  const otherLanguages = data.otherLanguages.filter((book) => (language === 'all' || language === 'other') && matchesYear(book));
-  const filtersActive = language !== 'all' || Boolean(fromYear || toYear);
+  const orbits = buildSpaceOrbits(visibleReadings, visibleYears, language !== 'separated');
+  const withoutYear = data.withoutYear.filter((book) => (language === 'separated' || language === 'together' || normalizeLanguageCode(book.language) === language) && matchesYear(book));
+  const otherLanguages = data.otherLanguages.filter((book) => (language === 'separated' || language === 'other' || (language === 'together' && !book.finishedAt)) && matchesYear(book));
+  const filtersActive = language !== 'separated' || Boolean(fromYear || toYear);
   const [zoom, setZoom] = useState(0.65);
   const viewport = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: number; x: number; y: number; left: number; top: number } | null>(null);
@@ -57,7 +58,7 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
   const asteroids = Array.from({ length: 320 }, (_, i) => {
     const angle = i * 2.399963;
     const spread = Math.sin(i * 83.17) * 19 + Math.sin(i * 17.4) * 8;
-    const radius = orbits.beltRadius + spread;
+    const radius = (orbits.beltRadius ?? 0) + spread;
     return { x: center + radius * Math.cos(angle), y: center + radius * Math.sin(angle), r: 1.3 + (i % 4) * 0.65 };
   });
 
@@ -70,7 +71,7 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
       </label>
       <label className="min-w-[150px] flex-1 text-xs font-bold text-ink2">Idioma
         <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className={cx(selectCls, 'mt-1 w-full')} aria-label="Idioma del espacio">
-          <option value="all">Todos los idiomas</option><option value="en">Inglés</option><option value="es">Castellano</option><option value="other">Otros idiomas</option>
+          <option value="separated">Español e inglés separados</option><option value="together">Todos juntos</option><option value="es">Solo español</option><option value="en">Solo inglés</option><option value="other">Otros idiomas</option>
         </select>
       </label>
       <label className="min-w-[110px] flex-1 text-xs font-bold text-ink2">Desde
@@ -83,7 +84,7 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
           <option value="">Cualquier año</option>{availableYears.map((year) => <option key={year} value={year}>{year}</option>)}
         </select>
       </label>
-      {filtersActive && <button type="button" onClick={() => { setLanguage('all'); setFromYear(''); setToYear(''); }} className="rounded-btn border border-line bg-surface px-3 py-2 text-xs font-bold text-ink">Limpiar filtros</button>}
+      {filtersActive && <button type="button" onClick={() => { setLanguage('separated'); setFromYear(''); setToYear(''); }} className="rounded-btn border border-line bg-surface px-3 py-2 text-xs font-bold text-ink">Limpiar filtros</button>}
       <div className="flex items-center gap-2" role="group" aria-label="Zoom del universo">
         <button type="button" className="rounded-btn border border-line bg-surface p-2 text-ink" aria-label="Alejar" onClick={() => setZoom((value) => Math.max(0.35, +(value - 0.1).toFixed(2)))} disabled={zoom <= 0.35}><Minus size={17} /></button>
         <span className="w-10 text-center text-xs font-bold text-ink2 tabular-nums">{Math.round(zoom * 100)}%</span>
@@ -91,7 +92,7 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
         <button type="button" className="rounded-btn border border-line bg-surface p-2 text-ink" aria-label="Centrar el universo" onClick={centerView}><Crosshair size={17} /></button>
       </div>
     </div>
-    <p className="text-sm text-ink2">Inglés dentro del cinturón · Castellano fuera. Cada órbita representa un año; cada planeta, una lectura terminada. Arrastra el fondo para moverte y toca un planeta para abrir el libro.</p>
+    <p className="text-sm text-ink2">{language === 'separated' ? 'Inglés dentro del cinturón · Español fuera.' : language === 'together' ? 'Todos los idiomas comparten las órbitas.' : 'Se muestran las lecturas del idioma seleccionado.'} Cada órbita representa un año; cada planeta, una lectura terminada. Arrastra el fondo para moverte y toca un planeta para abrir el libro.</p>
     {visibleReadings.length === 0 ? <div className={cx(cardCls, 'p-8 text-center text-ink2')}><Sparkles className="mx-auto mb-3 text-accent" /><p>{filtersActive ? 'No hay planetas para los filtros seleccionados.' : 'Tu universo está esperando lecturas terminadas en inglés o castellano con año conocido.'}</p></div> :
       <div ref={viewport} className={cx('space-viewport', dragging && 'space-viewport--dragging')} aria-label="Sistema solar de lecturas" tabIndex={0}
         onDragStart={(event) => event.preventDefault()}
@@ -117,14 +118,15 @@ export function Space({ books, onOpen, planetStyle, onSetPlanetStyle }: Props) {
             {stars.map((star, i) => <span key={i} aria-hidden className="space-star" style={{ left: `${star.x}%`, top: `${star.y}%`, width: star.size, height: star.size }} />)}
             <svg className="space-orbits" width={size} height={size} aria-hidden="true">
               {[...orbits.inner, ...orbits.outer].map((orbit) => <g key={`${orbit.language}-${orbit.year}`}><circle cx={center} cy={center} r={orbit.radius} fill="none" stroke="rgba(172,202,255,.28)" strokeWidth="1" /><text x={center} y={center - orbit.radius - 7} textAnchor="middle" fill="#bdc9e0" fontSize="13" fontWeight="700">{orbit.year}</text></g>)}
-              {asteroids.map((asteroid, index) => <circle key={index} cx={asteroid.x} cy={asteroid.y} r={asteroid.r} fill={index % 3 === 0 ? '#d3a979' : '#7892b1'} opacity={0.4 + (index % 4) * 0.13} />)}
+              {orbits.beltRadius !== null && asteroids.map((asteroid, index) => <circle key={index} cx={asteroid.x} cy={asteroid.y} r={asteroid.r} fill={index % 3 === 0 ? '#d3a979' : '#7892b1'} opacity={0.4 + (index % 4) * 0.13} />)}
             </svg>
             <div className="space-sun" style={{ left: center, top: center }} aria-hidden="true"><span>✦</span></div>
             {[...orbits.inner, ...orbits.outer].flatMap((orbit) => orbit.planets.map((entry, index) => {
               const angle = -Math.PI / 2 + (Math.PI * 2 * (index + 0.5)) / Math.max(orbit.planets.length, 1) + (orbit.year % 7) * 0.17;
               const left = center + Math.cos(angle) * orbit.radius;
               const top = center + Math.sin(angle) * orbit.radius;
-              return <button type="button" key={entry.key} className={`space-planet space-planet--${planetStyle}`} style={{ left, top }} onClick={() => onOpen(entry.book)} title={`${entry.reading.title} · ${entry.year} · ${entry.language === 'en' ? 'Inglés' : 'Castellano'}`} aria-label={`Abrir ${entry.reading.title}, ${entry.language === 'en' ? 'inglés' : 'castellano'}, ${entry.year}`}>
+              const languageName = entry.language === 'en' ? 'Inglés' : entry.language === 'es' ? 'Castellano' : languageLabel(entry.reading.language);
+              return <button type="button" key={entry.key} className={`space-planet space-planet--${planetStyle}`} style={{ left, top }} onClick={() => onOpen(entry.book)} title={`${entry.reading.title} · ${entry.year} · ${languageName}`} aria-label={`Abrir ${entry.reading.title}, ${languageName.toLocaleLowerCase('es')}, ${entry.year}`}>
                 <span className="space-planet-cover"><BookCover title={entry.book.title} author={entry.book.author} coverUrl={entry.book.coverUrl} detail="sm" className="h-full w-full" /></span>
               </button>;
             }))}

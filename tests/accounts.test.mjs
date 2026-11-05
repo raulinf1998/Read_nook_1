@@ -53,7 +53,7 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   assert.deepEqual((await request('raul', '/api/settings')).data.shelfColors, { frame: '#123456', wood: '#654321', background: '#ded7c9' });
   assert.equal((await request('pequenaja', '/api/settings')).data.shelfColors.background, '#abcdef');
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'db.before-accounts.json'), 'utf8')), old);
-  const book = { title: 'Otro', author: 'Otra autora', coverUrl: '', tags: [], journal: [] };
+  const book = { title: 'Otro', author: 'Otra autora', coverUrl: '', tags: [], journal: [], onMyShelf: true };
   const created = await request('pequenaja', '/api/books', { method: 'POST', body: JSON.stringify(book) });
   assert.equal(created.res.status, 200);
   assert.equal((await request('raul', '/api/books')).data.length, 1);
@@ -74,6 +74,8 @@ test('migra a Raúl, aísla cuentas, conserva portadas compartidas y persiste al
   await stop(); await start();
   assert.equal((await request('raul', '/api/books')).data[0].title, 'Original');
   assert.equal((await request('pequenaja', '/api/books')).data[0].title, 'Otro');
+  assert.equal((await request('pequenaja', '/api/books')).data[0].onMyShelf, true);
+  assert.equal((await request('raul', '/api/books')).data[0].onMyShelf, undefined);
   assert.equal((await request('pequenaja', '/api/settings')).data.theme, 'lavanda');
   assert.equal((await request('raul', '/api/settings')).data.shelfColors.frame, '#123456');
   assert.equal((await request('raul', '/api/settings')).data.planetStyle, 'saturno');

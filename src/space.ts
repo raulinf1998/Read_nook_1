@@ -19,31 +19,43 @@ export function normalizePlanetStyle(value: unknown): PlanetStyle {
   return PLANET_STYLES.some((style) => style.id === value) ? value as PlanetStyle : 'orbita';
 }
 
-export type SpaceReading = { book: Book; reading: Book; language: 'en' | 'es'; year: number; key: string };
+export type SpaceReading = { book: Book; reading: Book; language: string; year: number; key: string };
 export function buildSpaceReadings(books: Book[]) {
   const orbiting: SpaceReading[] = [];
+  const otherOrbiting: SpaceReading[] = [];
   const withoutYear: Book[] = [];
   const otherLanguages: Book[] = [];
   books.forEach((book) => completedReadings(book).forEach((reading, index) => {
     const lang = normalizeLanguageCode(reading.language);
-    if (lang !== 'en' && lang !== 'es') { otherLanguages.push(reading); return; }
+    if (lang !== 'en' && lang !== 'es') {
+      otherLanguages.push(reading);
+      if (reading.finishedAt && Number.isFinite(reading.finishedAt)) {
+        const year = new Date(reading.finishedAt).getFullYear();
+        if (Number.isFinite(year)) otherOrbiting.push({ book, reading, language: lang, year, key: `${book.id}:${index}` });
+      }
+      return;
+    }
     if (!reading.finishedAt || !Number.isFinite(reading.finishedAt)) { withoutYear.push(reading); return; }
     const year = new Date(reading.finishedAt).getFullYear();
     if (!Number.isFinite(year)) { withoutYear.push(reading); return; }
     orbiting.push({ book, reading, language: lang, year, key: `${book.id}:${index}` });
   }));
   const years = [...new Set(orbiting.map((entry) => entry.year))].sort((a, b) => a - b);
-  return { orbiting, years, withoutYear, otherLanguages };
+  return { orbiting, otherOrbiting, years, withoutYear, otherLanguages };
 }
 
-export function buildSpaceOrbits(entries: SpaceReading[], years: number[]) {
+export function buildSpaceOrbits(entries: SpaceReading[], years: number[], together = false) {
   let radius = 95;
-  const create = (language: 'en' | 'es') => years.map((year) => {
-    const planets = entries.filter((entry) => entry.language === language && entry.year === year)
+  const create = (language: 'en' | 'es' | 'all') => years.map((year) => {
+    const planets = entries.filter((entry) => (language === 'all' || entry.language === language) && entry.year === year)
       .sort((a, b) => (a.reading.finishedAt || 0) - (b.reading.finishedAt || 0) || a.key.localeCompare(b.key));
     radius = Math.max(radius + 62, Math.ceil(planets.length * 55 / (2 * Math.PI)));
     return { year, language, radius, planets };
   });
+  if (together) {
+    const inner = create('all');
+    return { inner, outer: [], beltRadius: null, extent: radius + 90 };
+  }
   const inner = create('en');
   const beltRadius = radius + 67;
   radius = beltRadius + 48;

@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import {
-  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, Plus, Upload, Tag, Palette, Moon, Sun,
+  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, MoreHorizontal, Plus, Upload, Tag, Palette, Moon, Sun,
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
@@ -10,11 +11,11 @@ export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' |
 const TABS: { id: TabId; label: string; short: string; icon: typeof BookOpen }[] = [
   { id: 'reading', label: 'Inicio', short: 'Inicio', icon: BookOpen },
   { id: 'library', label: 'Biblioteca', short: 'Libros', icon: Library },
-  { id: 'shelf', label: 'Estantería', short: 'Balda', icon: BookMarked },
+  { id: 'shelf', label: 'Estantería', short: 'Librería', icon: BookMarked },
   { id: 'space', label: 'Espacio', short: 'Espacio', icon: Orbit },
   { id: 'discover', label: 'Descubrir', short: 'Ideas', icon: Compass },
   { id: 'challenge', label: 'Reto anual', short: 'Reto', icon: Target },
-  { id: 'stats', label: 'Estadísticas', short: 'Datos', icon: BarChart3 },
+  { id: 'stats', label: 'Estadísticas', short: 'Stats', icon: BarChart3 },
 ];
 
 /* ---------------- Barra lateral (PC) ---------------- */
@@ -190,32 +191,28 @@ interface MobileNavProps {
 }
 
 export function MobileNav({ active, onChange }: MobileNavProps) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLElement>(null);
+  const main: TabId[] = ['reading', 'library', 'stats', 'shelf'];
+  const primary = main.map((id) => TABS.find((tab) => tab.id === id)!);
+  const other = TABS.filter((tab) => !main.includes(tab.id));
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape); };
+  }, [open]);
   return (
-    <nav
-      className="lg:hidden fixed left-3 right-3 z-40 rounded-full bg-surface/90 backdrop-blur-xl border border-line shadow-pop px-1.5 py-1.5"
-      style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
-      aria-label="Secciones"
-    >
-      <div className="flex items-center justify-between gap-0.5 overflow-x-auto no-scrollbar">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = active === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onChange(tab.id)}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={tab.label}
-              className={cx(
-                'flex shrink-0 items-center justify-center gap-1.5 rounded-full transition-all duration-300 active:scale-95',
-                isActive ? 'bg-primary text-onprimary px-3 py-2 shadow-card' : 'text-ink3 hover:text-ink px-1.5 py-2'
-              )}
-            >
-              <Icon size={19} strokeWidth={isActive ? 2.4 : 2} />
-              {isActive && <span className="text-[11px] font-bold leading-none">{tab.short}</span>}
-            </button>
-          );
-        })}
+    <nav ref={menuRef} className="lg:hidden fixed left-3 right-3 z-40 rounded-2xl bg-surface/95 backdrop-blur-xl border border-line shadow-pop px-1.5 py-1.5"
+      style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }} aria-label="Secciones">
+      {open && <div id="mobile-other-tabs" className="absolute bottom-full right-0 mb-2 min-w-[190px] rounded-2xl border border-line bg-surface p-2 shadow-pop" aria-label="Otras secciones">
+        {other.map((tab) => { const Icon = tab.icon; return <button type="button" key={tab.id} onClick={() => { setOpen(false); onChange(tab.id); }} aria-current={active === tab.id ? 'page' : undefined} className={cx('flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-left text-sm font-semibold', active === tab.id ? 'bg-accent/10 text-accent' : 'text-ink2 hover:bg-sunken')}><Icon size={18} />{tab.label}</button>; })}
+      </div>}
+      <div className="grid grid-cols-5 gap-0.5">
+        {primary.map((tab) => { const Icon = tab.icon; const isActive = active === tab.id; return <button type="button" key={tab.id} onClick={() => { setOpen(false); onChange(tab.id); }} aria-current={isActive ? 'page' : undefined} aria-label={tab.short} className={cx('flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 transition-colors', isActive ? 'bg-primary text-onprimary' : 'text-ink3 hover:text-ink')}><Icon size={19} /><span className="text-[10px] font-bold leading-none">{tab.short}</span></button>; })}
+        <button type="button" onClick={() => setOpen(!open)} aria-label="Otros" aria-expanded={open} aria-controls="mobile-other-tabs" className={cx('flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5', open || !main.includes(active) ? 'bg-primary text-onprimary' : 'text-ink3 hover:text-ink')}><MoreHorizontal size={19} /><span className="text-[10px] font-bold leading-none">Otros</span></button>
       </div>
     </nav>
   );

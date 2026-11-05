@@ -88,6 +88,18 @@ test('el universo permite elegir los diez estilos y abrir cada libro original', 
   assert.ok(document.querySelector('[aria-label="Abrir Inglés, inglés, 2020"]'));
   await React.act(async () => [...document.querySelectorAll('button')].find((button) => button.textContent.includes('Limpiar filtros')).click());
   assert.equal(document.querySelectorAll('.space-planet').length, 3);
+  await change(language, 'together');
+  assert.equal(document.querySelectorAll('.space-planet').length, 4);
+  assert.ok(document.querySelector('[aria-label="Abrir Francés, francés, 2020"]'));
+  assert.equal(document.querySelectorAll('.space-orbits g').length, 2);
+  assert.equal(document.querySelectorAll('.space-orbits > circle').length, 0);
+  await change(language, 'es');
+  assert.equal(document.querySelectorAll('.space-planet').length, 1);
+  assert.ok(document.querySelector('[aria-label="Abrir Castellano, castellano, 2021"]'));
+  await change(language, 'separated');
+  assert.equal(document.querySelectorAll('.space-planet').length, 3);
+  assert.equal(document.querySelectorAll('.space-orbits g').length, 4);
+  assert.ok(document.querySelectorAll('.space-orbits > circle').length > 0);
   await change(language, 'other');
   assert.match(document.body.textContent, /Francés/);
   assert.equal(document.querySelectorAll('.space-planet').length, 0);
