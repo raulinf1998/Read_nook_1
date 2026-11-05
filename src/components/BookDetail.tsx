@@ -7,7 +7,6 @@ import {
   CalendarDays,
   ChevronRight,
   Check,
-  X,
   Clock3,
   ExternalLink,
   FileText,
@@ -237,6 +236,17 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={book.status} />
+              <button
+                type="button"
+                aria-label="Lo tengo en mi estantería"
+                aria-pressed={book.onMyShelf !== false}
+                title={book.onMyShelf === false ? 'Marcar como libro que tengo' : 'Marcar como libro que no tengo'}
+                onClick={() => onUpdate(book.id, { onMyShelf: book.onMyShelf === false })}
+                className={cx('inline-flex min-h-8 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent', book.onMyShelf !== false ? 'border-accent/25 bg-accent/10 text-accent hover:bg-accent/20' : 'border-line bg-sunken text-ink3 hover:text-ink')}
+              >
+                {book.onMyShelf !== false ? <Check size={13} aria-hidden="true" /> : <Library size={13} aria-hidden="true" />}
+                {book.onMyShelf === false ? 'No lo tengo' : 'Lo tengo'}
+              </button>
               {seriesLabel(book) && book.series?.trim() && (
                 <button
                   type="button"
@@ -270,25 +280,6 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
               <span className="text-xs font-semibold text-ink3">
                 {book.rating > 0 ? `Tu nota: ${book.rating.toFixed(1)} de 5 · toca las estrellas para cambiarla` : 'Toca las estrellas para valorarlo'}
               </span>
-            </div>
-
-            <div className="mt-4 rounded-card border border-line bg-sunken/55 p-3 sm:p-4">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent"><Library size={18} aria-hidden="true" /></span>
-                <div><p className="text-sm font-extrabold text-ink">Mi estantería</p><p className="text-xs text-ink3">¿Tienes este libro en casa?</p></div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="¿Está en mis estanterías?">
-                {([
-                  { value: true, label: 'Sí, lo tengo', icon: Check },
-                  { value: false, label: 'No lo tengo', icon: X },
-                ] as const).map(({ value, label, icon: Icon }) => {
-                  const active = (book.onMyShelf !== false) === value;
-                  return <button key={label} type="button" aria-pressed={active} onClick={() => onUpdate(book.id, { onMyShelf: value })}
-                    className={cx('flex min-h-11 items-center justify-center gap-2 rounded-btn border px-3 py-2 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent', active ? 'border-primary bg-primary text-onprimary shadow-card' : 'border-line bg-surface text-ink2 hover:border-accent hover:text-ink')}>
-                    <Icon size={16} aria-hidden="true" /> {label}
-                  </button>;
-                })}
-              </div>
             </div>
 
             {book.tags.length > 0 && (
