@@ -37,6 +37,7 @@ import {
   cardCls,
   cx,
   iconBtn,
+  selectCls,
 } from './ui';
 
 interface Props {
@@ -159,6 +160,7 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
 
   const details: [string, string][] = [
     ['Estado', STATUS_META[book.status].label],
+    ['En mis estanterías', book.onMyShelf === true ? 'Sí' : book.onMyShelf === false ? 'No' : 'Sin indicar'],
     ['Formato', formatLabel(book.format)],
     ['Idioma', languageLabel(book.language)],
     ['Páginas', book.pages > 0 ? book.pages.toLocaleString('es') : '—'],
@@ -267,6 +269,21 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
               <span className="text-xs font-semibold text-ink3">
                 {book.rating > 0 ? `Tu nota: ${book.rating.toFixed(1)} de 5 · toca las estrellas para cambiarla` : 'Toca las estrellas para valorarlo'}
               </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-btn border border-line bg-surface px-3 py-2.5">
+              <Library size={17} className="text-accent" aria-hidden="true" />
+              <label htmlFor="book-shelf-ownership" className="flex-1 text-sm font-bold text-ink">¿Está en mis estanterías?</label>
+              <select
+                id="book-shelf-ownership"
+                className={cx(selectCls, 'max-w-full py-1.5 text-sm')}
+                value={book.onMyShelf == null ? 'unknown' : book.onMyShelf ? 'yes' : 'no'}
+                onChange={(event) => onUpdate(book.id, { onMyShelf: event.target.value === 'unknown' ? null : event.target.value === 'yes' })}
+              >
+                <option value="unknown">Sin indicar</option>
+                <option value="yes">Sí, lo tengo</option>
+                <option value="no">No lo tengo</option>
+              </select>
             </div>
 
             {book.tags.length > 0 && (
