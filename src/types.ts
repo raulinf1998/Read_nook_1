@@ -40,7 +40,7 @@ export interface Book {
   /** Imagen real/generada del lomo, si una importación o edición futura la aporta. */
   spineUrl?: string;
   status: BookStatus;
-  /** Si el ejemplar está en mis estanterías; null/ausente significa sin indicar. */
+  /** Si el ejemplar está en mis estanterías; null/ausente se muestra como sí. */
   onMyShelf?: boolean | null;
   rating: number; // 0-5, supports halves (e.g. 3.5)
   notes: string;

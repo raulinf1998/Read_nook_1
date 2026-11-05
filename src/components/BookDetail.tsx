@@ -6,6 +6,8 @@ import {
   BookOpen,
   CalendarDays,
   ChevronRight,
+  Check,
+  X,
   Clock3,
   ExternalLink,
   FileText,
@@ -37,7 +39,6 @@ import {
   cardCls,
   cx,
   iconBtn,
-  selectCls,
 } from './ui';
 
 interface Props {
@@ -160,7 +161,7 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
 
   const details: [string, string][] = [
     ['Estado', STATUS_META[book.status].label],
-    ['En mis estanterías', book.onMyShelf === true ? 'Sí' : book.onMyShelf === false ? 'No' : 'Sin indicar'],
+    ['En mis estanterías', book.onMyShelf === false ? 'No' : 'Sí'],
     ['Formato', formatLabel(book.format)],
     ['Idioma', languageLabel(book.language)],
     ['Páginas', book.pages > 0 ? book.pages.toLocaleString('es') : '—'],
@@ -271,19 +272,23 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
               </span>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 rounded-btn border border-line bg-surface px-3 py-2.5">
-              <Library size={17} className="text-accent" aria-hidden="true" />
-              <label htmlFor="book-shelf-ownership" className="flex-1 text-sm font-bold text-ink">¿Está en mis estanterías?</label>
-              <select
-                id="book-shelf-ownership"
-                className={cx(selectCls, 'max-w-full py-1.5 text-sm')}
-                value={book.onMyShelf == null ? 'unknown' : book.onMyShelf ? 'yes' : 'no'}
-                onChange={(event) => onUpdate(book.id, { onMyShelf: event.target.value === 'unknown' ? null : event.target.value === 'yes' })}
-              >
-                <option value="unknown">Sin indicar</option>
-                <option value="yes">Sí, lo tengo</option>
-                <option value="no">No lo tengo</option>
-              </select>
+            <div className="mt-4 rounded-card border border-line bg-sunken/55 p-3 sm:p-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent"><Library size={18} aria-hidden="true" /></span>
+                <div><p className="text-sm font-extrabold text-ink">Mi estantería</p><p className="text-xs text-ink3">¿Tienes este libro en casa?</p></div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label="¿Está en mis estanterías?">
+                {([
+                  { value: true, label: 'Sí, lo tengo', icon: Check },
+                  { value: false, label: 'No lo tengo', icon: X },
+                ] as const).map(({ value, label, icon: Icon }) => {
+                  const active = (book.onMyShelf !== false) === value;
+                  return <button key={label} type="button" aria-pressed={active} onClick={() => onUpdate(book.id, { onMyShelf: value })}
+                    className={cx('flex min-h-11 items-center justify-center gap-2 rounded-btn border px-3 py-2 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent', active ? 'border-primary bg-primary text-onprimary shadow-card' : 'border-line bg-surface text-ink2 hover:border-accent hover:text-ink')}>
+                    <Icon size={16} aria-hidden="true" /> {label}
+                  </button>;
+                })}
+              </div>
             </div>
 
             {book.tags.length > 0 && (
