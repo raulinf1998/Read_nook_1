@@ -18,17 +18,6 @@ interface Props {
   onGoChallenge: () => void;
 }
 
-function setPage(book: Book, page: number, onUpdate: Props['onUpdate']) {
-  const clamped = book.pages > 0 ? Math.min(Math.max(page, 0), book.pages) : Math.max(page, 0);
-  const patch: Partial<Book> = { currentPage: clamped };
-  if (book.pages > 0 && clamped >= book.pages) {
-    patch.status = 'read';
-    patch.finishedAt = Date.now();
-    patch.finishedAtPrecision = 'day';
-  }
-  onUpdate(book.id, patch);
-}
-
 export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onOpenSeries, onAdd, onLoadDemo, onGoChallenge }: Props) {
   const reading = books.filter((b) => b.status === 'reading');
   const pending = books.filter((b) => b.status === 'pending');
@@ -115,7 +104,6 @@ export function ReadingNow({ books, goal, onUpdate, onEdit, onOpen, onOpenSeries
               <ReadingCard
                 key={book.id}
                 book={book}
-                onUpdate={onUpdate}
                 onOpen={onOpen}
                 onOpenSeries={onOpenSeries}
                 onLogProgress={(item) => setProgressBookId(item.id)}
@@ -206,13 +194,11 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
 
 function ReadingCard({
   book,
-  onUpdate,
   onOpen,
   onOpenSeries,
   onLogProgress,
 }: {
   book: Book;
-  onUpdate: Props['onUpdate'];
   onOpen: (b: Book) => void;
   onOpenSeries: (seriesName: string) => void;
   onLogProgress: (b: Book) => void;
@@ -299,25 +285,8 @@ function ReadingCard({
             <ProgressBar pct={pct} className="h-2.5" />
           </div>
 
-          {book.pages > 0 && (
-            <div className="mt-3">
-              {!(book.previousReadings?.length) && <input
-                type="range"
-                min={0}
-                max={book.pages}
-                value={book.currentPage}
-                onChange={(e) => setPage(book, parseInt(e.target.value), onUpdate)}
-                className="book-slider w-full"
-                style={{
-                  background: `linear-gradient(to right, rgb(var(--primary)) ${pct}%, rgb(var(--line)) ${pct}%)`,
-                }}
-                aria-label={`Página actual de ${book.title}`}
-              />}
-              {Boolean(book.previousReadings?.length) && <p className="text-xs text-ink3">En la relectura, registra el avance para que las páginas se guarden en el diario.</p>}
-              {progressActions}
-            </div>
-          )}
-          {book.pages <= 0 && progressActions}
+          {progressActions}
+
         </div>
       </div>
     </article>
