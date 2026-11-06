@@ -17,6 +17,8 @@ import { Statistics } from './components/Statistics';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
+import { BorrowDialog } from './components/BorrowDialog';
+import { combinedShelf, type SharedBook } from './borrowing';
 import { Space } from './components/Space';
 import { Discover } from './components/Discover';
 import { BookDetail } from './components/BookDetail';
@@ -66,7 +68,7 @@ function greeting() {
 }
 
 export default function App() {
-  const { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal } = useBooks();
+  const { books, loading, addBook, borrowBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal } = useBooks();
   const { tags, addTag, removeTag } = useServerTags();
   const {
     goal,
@@ -98,8 +100,9 @@ export default function App() {
   const [tab, setTab] = useState<TabId>('reading');
   const account = selectedAccount() || 'raul';
   const [sharedShelf, setSharedShelf] = useState(false);
-  const [sharedBooks, setSharedBooks] = useState<(Book & { owner: 'raul' | 'pequenaja' })[]>([]);
+  const [sharedBooks, setSharedBooks] = useState<SharedBook[]>([]);
   const [sharedError, setSharedError] = useState(false);
+  const [borrowSource, setBorrowSource] = useState<SharedBook | null>(null);
   useEffect(() => {
     if (tab !== 'shelf' || !sharedShelf) return;
     let active = true;
@@ -388,14 +391,11 @@ export default function App() {
                 notice={sharedError && sharedShelf ? <p role="alert" className="mb-4">No se pudo cargar la estantería compartida.</p> : null}
                 colors={shelfColors}
                 onSetColor={setShelfColor}
-                books={sharedShelf ? sharedBooks.map((book) => ({ ...book, id: book.owner === account ? book.id : `shared:${book.owner}:${book.id}` })) : books}
+                books={sharedShelf ? combinedShelf(sharedBooks, account).map((book) => ({ ...book, id: book.owner === account ? book.id : `shared:${book.owner}:${book.id}` })) : books}
                 onOpen={(book) => {
                   const other = sharedBooks.find((item) => item.owner !== account && book.id === `shared:${item.owner}:${item.id}`);
                   if (!other) return handleOpen(book);
-                  const pendingWarning = settingsSyncStatus !== 'synced' ? ' Hay ajustes sin confirmar que podrían perderse.' : '';
-                  if (window.confirm(`Este libro pertenece a ${ACCOUNT_NAMES[other.owner]}. ¿Quieres cambiar de cuenta para abrirlo?${pendingWarning}`)) {
-                    selectAccount(other.owner, `#/libro/${encodeURIComponent(other.id)}`);
-                  }
+                  setBorrowSource(other);
                 }}
               />
             </>}
@@ -424,6 +424,12 @@ export default function App() {
           onUpdateBook={updateBook}
         />
       )}
+      {borrowSource && <BorrowDialog source={borrowSource} books={books} onClose={() => setBorrowSource(null)}
+        onBorrow={async (existingBookId) => { const saved = await borrowBook(borrowSource.owner, borrowSource.id, existingBookId); setBorrowSource(null); handleOpen(saved); }}
+        onSwitch={() => {
+          const pendingWarning = settingsSyncStatus !== 'synced' ? ' Hay ajustes sin confirmar que podrían perderse.' : '';
+          if (window.confirm(`¿Quieres cambiar a ${ACCOUNT_NAMES[borrowSource.owner]} para abrir este libro?${pendingWarning}`)) selectAccount(borrowSource.owner, `#/libro/${encodeURIComponent(borrowSource.id)}`);
+        }} />}
       {showImport && (
         <ImportModal
           existingBooks={books}

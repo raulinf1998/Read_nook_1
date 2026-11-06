@@ -93,6 +93,8 @@ export const SETTINGS_SYNC_PROTOCOL = 2;
 export const SETTINGS_EVENTS_URL = '/api/settings/events';
 
 export const apiClient = {
+  borrowBook: (owner: 'raul' | 'pequenaja', bookId: string, existingBookId?: string) =>
+    api<Book>('/books/borrow', { method: 'POST', body: JSON.stringify({ owner, bookId, existingBookId }) }),
   getBooks: () => api<Book[]>('/books'),
   getSharedBooks: () => api<(Book & { owner: 'raul' | 'pequenaja' })[]>('/books/shared', { cache: 'no-store' }),
   addBook: (book: Omit<Book, 'id' | 'createdAt'>) =>
