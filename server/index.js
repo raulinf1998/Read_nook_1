@@ -1,4 +1,5 @@
 import express from 'express';
+import { lookupIsbn } from './isbn.js';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, copyFileSync, constants as fsConstants, promises as fsPromises } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -712,6 +713,15 @@ app.use('/api', (req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '50mb' }));
+
+// La búsqueda se hace en el servidor para evitar restricciones CORS del navegador.
+app.get('/api/isbn/:isbn', async (req, res) => {
+  const lookup = await lookupIsbn(req.params.isbn);
+  if (lookup.status === 'invalid') return res.status(400).json({ error: 'ISBN no válido. Comprueba sus cifras y vuelve a intentarlo.' });
+  if (lookup.status === 'unavailable') return res.status(503).json({ error: 'No se pudo completar la búsqueda: algún proveedor no está disponible. Inténtalo más tarde.' });
+  if (lookup.status === 'not_found') return res.status(404).json({ error: 'No se encontró este ISBN en los proveedores consultados.' });
+  return res.json(lookup.result);
+});
 
 // --- Portadas guardadas en el servidor ---
 // Se nombran por el hash de la imagen: la misma portada no se duplica, su URL

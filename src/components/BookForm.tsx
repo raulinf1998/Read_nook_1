@@ -171,25 +171,32 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
     if (!isbnInput.trim()) return;
     setLoading(true);
     setIsbnError('');
-    const result = await fetchByIsbn(isbnInput);
-    setLoading(false);
-    if (!result) {
-      setIsbnError('No se encontró el libro. Revisa el ISBN e inténtalo de nuevo.');
-      return;
+    try {
+      const result = await fetchByIsbn(isbnInput);
+      if (!result) {
+        setIsbnError('No se encontró este ISBN en los proveedores consultados.');
+        return;
+      }
+      if (result.title) setTitle(result.title);
+      if (result.author) setAuthor(result.author);
+      if (result.coverUrl) {
+        clearCoverFile();
+        setCoverUrl(result.coverUrl);
+        setCoverSourceUrl(result.coverUrl);
+        setCoverDirty(true);
+        setCoverError('');
+        setCoverNotice('Al guardar el libro, esta portada se copiará al servidor.');
+      }
+      if (result.pages) setPages(result.pages);
+      if (result.publishDate) setPublishDate(result.publishDate);
+      if (result.language) setLanguage(result.language);
+      if (result.description) setDescription(result.description);
+      setIsbn(result.isbn);
+    } catch (error) {
+      setIsbnError(error instanceof TypeError ? 'No se pudo conectar con el servidor de Bilibook.' : error instanceof Error ? error.message : 'No se pudo completar la búsqueda por ISBN.');
+    } finally {
+      setLoading(false);
     }
-    setTitle(result.title);
-    setAuthor(result.author);
-    clearCoverFile();
-    setCoverUrl(result.coverUrl);
-    setCoverSourceUrl(result.coverUrl);
-    setCoverDirty(Boolean(result.coverUrl));
-    setCoverError('');
-    setCoverNotice(result.coverUrl ? 'Al guardar el libro, esta portada se copiará al servidor.' : '');
-    setPages(result.pages);
-    setPublishDate(result.publishDate);
-    setLanguage(result.language);
-    setDescription(result.description);
-    setIsbn(result.isbn);
   };
 
   const toggleTag = (tag: string) => {
@@ -291,7 +298,7 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
                 </button>
               </div>
               {isbnError && <p className="text-xs font-semibold text-danger mt-2">{isbnError}</p>}
-              <p className="text-xs text-ink3 mt-2">Consultamos Google Books y Open Library para traer portada, páginas y sinopsis.</p>
+              <p className="text-xs text-ink3 mt-2">Consultamos Google Books, Open Library y La Inevitable. Los datos disponibles dependen de cada edición.</p>
             </div>
           )}
 
