@@ -765,6 +765,49 @@ app.get('/api/books/shared', (req, res) => {
   res.json(Object.entries(accounts).flatMap(([owner, account]) => account.books.map((book) => ({ ...book, owner }))));
 });
 
+// Un préstamo crea (o vincula) una ficha propia sin copiar progreso ni diario.
+app.post('/api/books/borrow', async (req, res) => {
+  try {
+    const borrower = currentAccountId();
+    const owner = req.body?.owner;
+    const bookId = req.body?.bookId;
+    const existingBookId = req.body?.existingBookId;
+    if (!['raul', 'pequenaja'].includes(owner) || owner === borrower || typeof bookId !== 'string' || !bookId || (existingBookId != null && (typeof existingBookId !== 'string' || !existingBookId))) {
+      return res.status(400).json({ error: 'Selecciona un libro válido de la otra cuenta.' });
+    }
+    const result = await enqueueBookMutation(async () => {
+      const source = accounts[owner].books.find((book) => book.id === bookId);
+      if (!source || source.borrowedFrom || source.onMyShelf === false) {
+        const error = new Error('El ejemplar original ya no está disponible para prestar.'); error.status = 404; throw error;
+      }
+      const linked = db.books.find((book) => book.borrowedFrom?.owner === owner && book.borrowedFrom?.bookId === bookId);
+      if (linked) {
+        if (existingBookId && existingBookId !== linked.id) { const error = new Error('Este ejemplar ya está vinculado a otra ficha de tu biblioteca.'); error.status = 409; throw error; }
+        return linked;
+      }
+      const previousBooks = db.books;
+      let created;
+      if (existingBookId) {
+        const existing = db.books.find((book) => book.id === existingBookId);
+        if (!existing) { const error = new Error('No se encontró tu ficha para vincular.'); error.status = 404; throw error; }
+        if (existing.borrowedFrom || accounts[owner].books.some((book) => book.borrowedFrom?.owner === borrower && book.borrowedFrom?.bookId === existing.id)) { const error = new Error('Tu ficha ya está vinculada a otro ejemplar.'); error.status = 409; throw error; }
+        created = { ...existing, borrowedFrom: { owner, bookId }, onMyShelf: false };
+        db.books = db.books.map((book) => book.id === existingBookId ? created : book);
+      } else {
+        const fields = ['title', 'author', 'coverUrl', 'coverSourceUrl', 'spineUrl', 'pages', 'format', 'language', 'publishDate', 'description', 'isbn', 'series', 'seriesPosition', 'tags'];
+        const metadata = Object.fromEntries(fields.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+        created = { title: '', author: '', coverUrl: '', pages: 0, format: 'paperback', language: '', publishDate: '', description: '', isbn: '', tags: [], ...metadata, tags: Array.isArray(metadata.tags) ? metadata.tags : [], id: randomUUID(), createdAt: Date.now(), status: 'pending', rating: 0, notes: '', currentPage: 0, startedAt: null, finishedAt: null, journal: [], onMyShelf: false, borrowedFrom: { owner, bookId } };
+        db.books = [created, ...db.books];
+      }
+      try { saveDB(db); } catch (error) { db.books = previousBooks; throw error; }
+      return created;
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(error?.status || 500).json({ error: error?.message || 'No se pudo coger el libro prestado.' });
+  }
+});
+
 app.get('/api/books', (req, res) => {
   res.json(db.books);
 });

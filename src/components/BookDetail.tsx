@@ -1,4 +1,5 @@
 import { formatReadingDate } from '../readingDate';
+import { ACCOUNT_NAMES } from '../accounts';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
   Activity,
@@ -236,6 +237,7 @@ export function BookDetail({ book, books, onBack, onEdit, onUpdate, onDelete, on
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={book.status} />
+              {book.borrowedFrom && <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent"><Library size={12} aria-hidden="true" /> Prestado por {ACCOUNT_NAMES[book.borrowedFrom.owner] || 'otra cuenta'}</span>}
               <button
                 type="button"
                 aria-label="Lo tengo en mi estantería"

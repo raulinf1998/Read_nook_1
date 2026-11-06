@@ -43,6 +43,14 @@ export function useBooks() {
     setBooks((prev) => [created, ...prev]);
   }, []);
 
+  const borrowBook = useCallback(async (owner: 'raul' | 'pequenaja', bookId: string, existingBookId?: string) => {
+    const saved = await apiClient.borrowBook(owner, bookId, existingBookId);
+    setBooks((previous) => previous.some((book) => book.id === saved.id)
+      ? previous.map((book) => book.id === saved.id ? saved : book)
+      : [saved, ...previous]);
+    return saved;
+  }, []);
+
   const updateBook = useCallback(async (id: string, patch: Partial<Book>) => {
     let effectivePatch = patch;
     if (patch.coverUrl && isExternalCoverUrl(patch.coverUrl)) {
@@ -151,7 +159,7 @@ export function useBooks() {
     return result.report;
   }, [books]);
 
-  return { books, loading, addBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal };
+  return { books, loading, addBook, borrowBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal };
 }
 
 const VALID_THEMES: ThemeId[] = THEMES.map((theme) => theme.id);

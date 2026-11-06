@@ -42,6 +42,8 @@ export interface Book {
   status: BookStatus;
   /** Si el ejemplar está en mis estanterías; null/ausente se muestra como sí. */
   onMyShelf?: boolean | null;
+  /** Referencia explícita al ejemplar original; no comparte datos de lectura. */
+  borrowedFrom?: { owner: 'raul' | 'pequenaja'; bookId: string };
   rating: number; // 0-5, supports halves (e.g. 3.5)
   notes: string;
   createdAt: number;
