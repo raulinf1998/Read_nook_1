@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
   Activity,
-  ArrowLeft,
   AreaChart,
   BarChart3,
   BookOpen,
@@ -20,7 +19,7 @@ import { FORMAT_META, formatLabel, languageLabel } from '../types';
 import type { ChartPreferences } from '../preferences';
 import { completedReadings } from '../rereads';
 import { BarChart, DonutChart, HBarChart, TrendChart } from './Charts';
-import { EmptyState, BookCover, btnGhost, cardCls, cx, selectCls } from './ui';
+import { EmptyState, BookCover, Modal, cardCls, cx, selectCls } from './ui';
 import { StatisticCategoryIcon } from './StatisticCategoryIcon';
 import { formatReadingDate } from '../readingDate';
 
@@ -91,7 +90,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
   const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
-  const [detail, setDetail] = useState<{ type: 'language' | 'tag' | 'format'; label: string } | null>(null);
+  const [detail, setDetail] = useState<{ type: 'language' | 'tag' | 'format' | 'journal' | 'topBooks' | 'books' | 'extension' | 'authors' | 'ratings'; label: string; index: number } | null>(null);
 
   // Cada finalización es una lectura: las anteriores siguen contando incluso
   // mientras el mismo libro está en curso de relectura.
@@ -108,6 +107,21 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
       return true;
     });
   }, [allRead, filterMode, year, month]);
+
+  // Una portada por libro, incluso si tiene varias lecturas en el periodo.
+  const periodCovers = useMemo(() => {
+    const grouped = new Map<string, { book: Book; count: number; latest: number }>();
+    for (const reading of readBooks) {
+      const entry = grouped.get(reading.id);
+      if (entry) {
+        entry.count += 1;
+        entry.latest = Math.max(entry.latest, reading.finishedAt || 0);
+      } else {
+        grouped.set(reading.id, { book: books.find((book) => book.id === reading.id) || reading, count: 1, latest: reading.finishedAt || 0 });
+      }
+    }
+    return [...grouped.values()].sort((a, b) => b.latest - a.latest || a.book.title.localeCompare(b.book.title, 'es'));
+  }, [readBooks, books]);
 
   const availableYears = useMemo(() => {
     const years = new Set<number>();
@@ -142,7 +156,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     });
 
     const pagesByDay = new Map<string, number>();
-    const pagesByBook = new Map<string, { label: string; value: number; sessions: number }>();
+    const pagesByBook = new Map<string, { id: string; label: string; value: number; sessions: number }>();
     let totalPages = 0;
     let totalMinutes = 0;
 
@@ -152,7 +166,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
       totalMinutes += Math.max(0, entry.minutes || 0);
       const key = localDateKey(entry.date);
       pagesByDay.set(key, (pagesByDay.get(key) || 0) + pages);
-      const currentBook = pagesByBook.get(book.id) || { label: book.title, value: 0, sessions: 0 };
+      const currentBook = pagesByBook.get(book.id) || { id: book.id, label: book.title, value: 0, sessions: 0 };
       currentBook.value += pages;
       currentBook.sessions += 1;
       pagesByBook.set(book.id, currentBook);
@@ -302,9 +316,10 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     height = 150,
     formatValue?: (value: number) => string,
     color = CH(1),
+    onSelect?: (label: string, index: number) => void,
   ) => (
     chartType === 'bars'
-      ? <BarChart data={data} height={height} formatValue={formatValue} />
+      ? <BarChart data={data} height={height} formatValue={formatValue} onSelect={onSelect} />
       : (
         <TrendChart
           data={data}
@@ -312,6 +327,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
           formatValue={formatValue}
           variant={chartType}
           color={color}
+          onSelect={onSelect}
         />
       )
   );
@@ -327,6 +343,8 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     formatValue?: (value: number) => string,
     maxItems = 10,
     centerLabel = 'en el top',
+    onSelect?: (label: string, index: number) => void,
+    renderLabel?: (label: string, index: number) => React.ReactNode,
   ) => {
     const shown = data.slice(0, maxItems);
     const solid = withSolidColors(shown);
@@ -335,14 +353,16 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
         <DonutChart
           data={solid}
           centerLabel={centerLabel}
+          onSelect={onSelect}
+          renderLabel={renderLabel}
           centerValue={shown.reduce((sum, item) => sum + item.value, 0).toLocaleString('es')}
         />
       );
     }
     if (chartType === 'columns') {
-      return <BarChart data={solid} height={165} formatValue={formatValue} />;
+      return <BarChart data={solid} height={165} formatValue={formatValue} onSelect={onSelect} renderLabel={renderLabel} />;
     }
-    return <HBarChart data={data} formatValue={formatValue} maxItems={maxItems} />;
+    return <HBarChart data={data} formatValue={formatValue} maxItems={maxItems} onSelect={onSelect} renderLabel={renderLabel} />;
   };
 
   const renderDistributionChart = (
@@ -353,7 +373,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     size = 140,
     type?: 'language' | 'tag' | 'format',
   ) => {
-    const onSelect = type ? (label: string) => { setDetail({ type, label }); window.scrollTo({ top: 0 }); } : undefined;
+    const onSelect = type ? (label: string, index: number) => setDetail({ type, label, index }) : undefined;
     const renderLabel = type && type !== 'language' ? (label: string) => <><StatisticCategoryIcon type={type} label={label} /> <span>{label}</span></> : undefined;
     if (chartType === 'horizontal') {
       return <HBarChart data={data} maxItems={data.length} onSelect={onSelect} renderLabel={renderLabel} />;
@@ -364,26 +384,45 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
     return <DonutChart data={data} size={size} centerLabel={centerLabel} centerValue={centerValue} onSelect={onSelect} renderLabel={renderLabel} />;
   };
 
-  if (detail) {
-    const readings = readBooks.filter((book) => detail.type === 'language'
-      ? languageLabel(book.language) === detail.label
-      : detail.type === 'format' ? formatLabel(book.format) === detail.label : (book.tags || []).includes(detail.label));
-    return <section className="space-y-5">
-      <button type="button" className={btnGhost} onClick={() => setDetail(null)}><ArrowLeft size={16} /> Volver a estadísticas</button>
-      <div className={cx(cardCls, 'p-5 sm:p-7')}>
-        <p className="text-xs font-extrabold uppercase tracking-wider text-ink3">{detail.type === 'language' ? 'Idioma' : detail.type === 'format' ? 'Formato' : 'Género o tag'} · {periodLabel}</p>
-        <h2 className="mt-2 flex items-center gap-3 font-display text-3xl font-semibold text-ink">{detail.type !== 'language' && <StatisticCategoryIcon type={detail.type} label={detail.label} />} {detail.label}</h2>
-        <p className="mt-2 text-sm text-ink2">{readings.length} {readings.length === 1 ? 'lectura completada' : 'lecturas completadas'} · {readings.reduce((sum, book) => sum + (book.pages || 0), 0).toLocaleString('es')} páginas</p>
-        <p className="mt-1 text-xs text-ink3">Las relecturas aparecen por separado.</p>
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {readings.map((reading, index) => <button key={`${reading.id}-${reading.finishedAt}-${index}`} type="button" onClick={() => onOpen(books.find((book) => book.id === reading.id) || reading)} className={cx(cardCls, 'flex min-w-0 items-center gap-3 p-3 text-left hover:border-accent transition-colors')}>
-          <BookCover title={reading.title} author={reading.author} coverUrl={reading.coverUrl} detail="sm" className="h-[72px] w-12 shrink-0 shadow-book" />
-          <span className="min-w-0"><span className="block truncate font-display text-base font-semibold text-ink">{reading.title}</span><span className="block truncate text-xs text-ink3">{reading.author || 'Autor desconocido'}</span><span className="mt-1 block text-xs text-ink2">{formatReadingDate(reading)} · {reading.pages || 0} págs.</span></span>
-        </button>)}
-      </div>
-    </section>;
+  // El detalle utiliza exactamente las mismas lecturas o sesiones que cada gráfico.
+  const select = (type: NonNullable<typeof detail>['type']) => (label: string, index: number) => setDetail({ type, label, index });
+  const selectedReadings = detail ? (detail.type === 'books' ? allRead : readBooks).filter((book) => {
+    const date = book.finishedAt ? new Date(book.finishedAt) : null;
+    switch (detail.type) {
+      case 'language': return languageLabel(book.language) === detail.label;
+      case 'format': return formatLabel(book.format) === detail.label;
+      case 'tag': return (book.tags || []).includes(detail.label);
+      case 'authors': return book.author === detail.label;
+      case 'ratings': return Math.round(book.rating * 2) === detail.index;
+      case 'extension': return book.pages <= 250 ? detail.index === 0 : book.pages <= 400 ? detail.index === 1 : book.pages <= 600 ? detail.index === 2 : detail.index === 3;
+      case 'books': return Boolean(date && date.getFullYear() === year && (filterMode === 'month'
+        ? date.getMonth() === month && date.getDate() === detail.index + 1 && book.finishedAtPrecision !== 'year' && book.finishedAtPrecision !== 'month'
+        : date.getMonth() === detail.index && book.finishedAtPrecision !== 'year'));
+      default: return false;
+    }
+  }) : [];
+  const selectedSessions = detail && (detail.type === 'journal' || detail.type === 'topBooks')
+    ? allJournalSessions.filter(({ book, entry }) => {
+      const date = new Date(entry.date);
+      if (filterMode !== 'global' && date.getFullYear() !== year) return false;
+      if (filterMode === 'month' && date.getMonth() !== month) return false;
+      if (detail.type === 'topBooks') return book.id === journalActivity.topBooks[detail.index]?.id;
+      return filterMode === 'global' ? date.getFullYear() === Number(detail.label)
+        : filterMode === 'year' ? date.getMonth() === detail.index : date.getDate() === detail.index + 1;
+    }) : [];
+  const sessionBooks = new Map<string, { book: Book; pages: number; sessions: number }>();
+  for (const { book, entry } of selectedSessions) {
+    const item = sessionBooks.get(book.id) || { book, pages: 0, sessions: 0 };
+    item.pages += Math.max(0, entry.pages || 0);
+    item.sessions++;
+    sessionBooks.set(book.id, item);
   }
+  const detailRows = detail?.type === 'journal' || detail?.type === 'topBooks'
+    ? [...sessionBooks.values()].map(({ book, pages, sessions }) => ({ book, value: `${pages.toLocaleString('es')} págs registradas · ${sessions} ${sessions === 1 ? 'sesión' : 'sesiones'}` }))
+    : selectedReadings.map((reading) => ({
+      book: books.find((book) => book.id === reading.id) || reading,
+      value: `${detail?.type === 'ratings' ? `${reading.rating} estrellas` : detail?.type === 'extension' ? `${reading.pages || 0} págs` : detail?.type === 'format' ? formatLabel(reading.format) : detail?.type === 'language' ? languageLabel(reading.language) : detail?.type === 'tag' ? detail.label : detail?.type === 'authors' ? reading.author : '1 lectura'} · ${formatReadingDate(reading)}`,
+    }));
 
   if (allRead.length === 0 && allJournalSessions.length === 0) {
     return (
@@ -477,6 +516,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
               165,
               (value) => value ? value.toLocaleString('es') : '0',
               CH(1),
+              select('journal'),
             )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-ink2">
@@ -532,6 +572,11 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
             (value) => `${value.toLocaleString('es')} págs`,
             8,
             'págs en el top',
+            select('topBooks'),
+            (label, index) => {
+              const book = books.find((item) => item.id === journalActivity.topBooks[index]?.id);
+              return book ? <span className="inline-flex min-w-0 items-center gap-2"><BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="h-9 w-6 shrink-0 shadow-book" /><span className="truncate">{label}</span></span> : label;
+            },
           )}
         </Card>
       )}
@@ -547,7 +592,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
             />
           )}
         >
-          {renderTrendChart(stats.daily, chartPreferences.books, 150, undefined, CH(4))}
+          {renderTrendChart(stats.daily, chartPreferences.books, 150, undefined, CH(4), select('books'))}
         </Card>
       ) : (
         <Card
@@ -560,7 +605,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
             />
           )}
         >
-          {renderTrendChart(stats.monthly, chartPreferences.books, 150, undefined, CH(4))}
+          {renderTrendChart(stats.monthly, chartPreferences.books, 150, undefined, CH(4), select('books'))}
         </Card>
       )}
 
@@ -601,6 +646,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
             150,
             undefined,
             CH(2),
+            select('extension'),
           )}
         </Card>
 
@@ -645,7 +691,7 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
           />
         )}
       >
-        {renderRankingChart(stats.authorData, chartPreferences.authors, undefined, 10, 'libros en el top')}
+        {renderRankingChart(stats.authorData, chartPreferences.authors, undefined, 10, 'libros en el top', select('authors'))}
       </Card>
 
       <Card
@@ -667,8 +713,35 @@ export function Statistics({ books, onOpen, chartPreferences, onSetChartPreferen
           130,
           undefined,
           'rgb(var(--gold))',
+          select('ratings'),
         )}
       </Card>
+
+      <Card title="Libros leídos" subtitle={`Portadas · ${periodLabel}`}>
+        {periodCovers.length === 0 ? (
+          <p className="py-6 text-center text-sm text-ink3">No hay libros terminados en este periodo.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+            {periodCovers.map(({ book, count }) => (
+              <button key={book.id} type="button" onClick={() => onOpen(book)} aria-label={`Abrir ${book.title}`} className="group min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent rounded-md">
+                <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} className="aspect-[2/3] w-full shadow-book transition-transform group-hover:-translate-y-1" />
+                <span className="mt-2 block truncate text-xs font-semibold text-ink">{book.title}</span>
+                <span className="block truncate text-[11px] text-ink3">{book.author || 'Autor desconocido'}</span>
+                {count > 1 && <span className="block text-[11px] font-semibold text-accent">{count} lecturas</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      {detail && <Modal title={`${detail.type === 'journal' ? 'Páginas del diario' : detail.type === 'topBooks' ? 'Actividad del libro' : detail.type === 'books' ? 'Libros terminados' : detail.type === 'extension' ? 'Extensión' : detail.type === 'ratings' ? 'Puntuación' : detail.type === 'authors' ? 'Autor' : detail.type === 'language' ? 'Idioma' : detail.type === 'format' ? 'Formato' : 'Género o tag'} · ${detail.label}`} onClose={() => setDetail(null)} maxWidth="max-w-2xl">
+        <p className="mb-4 text-xs text-ink3">{detail.type === 'books' && filterMode !== 'month' ? `Año ${year}` : periodLabel} · {detailRows.length} {detailRows.length === 1 ? 'resultado' : 'resultados'}{detail.type !== 'journal' && detail.type !== 'topBooks' ? ' · Las relecturas aparecen por separado.' : ''}</p>
+        {detailRows.length ? <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {detailRows.map(({ book, value }, index) => <button key={`${book.id}-${index}`} type="button" onClick={() => { setDetail(null); onOpen(book); }} className={cx(cardCls, 'flex min-w-0 items-center gap-3 p-3 text-left hover:border-accent transition-colors')}>
+            <BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="h-[72px] w-12 shrink-0 shadow-book" />
+            <span className="min-w-0"><span className="block truncate font-display text-base font-semibold text-ink">{book.title}</span><span className="block truncate text-xs text-ink3">{book.author || 'Autor desconocido'}</span><span className="mt-1 block text-xs text-ink2">{value}</span></span>
+          </button>)}
+        </div> : <p className="py-6 text-center text-sm text-ink3">No hay libros para este dato.</p>}
+      </Modal>}
     </div>
   );
 }

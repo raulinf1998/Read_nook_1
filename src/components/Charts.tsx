@@ -7,8 +7,8 @@ interface BarChartProps {
   data: { label: string; value: number; color?: string }[];
   height?: number;
   formatValue?: (v: number) => string;
-  onSelect?: (label: string) => void;
-  renderLabel?: (label: string) => ReactNode;
+  onSelect?: (label: string, index: number) => void;
+  renderLabel?: (label: string, index: number) => ReactNode;
 }
 
 export function BarChart({ data, height = 160, formatValue, onSelect, renderLabel }: BarChartProps) {
@@ -19,8 +19,8 @@ export function BarChart({ data, height = 160, formatValue, onSelect, renderLabe
         const pct = (d.value / max) * 100;
         return (
           <div key={i} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined}
-            onClick={onSelect ? () => onSelect(d.label) : undefined}
-            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label); } } : undefined}
+            onClick={onSelect ? () => onSelect(d.label, i) : undefined}
+            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label, i); } } : undefined}
             aria-label={onSelect ? `Ver lecturas de ${d.label}: ${d.value}` : undefined}
             className={`flex flex-col items-center gap-1.5 flex-1 h-full justify-end min-w-0 group ${onSelect ? 'cursor-pointer focus-visible:outline focus-visible:outline-accent rounded' : ''}`}>
             <span className={`text-xs font-bold tabular-nums transition-colors ${d.value > 0 ? 'text-ink' : 'text-ink3/60'}`}>
@@ -36,7 +36,7 @@ export function BarChart({ data, height = 160, formatValue, onSelect, renderLabe
               }}
               title={`${d.label}: ${d.value}`}
             ><span className="stat-book-pages" aria-hidden="true" /></div>
-            <span className="text-[10px] font-medium text-ink3 text-center leading-tight truncate w-full" title={d.label}>{renderLabel ? renderLabel(d.label) : d.label}</span>
+            <span className="text-[10px] font-medium text-ink3 text-center leading-tight truncate w-full" title={d.label}>{renderLabel ? renderLabel(d.label, i) : d.label}</span>
           </div>
         );
       })}
@@ -52,6 +52,7 @@ interface TrendChartProps {
   formatValue?: (v: number) => string;
   variant?: TrendChartVariant;
   color?: string;
+  onSelect?: (label: string, index: number) => void;
 }
 
 export function TrendChart({
@@ -60,6 +61,7 @@ export function TrendChart({
   formatValue,
   variant = 'line',
   color = 'rgb(var(--chart-1))',
+  onSelect,
 }: TrendChartProps) {
   if (data.length === 0) {
     return <p className="py-8 text-center text-sm text-ink3">Sin datos</p>;
@@ -85,7 +87,7 @@ export function TrendChart({
 
   return (
     <div>
-      <div className="relative" style={{ height }} role="img" aria-label={variant === 'area' ? 'Gráfico de área' : 'Gráfico de líneas'}>
+      <div className="relative" style={{ height }} role={onSelect ? undefined : "img"} aria-label={variant === 'area' ? 'Gráfico de área' : 'Gráfico de líneas'}>
         {[8, 28.5, 49, 69.5, 90].map((top) => (
           <span
             key={top}
@@ -120,25 +122,28 @@ export function TrendChart({
         </svg>
 
         {points.map((point, index) => (
-          <span
+          <button
+            type="button"
             key={`${point.label}-${index}`}
-            className="absolute rounded-full border-2 border-surface shadow-card transition-transform hover:scale-150"
+            disabled={!onSelect}
+            onClick={() => onSelect?.(point.label, index)}
+            aria-label={`Ver lecturas de ${point.label}: ${point.value}`}
+            className="absolute flex items-center justify-center rounded-full hover:scale-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
             style={{
               left: `${point.x}%`,
               top: `${point.y}%`,
-              width: dotSize,
-              height: dotSize,
+              width: 28,
+              height: 28,
               transform: 'translate(-50%, -50%)',
-              background: color,
               opacity: point.value > 0 || index === 0 || index === points.length - 1 ? 1 : 0.45,
             }}
             title={`${point.label}: ${formatValue ? formatValue(point.value) : point.value}`}
-          />
+          ><span className="rounded-full border-2 border-surface shadow-card" style={{ width: dotSize, height: dotSize, background: color }} /></button>
         ))}
 
         {maxPoint.value > 0 && (
           <span
-            className="absolute rounded-full bg-surface/90 px-2 py-0.5 text-[10px] font-extrabold tabular-nums text-ink shadow-card backdrop-blur-sm"
+            className="pointer-events-none absolute rounded-full bg-surface/90 px-2 py-0.5 text-[10px] font-extrabold tabular-nums text-ink shadow-card backdrop-blur-sm"
             style={{
               left: `${maxPoint.x}%`,
               top: `${Math.max(maxPoint.y - 5, 3)}%`,
@@ -170,8 +175,8 @@ interface DonutChartProps {
   size?: number;
   centerLabel?: string;
   centerValue?: string;
-  onSelect?: (label: string) => void;
-  renderLabel?: (label: string) => ReactNode;
+  onSelect?: (label: string, index: number) => void;
+  renderLabel?: (label: string, index: number) => ReactNode;
 }
 
 export function DonutChart({ data, size = 140, centerLabel, centerValue, onSelect, renderLabel }: DonutChartProps) {
@@ -210,8 +215,8 @@ export function DonutChart({ data, size = 140, centerLabel, centerValue, onSelec
                   role={onSelect ? 'button' : undefined}
                   tabIndex={onSelect ? 0 : undefined}
                   aria-label={onSelect ? `Ver lecturas de ${d.label}: ${d.value}` : undefined}
-                  onClick={onSelect ? () => onSelect(d.label) : undefined}
-                  onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label); } } : undefined}
+                  onClick={onSelect ? () => onSelect(d.label, i) : undefined}
+                  onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label, i); } } : undefined}
                   style={{ stroke: d.color }}
                 >
                   <title>{`${d.label}: ${d.value}`}</title>
@@ -229,12 +234,12 @@ export function DonutChart({ data, size = 140, centerLabel, centerValue, onSelec
       <div className="space-y-1.5 flex-1 min-w-0">
         {data.map((d, i) => (
           <div key={i} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined}
-            onClick={onSelect ? () => onSelect(d.label) : undefined}
-            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label); } } : undefined}
+            onClick={onSelect ? () => onSelect(d.label, i) : undefined}
+            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label, i); } } : undefined}
             aria-label={onSelect ? `Ver lecturas de ${d.label}: ${d.value}` : undefined}
             className={`flex items-center gap-2 ${onSelect ? 'cursor-pointer rounded hover:bg-sunken focus-visible:outline focus-visible:outline-accent' : ''}`}>
             <span className="w-2.5 h-2.5 rounded-[4px] shrink-0" style={{ background: d.color }} />
-            <span className="text-xs text-ink2 truncate flex-1" title={d.label}>{renderLabel ? renderLabel(d.label) : d.label}</span>
+            <span className="text-xs text-ink2 truncate flex-1" title={d.label}>{renderLabel ? renderLabel(d.label, i) : d.label}</span>
             <span className="text-xs font-bold text-ink tabular-nums">{d.value}</span>
             {total > 0 && (
               <span className="text-[10px] text-ink3 tabular-nums w-8 text-right">{Math.round((d.value / total) * 100)}%</span>
@@ -250,8 +255,8 @@ interface HBarChartProps {
   data: { label: string; value: number; color?: string }[];
   formatValue?: (v: number) => string;
   maxItems?: number;
-  onSelect?: (label: string) => void;
-  renderLabel?: (label: string) => ReactNode;
+  onSelect?: (label: string, index: number) => void;
+  renderLabel?: (label: string, index: number) => ReactNode;
 }
 
 export function HBarChart({ data, formatValue, maxItems = 10, onSelect, renderLabel }: HBarChartProps) {
@@ -268,11 +273,11 @@ export function HBarChart({ data, formatValue, maxItems = 10, onSelect, renderLa
         const pct = (d.value / max) * 100;
         return (
           <div key={i} role={onSelect ? 'button' : undefined} tabIndex={onSelect ? 0 : undefined}
-            onClick={onSelect ? () => onSelect(d.label) : undefined}
-            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label); } } : undefined}
+            onClick={onSelect ? () => onSelect(d.label, i) : undefined}
+            onKeyDown={onSelect ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(d.label, i); } } : undefined}
             aria-label={onSelect ? `Ver lecturas de ${d.label}: ${d.value}` : undefined}
             className={`flex items-center gap-2.5 group ${onSelect ? 'cursor-pointer rounded hover:bg-sunken focus-visible:outline focus-visible:outline-accent' : ''}`}>
-            <span className="text-xs font-medium text-ink2 w-32 truncate shrink-0" title={d.label}>{renderLabel ? renderLabel(d.label) : d.label}</span>
+            <span className="text-xs font-medium text-ink2 w-32 truncate shrink-0" title={d.label}>{renderLabel ? renderLabel(d.label, i) : d.label}</span>
             <div className="flex-1 h-6 bg-sunken rounded-lg overflow-hidden">
               <div
                 className="h-full rounded-lg transition-all duration-500 flex items-center justify-end px-2 animate-grow-x group-hover:brightness-110"

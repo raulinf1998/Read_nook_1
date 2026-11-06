@@ -8,14 +8,14 @@ import { BrandMark, cx, btnPrimary, iconBtn } from './ui';
 
 export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space';
 
-const TABS: { id: TabId; label: string; short: string; icon: typeof BookOpen }[] = [
-  { id: 'reading', label: 'Inicio', short: 'Inicio', icon: BookOpen },
-  { id: 'library', label: 'Biblioteca', short: 'Libros', icon: Library },
-  { id: 'shelf', label: 'Estantería', short: 'Librería', icon: BookMarked },
-  { id: 'space', label: 'Espacio', short: 'Espacio', icon: Orbit },
-  { id: 'discover', label: 'Descubrir', short: 'Ideas', icon: Compass },
-  { id: 'challenge', label: 'Reto anual', short: 'Reto', icon: Target },
-  { id: 'stats', label: 'Estadísticas', short: 'Stats', icon: BarChart3 },
+const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
+  { id: 'reading', label: 'Inicio', icon: BookOpen },
+  { id: 'library', label: 'Libros', icon: Library },
+  { id: 'shelf', label: 'Librería', icon: BookMarked },
+  { id: 'space', label: 'Espacio', icon: Orbit },
+  { id: 'discover', label: 'Descubrir', icon: Compass },
+  { id: 'challenge', label: 'Reto anual', icon: Target },
+  { id: 'stats', label: 'Stats', icon: BarChart3 },
 ];
 
 /* ---------------- Barra lateral (PC) ---------------- */
@@ -211,7 +211,7 @@ export function MobileNav({ active, onChange }: MobileNavProps) {
         {other.map((tab) => { const Icon = tab.icon; return <button type="button" key={tab.id} onClick={() => { setOpen(false); onChange(tab.id); }} aria-current={active === tab.id ? 'page' : undefined} className={cx('flex w-full items-center gap-3 rounded-btn px-3 py-2.5 text-left text-sm font-semibold', active === tab.id ? 'bg-accent/10 text-accent' : 'text-ink2 hover:bg-sunken')}><Icon size={18} />{tab.label}</button>; })}
       </div>}
       <div className="grid grid-cols-5 gap-0.5">
-        {primary.map((tab) => { const Icon = tab.icon; const isActive = active === tab.id; return <button type="button" key={tab.id} onClick={() => { setOpen(false); onChange(tab.id); }} aria-current={isActive ? 'page' : undefined} aria-label={tab.short} className={cx('flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 transition-colors', isActive ? 'bg-primary text-onprimary' : 'text-ink3 hover:text-ink')}><Icon size={19} /><span className="text-[10px] font-bold leading-none">{tab.short}</span></button>; })}
+        {primary.map((tab) => { const Icon = tab.icon; const isActive = active === tab.id; return <button type="button" key={tab.id} onClick={() => { setOpen(false); onChange(tab.id); }} aria-current={isActive ? 'page' : undefined} aria-label={tab.label} className={cx('flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 transition-colors', isActive ? 'bg-primary text-onprimary' : 'text-ink3 hover:text-ink')}><Icon size={19} /><span className="text-[10px] font-bold leading-none">{tab.label}</span></button>; })}
         <button type="button" onClick={() => setOpen(!open)} aria-label="Otros" aria-expanded={open} aria-controls="mobile-other-tabs" className={cx('flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5', open || !main.includes(active) ? 'bg-primary text-onprimary' : 'text-ink3 hover:text-ink')}><MoreHorizontal size={19} /><span className="text-[10px] font-bold leading-none">Otros</span></button>
       </div>
     </nav>
