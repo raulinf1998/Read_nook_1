@@ -19,7 +19,7 @@ COPY server/package.json ./
 RUN npm install --production
 
 # Copy backend code
-COPY server/index.js ./
+COPY server/index.js server/isbn.js ./
 
 # Copy built frontend
 COPY --from=builder /app/dist ./dist

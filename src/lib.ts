@@ -18,119 +18,16 @@ export interface IsbnResult {
   isbn: string;
 }
 
-// --- Multi-source ISBN lookup ---
-
-async function tryGoogleBooks(isbn: string): Promise<IsbnResult | null> {
-  try {
-    const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.items || data.items.length === 0) return null;
-    const info = data.items[0].volumeInfo;
-    const lang: BookLanguage = normalizeLanguageCode(info.language || '') || 'en';
-    const coverUrl =
-      info.imageLinks?.extraLarge ||
-      info.imageLinks?.large ||
-      info.imageLinks?.medium ||
-      info.imageLinks?.thumbnail ||
-      info.imageLinks?.smallThumbnail ||
-      '';
-    return {
-      title: info.title || '',
-      author: (info.authors || []).join(', '),
-      coverUrl,
-      pages: info.pageCount || 0,
-      publishDate: info.publishedDate || '',
-      language: lang,
-      description: info.description || '',
-      isbn,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function tryOpenLibrary(isbn: string): Promise<IsbnResult | null> {
-  try {
-    const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const key = `ISBN:${isbn}`;
-    if (!data[key]) return null;
-    const info = data[key];
-    const coverUrl = info.cover?.large || info.cover?.medium || info.cover?.small || '';
-    const languageKey = (info.languages || [])[0]?.key?.split('/').pop() || '';
-    const lang: BookLanguage = normalizeLanguageCode(languageKey) || 'en';
-    return {
-      title: info.title || '',
-      author: (info.authors || []).map((a: { name: string }) => a.name).join(', '),
-      coverUrl,
-      pages: info.number_of_pages || 0,
-      publishDate: info.publish_date || '',
-      language: lang,
-      description: info.notes || (info.subjects ? info.subjects.map((s: { name: string }) => s.name).join(', ') : '') || '',
-      isbn,
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function tryOpenLibrarySearch(isbn: string): Promise<IsbnResult | null> {
-  try {
-    const res = await fetch(`https://openlibrary.org/search.json?isbn=${isbn}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data.docs || data.docs.length === 0) return null;
-    const doc = data.docs[0];
-    const coverId = doc.cover_i;
-    const coverUrl = coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg` : '';
-    const lang: BookLanguage = normalizeLanguageCode((doc.language || [])[0] || '') || 'en';
-    return {
-      title: doc.title || '',
-      author: (doc.author_name || []).join(', '),
-      coverUrl,
-      pages: doc.number_of_pages_median || 0,
-      publishDate: doc.first_publish_year ? String(doc.first_publish_year) : '',
-      language: lang,
-      description: '',
-      isbn,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function mergeResults(primary: IsbnResult | null, secondary: IsbnResult | null): IsbnResult | null {
-  if (!primary && !secondary) return null;
-  if (!primary) return secondary;
-  if (!secondary) return primary;
-  return {
-    title: primary.title || secondary.title,
-    author: primary.author || secondary.author,
-    coverUrl: primary.coverUrl || secondary.coverUrl,
-    pages: primary.pages || secondary.pages,
-    publishDate: primary.publishDate || secondary.publishDate,
-    language: primary.language || secondary.language,
-    description: primary.description || secondary.description,
-    isbn: primary.isbn || secondary.isbn,
-  };
-}
-
+// La búsqueda pasa por el servidor; así no depende de CORS ni expone proveedores al navegador.
 export async function fetchByIsbn(isbn: string): Promise<IsbnResult | null> {
-  const clean = isbn.trim().replace(/[-\s]/g, '');
-  if (!clean) return null;
-
-  const googleResult = await tryGoogleBooks(clean);
-  if (googleResult && googleResult.coverUrl && googleResult.pages && googleResult.language) return googleResult;
-
-  const olResult = await tryOpenLibrary(clean);
-  const merged = mergeResults(googleResult, olResult);
-  if (merged && merged.coverUrl && merged.pages && merged.language) return merged;
-
-  const olSearchResult = await tryOpenLibrarySearch(clean);
-  const final = mergeResults(merged, olSearchResult);
-  return final;
+  const res = await fetch(`/api/isbn/${encodeURIComponent(isbn.trim())}`);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo completar la búsqueda por ISBN.');
+  }
+  const result = await res.json() as IsbnResult;
+  return { ...result, language: normalizeLanguageCode(result.language) };
 }
 
 // --- CSV Parser (TheStoryGraph + similar exports) ---
@@ -264,7 +161,8 @@ export async function enrichWithCovers(
 
   // Process in small batches to avoid rate limits
   for (const book of needsCover) {
-    const result = await fetchByIsbn(book.isbn);
+    // La búsqueda de portadas es opcional: un proveedor caído no debe impedir importar el CSV.
+    const result = await fetchByIsbn(book.isbn).catch(() => null);
     if (result?.coverUrl) {
       book.coverUrl = result.coverUrl;
       book.coverSourceUrl = result.coverUrl;
