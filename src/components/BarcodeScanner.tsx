@@ -5,6 +5,7 @@ import { isBookBarcode } from '../isbnBarcode';
 
 interface ScanReader {
   decodeFromStream: (stream: MediaStream, video: HTMLVideoElement, callback: (result: { getText: () => string } | undefined) => void) => Promise<{ stop: () => void }>;
+  decodeFromImageUrl: (url: string) => Promise<{ getText: () => string }>;
 }
 async function loadReader(): Promise<ScanReader> {
   const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
@@ -23,8 +24,37 @@ export function BarcodeScanner({ onDetected, onClose, readerFactory = loadReader
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // Los navegadores permiten la captura de imágenes por HTTP aunque bloqueen
+  // getUserMedia. La cámara de fotos se abre con un gesto directo del usuario.
+  const [mode, setMode] = useState<'live' | 'photo'>(() => window.isSecureContext ? 'live' : 'photo');
+  const [photoError, setPhotoError] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoOperation = useRef(0);
+
+  useEffect(() => () => { photoOperation.current += 1; }, []);
+  const readPhoto = async (file: File | undefined) => {
+    if (!file || photoBusy) return;
+    const operation = ++photoOperation.current;
+    setPhotoError('');
+    setPhotoBusy(true);
+    let url = '';
+    try {
+      url = URL.createObjectURL(file);
+      const reader = await readerFactory();
+      const result = await reader.decodeFromImageUrl(url);
+      const isbn = result.getText();
+      if (!isBookBarcode(isbn)) throw new Error('not-isbn');
+      if (operation === photoOperation.current) callbackRef.current(isbn);
+    } catch {
+      if (operation === photoOperation.current) setPhotoError('No se ha podido leer un ISBN válido. Prueba otra foto, con buena luz y el código completo enfocado, o escríbelo a mano.');
+    } finally {
+      if (url) URL.revokeObjectURL(url);
+      if (operation === photoOperation.current) setPhotoBusy(false);
+    }
+  };
 
   useEffect(() => {
+    if (mode !== 'live') return;
     let closed = false;
     let found = false;
     let stream: MediaStream | undefined;
@@ -46,7 +76,6 @@ export function BarcodeScanner({ onDetected, onClose, readerFactory = loadReader
     setError(''); setReady(false);
     const start = async () => {
       try {
-        if (!window.isSecureContext && window.location.hostname !== 'localhost') throw new Error('Para usar la cámara, abre Bilibook mediante HTTPS.');
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('Este navegador no permite acceder a la cámara. Introduce el ISBN manualmente.');
         const reader = await readerFactory();
         if (closed) return;
@@ -72,19 +101,29 @@ export function BarcodeScanner({ onDetected, onClose, readerFactory = loadReader
           ? 'No se ha concedido permiso para usar la cámara. Permítelo en el navegador o escribe el ISBN.'
           : name === 'NotFoundError' || name === 'DevicesNotFoundError'
             ? 'No se ha encontrado ninguna cámara. Puedes escribir el ISBN manualmente.'
-            : err instanceof Error && err.message.startsWith('Para usar la cámara') ? err.message
-              : err instanceof Error && err.message.startsWith('Este navegador') ? err.message
-                : 'No se pudo iniciar la cámara. Comprueba los permisos o introduce el ISBN manualmente.';
+            : err instanceof Error && err.message.startsWith('Este navegador') ? err.message
+              : 'No se pudo iniciar la cámara. Comprueba los permisos o utiliza una foto.';
         setError(message);
       }
     };
     void start();
     return () => { closed = true; document.removeEventListener('visibilitychange', visibility); stop(); };
-  }, [attempt, readerFactory]);
+  }, [attempt, readerFactory, mode]);
 
   return <section className="mt-3 rounded-card border border-line bg-surface p-3" aria-label="Escáner de ISBN">
     <div className="mb-2 flex items-center justify-between gap-2"><p className="flex items-center gap-1.5 text-sm font-bold text-ink"><Camera size={16} /> Escanear código de barras</p><button type="button" onClick={onClose} aria-label="Cerrar cámara" className={cx(btnGhost, 'p-1.5')}><X size={17} /></button></div>
-    {!error && <div className="relative overflow-hidden rounded-lg bg-black"><video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" aria-label="Vista de la cámara" /><div aria-hidden="true" className="pointer-events-none absolute inset-x-[10%] top-[35%] h-[30%] rounded-lg border-2 border-white/80" /></div>}
-    {error ? <div role="alert" className="text-xs text-danger">{error}<div className="mt-2"><button type="button" className={btnSoft} onClick={() => setAttempt((v) => v + 1)}>Reintentar</button></div></div> : <p role="status" className="mt-2 text-xs text-ink3">{ready ? 'Enfoca el código de barras del libro. La cámara se cerrará al detectarlo.' : 'Iniciando cámara…'}</p>}
+    {mode === 'live' ? <>
+      {!error && <div className="relative overflow-hidden rounded-lg bg-black"><video ref={videoRef} muted playsInline autoPlay className="aspect-[4/3] w-full object-cover" aria-label="Vista de la cámara" /><div aria-hidden="true" className="pointer-events-none absolute inset-x-[10%] top-[35%] h-[30%] rounded-lg border-2 border-white/80" /></div>}
+      {error ? <div role="alert" className="text-xs text-danger">{error}<div className="mt-2"><button type="button" className={btnSoft} onClick={() => setAttempt((v) => v + 1)}>Reintentar vídeo</button></div></div> : <p role="status" className="mt-2 text-xs text-ink3">{ready ? 'Enfoca el código de barras del libro. La cámara se cerrará al detectarlo.' : 'Iniciando cámara…'}</p>}
+      <button type="button" onClick={() => { setMode('photo'); setPhotoError(''); }} className={cx(btnSoft, 'mt-3')}><Camera size={16} /> Usar una foto</button>
+    </> : <>
+      <p className="text-xs text-ink3">Haz una foto del código de barras completo con buena luz. La imagen se procesa en tu dispositivo.</p>
+      <label className={cx(btnSoft, 'mt-3 inline-flex cursor-pointer', photoBusy && 'pointer-events-none opacity-60')}>
+        <Camera size={16} /> {photoBusy ? 'Leyendo foto…' : 'Hacer foto o elegir imagen'}
+        <input type="file" accept="image/*" capture="environment" disabled={photoBusy} className="sr-only" aria-label="Hacer foto o elegir imagen" onChange={(event) => { const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; void readPhoto(file); }} />
+      </label>
+      {photoError && <p role="alert" className="mt-2 text-xs text-danger">{photoError}</p>}
+      {window.isSecureContext && <button type="button" onClick={() => { photoOperation.current += 1; setPhotoBusy(false); setMode('live'); }} className={cx(btnGhost, 'mt-3 ml-2')}>Usar vídeo</button>}
+    </>}
   </section>;
 }
