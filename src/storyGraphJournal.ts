@@ -1430,8 +1430,26 @@ function applyEntriesToBook<T extends JournalMergeBookLike>(
       importedPages += entry.pages;
       importedMinutes += entry.minutes || 0;
     } else {
-      convertedByExistingId.set(existing.id, { ...entry, id: existing.id });
-      if (sameJournalEntry(existing, entry)) unchanged++;
+      const combined: JournalEntry = { ...entry, id: existing.id };
+      if (existing.manualOverrides?.length) {
+        // La identidad de StoryGraph sigue intacta, pero los campos corregidos
+        // por el usuario prevalecen sobre la siguiente importación.
+        for (const field of existing.manualOverrides) {
+          switch (field) {
+            case 'date': combined.date = existing.date; break;
+            case 'datePrecision': combined.datePrecision = existing.datePrecision; break;
+            case 'pages': combined.pages = existing.pages; break;
+            case 'minutes': combined.minutes = existing.minutes; break;
+            case 'note': combined.note = existing.note; break;
+            case 'cumulativePages': combined.cumulativePages = existing.cumulativePages; break;
+            case 'percent': combined.percent = existing.percent; break;
+            case 'kind': combined.kind = existing.kind; break;
+          }
+        }
+        combined.manualOverrides = existing.manualOverrides;
+      }
+      convertedByExistingId.set(existing.id, combined);
+      if (sameJournalEntry(existing, combined)) unchanged++;
       else updated++;
     }
   }

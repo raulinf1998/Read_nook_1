@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useId, useMemo, useState } from 'react';
-import { Clock3, NotebookPen, Plus, Trash2 } from 'lucide-react';
+import { Clock3, NotebookPen, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { Book, JournalEntry, JournalEntryKind } from '../types';
 import { makeJournalEntry } from '../lib';
+import { editJournalEntry, type JournalEditValues } from '../journalEdit';
 import {
   buildJournalProgressTimeline,
   calculateJournalCurrentPage,
@@ -372,6 +373,57 @@ export function JournalModal({ book, onUpdate, onClose }: Props) {
   );
 }
 
+interface EditEntryFormProps {
+  entry: JournalEntry;
+  reachedPage: number | null;
+  book: Book;
+  onCancel: () => void;
+  onSave: (values: JournalEditValues) => string | undefined;
+}
+
+function EditEntryForm({ entry, reachedPage, book, onCancel, onSave }: EditEntryFormProps) {
+  const id = useId().replace(/:/g, '');
+  const originalDate = entry.datePrecision ? '' : localDateValue(new Date(entry.date));
+  const [date, setDate] = useState(originalDate);
+  const [pages, setPages] = useState(String(entry.pages || 0));
+  const [minutes, setMinutes] = useState(String(entry.minutes || 0));
+  const [target, setTarget] = useState(reachedPage === null ? '' : String(reachedPage));
+  const [note, setNote] = useState(entry.note || '');
+  const [error, setError] = useState('');
+  const protectedBoundary = Boolean(entry.rereadBoundary);
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if ((!date && originalDate) || (date && (!dateParts(date) || date > localDateValue()))) { setError('Introduce una fecha válida que no sea futura.'); return; }
+    const parseInteger = (value: string) => /^\d+$/.test(value) ? Number(value) : Number.NaN;
+    const pageCount = parseInteger(pages);
+    const minuteCount = parseInteger(minutes);
+    const reached = reachedPage === null ? null : parseInteger(target);
+    const dateChanged = Boolean(date && date !== originalDate);
+    let timestamp = entry.date;
+    if (dateChanged) {
+      const parts = dateParts(date)!;
+      const old = new Date(entry.date);
+      timestamp = new Date(parts.year, parts.month - 1, parts.day, old.getHours(), old.getMinutes(), old.getSeconds(), old.getMilliseconds()).getTime();
+    }
+    const message = onSave({ date: timestamp, dateChanged, pages: pageCount, minutes: minuteCount, note, reachedPage: reached });
+    if (message) setError(message);
+  };
+  return <form onSubmit={handleSubmit} className="mt-3 space-y-3 border-t border-line pt-3" aria-label="Editar registro del diario">
+    <div className="grid grid-cols-2 gap-2.5">
+      <div><label htmlFor={`${id}-date`} className="mb-1 block text-xs font-bold text-ink2">Fecha</label><input id={`${id}-date`} type="date" max={localDateValue()} value={date} disabled={protectedBoundary} onChange={(e) => setDate(e.target.value)} className={cx(inputCls, 'py-2')} /></div>
+      <div><label htmlFor={`${id}-pages`} className="mb-1 block text-xs font-bold text-ink2">Páginas de la sesión</label><input id={`${id}-pages`} type="number" min="0" step="1" required value={pages} disabled={protectedBoundary} onChange={(e) => setPages(e.target.value)} className={cx(inputCls, 'py-2')} /></div>
+      <div><label htmlFor={`${id}-minutes`} className="mb-1 block text-xs font-bold text-ink2">Minutos</label><input id={`${id}-minutes`} type="number" min="0" step="1" required value={minutes} onChange={(e) => setMinutes(e.target.value)} className={cx(inputCls, 'py-2')} /></div>
+      {reachedPage !== null && <div><label htmlFor={`${id}-target`} className="mb-1 block text-xs font-bold text-ink2">Página alcanzada</label><input id={`${id}-target`} type="number" min="0" max={book.pages || undefined} step="1" required value={target} disabled={protectedBoundary || entry.kind === 'finished'} onChange={(e) => setTarget(e.target.value)} className={cx(inputCls, 'py-2')} /></div>}
+    </div>
+    {entry.datePrecision && !protectedBoundary && <p className="text-[11px] text-ink3">La fecha original es parcial o desconocida. Déjala vacía para conservarla o introduce una fecha exacta.</p>}
+    {protectedBoundary && <p className="text-[11px] text-ink3">Este registro separa dos lecturas: para conservar el historial solo puedes editar la nota y los minutos.</p>}
+    <p className="text-[11px] text-ink3">Las páginas de la sesión y la página alcanzada se editan por separado.</p>
+    <div><label htmlFor={`${id}-note`} className="mb-1 block text-xs font-bold text-ink2">Nota</label><textarea id={`${id}-note`} value={note} onChange={(e) => setNote(e.target.value)} rows={3} className={cx(inputCls, 'py-2 w-full')} /></div>
+    {error && <p role="alert" className="text-xs font-semibold text-danger">{error}</p>}
+    <div className="flex justify-end gap-2"><button type="button" onClick={onCancel} className={btnGhost}>Cancelar</button><button type="submit" className={btnPrimary}>Guardar cambios</button></div>
+  </form>;
+}
+
 interface JournalPanelProps {
   book: Book;
   onUpdate: (id: string, patch: Partial<Book>) => void;
@@ -387,6 +439,8 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
   const [entries, setEntries] = useState<JournalEntry[]>(byDateDesc(book.journal || []));
   const [knownCurrentPage, setKnownCurrentPage] = useState(() => resolveCurrentPage(book, book.journal || []));
   const [showAllEntries, setShowAllEntries] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  useEffect(() => setEditingId(null), [book.id]);
 
   // La ficha permanece montada mientras el libro cambia (avances desde el
   // popup rápido, edición de páginas, etc.); el diario debe reflejarlo.
@@ -454,6 +508,15 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
     const reopened = removed?.kind === 'finished' && book.status === 'read'
       && book.pages > 0 && nextCurrentPage < book.pages;
     pushUpdate(newEntries, nextCurrentPage, reopened ? { status: 'reading', finishedAt: null } : {});
+  };
+
+  const handleEdit = (entryId: string, values: JournalEditValues): string | undefined => {
+    const result = editJournalEntry({ ...book, currentPage: knownCurrentPage }, entries, entryId, values);
+    if (!result.patch) return result.error || 'No se pudo guardar el registro.';
+    setEntries(result.patch.journal || entries);
+    if (result.patch.currentPage !== undefined) setKnownCurrentPage(result.patch.currentPage);
+    onUpdate(book.id, result.patch);
+    setEditingId(null);
   };
 
   const currentPage = knownCurrentPage;
@@ -563,7 +626,9 @@ export function JournalPanel({ book, onUpdate, embedded = false }: JournalPanelP
                           </div>
                         )}
                         {entry.note && <p className="text-xs text-ink2 mt-1.5 leading-relaxed whitespace-pre-line break-words">{entry.note}</p>}
+                        {editingId === entry.id && <EditEntryForm key={entry.id} entry={entry} reachedPage={cumulativePages} book={book} onCancel={() => setEditingId(null)} onSave={(values) => handleEdit(entry.id, values)} />}
                       </div>
+                      <button type="button" onClick={() => setEditingId(entry.id)} aria-label={`Editar registro del ${entry.datePrecision === 'unknown' ? 'sin fecha' : new Date(entry.date).toLocaleDateString('es')}`} title="Editar registro" className={cx(iconBtn, 'p-1.5 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0 mt-1')}><Pencil size={14} /></button>
                       {!entry.rereadBoundary && <button
                         type="button"
                         onClick={() => handleDelete(entry.id)}
