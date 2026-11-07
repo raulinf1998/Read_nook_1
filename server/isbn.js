@@ -68,23 +68,23 @@ async function requestJson(url, fetchImpl) {
 function googleResult(data, isbn) {
   const item = (Array.isArray(data?.items) ? data.items : []).find((entry) => {
     const ids = entry?.volumeInfo?.industryIdentifiers;
-    return !Array.isArray(ids) || !ids.length || ids.some((id) => matchesIsbn(id.identifier, isbn));
+    return Array.isArray(ids) && ids.some((id) => matchesIsbn(id?.identifier, isbn));
   });
   const info = item?.volumeInfo;
   if (!info || !cleanString(info.title)) return null;
   const image = info.imageLinks || {};
-  return { title: cleanString(info.title), author: Array.isArray(info.authors) ? info.authors.filter((v) => typeof v === 'string').join(', ') : '', coverUrl: httpsUrl(image.extraLarge || image.large || image.medium || image.thumbnail || image.smallThumbnail), pages: pages(info.pageCount), publishDate: cleanString(info.publishedDate), language: cleanString(info.language), description: cleanDescription(info.description), isbn };
+  return { title: cleanString(info.title), author: Array.isArray(info.authors) ? info.authors.filter((v) => typeof v === 'string').join(', ') : '', coverUrl: httpsUrl(image.extraLarge || image.large || image.medium || image.thumbnail || image.smallThumbnail), pages: pages(info.pageCount), publishDate: cleanString(info.publishedDate), language: cleanString(info.language), format: '', description: cleanDescription(info.description), isbn };
 }
 function openBooksResult(data, isbn) {
   const info = data?.[`ISBN:${isbn}`];
   if (!info || !cleanString(info.title)) return null;
   const cover = info.cover || {};
-  return { title: cleanString(info.title), author: Array.isArray(info.authors) ? info.authors.map((a) => cleanString(a?.name)).filter(Boolean).join(', ') : '', coverUrl: httpsUrl(cover.large || cover.medium || cover.small), pages: pages(info.number_of_pages), publishDate: cleanString(info.publish_date), language: cleanString(info.languages?.[0]?.key).split('/').pop() || '', description: cleanDescription(typeof info.notes === 'string' ? info.notes : info.notes?.value), isbn };
+  return { title: cleanString(info.title), author: Array.isArray(info.authors) ? info.authors.map((a) => cleanString(a?.name)).filter(Boolean).join(', ') : '', coverUrl: httpsUrl(cover.large || cover.medium || cover.small), pages: pages(info.number_of_pages), publishDate: cleanString(info.publish_date), language: cleanString(info.languages?.[0]?.key).split('/').pop() || '', format: cleanString(info.physical_format), description: cleanDescription(typeof info.notes === 'string' ? info.notes : info.notes?.value), isbn };
 }
 function openSearchResult(data, isbn) {
   const doc = (Array.isArray(data?.docs) ? data.docs : []).find((entry) => Array.isArray(entry?.isbn) && entry.isbn.some((v) => matchesIsbn(v, isbn)));
   if (!doc || !cleanString(doc.title)) return null;
-  return { title: cleanString(doc.title), author: Array.isArray(doc.author_name) ? doc.author_name.filter((v) => typeof v === 'string').join(', ') : '', coverUrl: '', pages: 0, publishDate: '', language: '', description: '', isbn };
+  return { title: cleanString(doc.title), author: Array.isArray(doc.author_name) ? doc.author_name.filter((v) => typeof v === 'string').join(', ') : '', coverUrl: '', pages: 0, publishDate: '', language: '', format: '', description: '', isbn };
 }
 function shopResult(data, isbn) {
   const products = data?.resources?.results?.products;
@@ -96,7 +96,29 @@ function shopResult(data, isbn) {
   const vendor = cleanString(product.vendor);
   const parts = vendor.split(',').map((part) => part.trim());
   const author = parts.length === 2 && parts.every(Boolean) ? `${parts[1]} ${parts[0]}` : vendor;
-  return { title: cleanString(product.title), author, coverUrl: httpsUrl(product.featured_image?.url || product.image), pages: 0, publishDate: '', language: '', description: cleanDescription(product.body), isbn };
+  return { title: cleanString(product.title), author, coverUrl: httpsUrl(product.featured_image?.url || product.image), pages: 0, publishDate: '', language: '', format: '', description: cleanDescription(product.body), isbn };
+}
+// La Estantería publica una ficha técnica en el cuerpo del producto. Se exige
+// un ISBN explícito y exacto; una búsqueda aproximada nunca basta.
+function estanteriaResult(data, isbn) {
+  const products = data?.resources?.results?.products;
+  if (!Array.isArray(products)) return null;
+  const product = products.find((item) => {
+    const text = cleanDescription(item?.body);
+    const candidates = [...text.matchAll(/\bISBN(?:-1[03])?\s*:?\s*([0-9Xx-]{10,17})/gi)];
+    return candidates.some((match) => matchesIsbn(match[1], isbn));
+  });
+  if (!product || !cleanString(product.title)) return null;
+  const text = cleanDescription(product.body);
+  const pageMatch = text.match(/P[aá]ginas\s*:\s*(\d{1,5})\b/i);
+  const formatMatch = text.match(/Presentaci[oó]n\s*:\s*(R[uú]stica|Tapa blanda|Tapa dura|Carton[eé]|Ebook|Audiolibro)\b/i);
+  const publishMatch = text.match(/Publicaci[oó]n\s*:\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{4}-\d{2}-\d{2})/i);
+  let publishDate = '';
+  if (publishMatch) {
+    const date = new Date(`${publishMatch[1]} UTC`);
+    if (Number.isFinite(date.getTime())) publishDate = date.toISOString().slice(0, 10);
+  }
+  return { title: cleanString(product.title), author: '', coverUrl: httpsUrl(product.featured_image?.url || product.image), pages: pages(pageMatch?.[1]), publishDate, language: '', format: formatMatch?.[1] || '', description: text.split(/Ficha t[eé]cnica\s*\.?/i)[0].trim(), isbn };
 }
 function merge(primary, secondary) {
   if (!primary) return secondary;
@@ -108,14 +130,16 @@ export async function lookupIsbn(raw, fetchImpl = fetch) {
   const isbn = normalizeIsbn(raw);
   if (!isbn) return { status: 'invalid' };
   const encoded = encodeURIComponent(isbn);
+  const encoded13 = encodeURIComponent(isbn13(isbn));
   const urls = [
     `https://www.googleapis.com/books/v1/volumes?q=isbn%3A${encoded}`,
     `https://openlibrary.org/api/books?bibkeys=ISBN%3A${encoded}&format=json&jscmd=data`,
     `https://openlibrary.org/search.json?isbn=${encoded}`,
-    `https://www.lainevitable.com/search/suggest.json?q=${encoded}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
+    `https://www.lainevitable.com/search/suggest.json?q=${encoded13}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
+    `https://laestanterialibros.com/search/suggest.json?q=${encoded13}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
   ];
   const responses = await Promise.all(urls.map((url) => requestJson(url, fetchImpl)));
-  const parsers = [googleResult, openBooksResult, openSearchResult, shopResult];
+  const parsers = [googleResult, openBooksResult, openSearchResult, shopResult, estanteriaResult];
   let result = null;
   responses.forEach((response, i) => {
     try { result = merge(result, parsers[i](response.data, isbn)); }
