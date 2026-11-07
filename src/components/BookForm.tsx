@@ -59,6 +59,7 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
   const [isbnInput, setIsbnInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isbnError, setIsbnError] = useState('');
+  const [isbnWarning, setIsbnWarning] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [showJournal, setShowJournal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -173,12 +174,14 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
     if (!value.trim() || loading) return;
     setLoading(true);
     setIsbnError('');
+    setIsbnWarning('');
     try {
       const result = await fetchByIsbn(value);
       if (!result) {
         setIsbnError('No se encontró este ISBN en los proveedores consultados.');
         return;
       }
+      setIsbnWarning(result.googleWarning || '');
       if (result.title) setTitle(result.title);
       if (result.author) setAuthor(result.author);
       if (result.coverUrl) {
@@ -302,7 +305,8 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
               </div>
               {!showScanner && <button type="button" onClick={() => setShowScanner(true)} disabled={loading} className={cx(btnSoft, 'mt-3 w-full sm:w-auto')}><ScanBarcode size={16} /> Escanear con la cámara</button>}
               {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onDetected={(value) => { setShowScanner(false); setIsbnInput(value); setIsbn(value); void handleIsbnLookup(value); }} />}
-              {isbnError && <p className="text-xs font-semibold text-danger mt-2">{isbnError}</p>}
+              {isbnError && <p role="alert" className="text-xs font-semibold text-danger mt-2">{isbnError}</p>}
+              {isbnWarning && <p role="status" className="text-xs text-ink2 mt-2">{isbnWarning}</p>}
               <p className="text-xs text-ink3 mt-2">Consultamos Google Books, Open Library, La Inevitable, La Estantería Libros y Paquebote. Los datos disponibles dependen de cada edición.</p>
             </div>
           )}

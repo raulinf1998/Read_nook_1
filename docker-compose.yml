@@ -9,6 +9,7 @@ services:
     environment:
       - DATA_DIR=/app/data
       - PORT=3001
+      - GOOGLE_BOOKS_API_KEY=${GOOGLE_BOOKS_API_KEY:-}
     restart: unless-stopped
 
 volumes:

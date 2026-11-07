@@ -718,7 +718,7 @@ app.use(express.json({ limit: '50mb' }));
 app.get('/api/isbn/:isbn', async (req, res) => {
   const lookup = await lookupIsbn(req.params.isbn);
   if (lookup.status === 'invalid') return res.status(400).json({ error: 'ISBN no válido. Comprueba sus cifras y vuelve a intentarlo.' });
-  if (lookup.status === 'unavailable') return res.status(503).json({ error: 'No se pudo completar la búsqueda: algún proveedor no está disponible. Inténtalo más tarde.' });
+  if (lookup.status === 'unavailable') return res.status(503).json({ error: lookup.googleWarning ? `${lookup.googleWarning} No se ha podido encontrar el libro; inténtalo más tarde o introdúcelo manualmente.` : 'No se pudo completar la búsqueda: algún proveedor no está disponible. Inténtalo más tarde.' });
   if (lookup.status === 'not_found') return res.status(404).json({ error: 'No se encontró este ISBN en los proveedores consultados.' });
   return res.json(lookup.result);
 });

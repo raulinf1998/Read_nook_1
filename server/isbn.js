@@ -35,14 +35,14 @@ const httpsUrl = (value) => {
   try { return new URL(url).protocol === 'https:' ? url : ''; } catch { return ''; }
 };
 
-async function requestProvider(url, fetchImpl, kind = 'json') {
+async function requestProvider(url, fetchImpl, kind = 'json', extraHeaders = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal, redirect: 'error', headers: { 'Accept': kind === 'html' ? 'text/html' : 'application/json', 'User-Agent': 'Bilibook/1.0 (ISBN lookup)' } });
+    const response = await fetchImpl(url, { signal: controller.signal, redirect: 'error', headers: { 'Accept': kind === 'html' ? 'text/html' : 'application/json', 'User-Agent': 'Bilibook/1.0 (ISBN lookup)', ...extraHeaders } });
     if (!response.ok) {
       if (response.status === 404) return { ok: true, data: null };
-      return { ok: false, data: null };
+      return { ok: false, data: null, statusCode: response.status };
     }
     if (Number(response.headers?.get('content-length') || 0) > MAX_JSON_BYTES) return { ok: false, data: null };
     if (!response.body) return { ok: false, data: null };
@@ -164,6 +164,8 @@ function merge(primary, secondary) {
 export async function lookupIsbn(raw, fetchImpl = fetch) {
   const isbn = normalizeIsbn(raw);
   if (!isbn) return { status: 'invalid' };
+  // La clave es opcional, solo se lee en el servidor y nunca se devuelve al cliente.
+  const googleKey = (process.env.GOOGLE_BOOKS_API_KEY || '').trim();
   const encoded = encodeURIComponent(isbn);
   const encoded13 = encodeURIComponent(isbn13(isbn));
   const urls = [
@@ -174,13 +176,21 @@ export async function lookupIsbn(raw, fetchImpl = fetch) {
     `https://laestanterialibros.com/search/suggest.json?q=${encoded13}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
     `https://www.paquebote.com/${encoded13}`,
   ];
-  const responses = await Promise.all(urls.map((url, index) => requestProvider(url, fetchImpl, index === urls.length - 1 ? 'html' : 'json')));
+  const responses = await Promise.all(urls.map((url, index) => requestProvider(url, fetchImpl, index === urls.length - 1 ? 'html' : 'json', index === 0 && googleKey ? { 'X-Goog-Api-Key': googleKey } : {})));
   const parsers = [googleResult, openBooksResult, openSearchResult, shopResult, estanteriaResult, paqueboteResult];
   let result = null;
   responses.forEach((response, i) => {
     try { result = merge(result, parsers[i](response.data, isbn)); }
     catch { response.ok = false; }
   });
-  if (result) return { status: 'found', result };
-  return { status: responses.some((response) => !response.ok) ? 'unavailable' : 'not_found' };
+  const googleStatus = responses[0].statusCode;
+  const googleWarning = googleStatus === 429
+    ? googleKey
+      ? 'Google Books ha alcanzado su límite de cuota. Se han consultado las demás fuentes.'
+      : 'La cuota compartida de Google Books está agotada. Se han consultado las demás fuentes; una clave propia de Google Books es opcional.'
+    : googleStatus === 403 && googleKey
+      ? 'Google Books ha rechazado la consulta. Revisa en el servidor la clave, sus restricciones y la activación de Books API.'
+      : '';
+  if (result) return { status: 'found', result: { ...result, ...(googleWarning ? { googleWarning } : {}) } };
+  return { status: responses.some((response) => !response.ok) ? 'unavailable' : 'not_found', ...(googleWarning ? { googleWarning } : {}) };
 }

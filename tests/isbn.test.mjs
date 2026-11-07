@@ -131,3 +131,44 @@ test('Paquebote identifica una fecha completa y el ISBN-10 equivalente sin confi
   assert.equal(found.result.author, 'STELLA TACK'); assert.equal(found.result.publishDate, '2026-02-11');
   assert.equal(found.result.coverUrl, '');
 });
+
+test('Google Books usa una clave opcional solo en su cabecera, sin enviarla a otros proveedores ni al resultado', async (t) => {
+  const old = process.env.GOOGLE_BOOKS_API_KEY;
+  t.after(() => { if (old === undefined) delete process.env.GOOGLE_BOOKS_API_KEY; else process.env.GOOGLE_BOOKS_API_KEY = old; });
+  process.env.GOOGLE_BOOKS_API_KEY = '  clave-de-prueba-no-real  ';
+  const calls = [];
+  const google = { items: [{ volumeInfo: { title: 'Ejemplo', authors: ['Autora'], industryIdentifiers: [{ identifier: example }], pageCount: 200, language: 'es' } }] };
+  const result = await lookupIsbn(example, mockProviders({ ...empty, google }, calls));
+  assert.equal(result.status, 'found');
+  assert.equal(result.result.title, 'Ejemplo');
+  const request = calls.find(({ url }) => url.includes('googleapis.com'));
+  assert.equal(request.options.headers['X-Goog-Api-Key'], 'clave-de-prueba-no-real');
+  assert.ok(!request.url.includes('clave-de-prueba-no-real'));
+  for (const call of calls.filter(({ url }) => !url.includes('googleapis.com'))) assert.equal(call.options.headers['X-Goog-Api-Key'], undefined);
+  assert.ok(!JSON.stringify(result).includes('clave-de-prueba-no-real'));
+  assert.equal(result.result.googleWarning, undefined);
+});
+
+test('sin clave, se distingue la cuota anónima agotada y se conservan los resultados alternativos', async (t) => {
+  const old = process.env.GOOGLE_BOOKS_API_KEY;
+  t.after(() => { if (old === undefined) delete process.env.GOOGLE_BOOKS_API_KEY; else process.env.GOOGLE_BOOKS_API_KEY = old; });
+  delete process.env.GOOGLE_BOOKS_API_KEY;
+  const calls = [];
+  const result = await lookupIsbn(example, mockProviders({ ...empty, google: 429, shop: shopExample }, calls));
+  assert.equal(result.status, 'found'); assert.equal(result.result.title, 'Kiss me once');
+  assert.match(result.result.googleWarning, /cuota compartida.*agotada/i);
+  assert.equal(calls[0].options.headers['X-Goog-Api-Key'], undefined);
+  const missing = await lookupIsbn(example, mockProviders({ ...empty, google: 429 }));
+  assert.equal(missing.status, 'unavailable'); assert.match(missing.googleWarning, /cuota compartida/i);
+});
+
+test('con clave, cuota agotada y clave rechazada se notifican sin exponer datos sensibles', async (t) => {
+  const old = process.env.GOOGLE_BOOKS_API_KEY;
+  t.after(() => { if (old === undefined) delete process.env.GOOGLE_BOOKS_API_KEY; else process.env.GOOGLE_BOOKS_API_KEY = old; });
+  process.env.GOOGLE_BOOKS_API_KEY = 'clave-de-prueba-no-real';
+  const quota = await lookupIsbn(example, mockProviders({ ...empty, google: 429, shop: shopExample }));
+  assert.equal(quota.status, 'found'); assert.match(quota.result.googleWarning, /límite de cuota/i);
+  const rejected = await lookupIsbn(example, mockProviders({ ...empty, google: 403 }));
+  assert.equal(rejected.status, 'unavailable'); assert.match(rejected.googleWarning, /rechazado.*restricciones/i);
+  assert.ok(!JSON.stringify([quota, rejected]).includes('clave-de-prueba-no-real'));
+});
