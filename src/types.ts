@@ -13,6 +13,8 @@ export type JournalEntryKind =
   | 'to_read'
   | 'note';
 
+export type JournalOverrideField = 'date' | 'datePrecision' | 'pages' | 'minutes' | 'note' | 'cumulativePages' | 'percent' | 'kind';
+
 export interface JournalEntry {
   id: string;
   date: number; // timestamp
@@ -28,6 +30,8 @@ export interface JournalEntry {
   datePrecision?: 'year' | 'month' | 'unknown';
   source?: 'storygraph';
   sourceEntryId?: string;
+  /** Campos corregidos a mano que no debe sobrescribir una nueva importación. */
+  manualOverrides?: JournalOverrideField[];
 }
 
 export interface Book {
