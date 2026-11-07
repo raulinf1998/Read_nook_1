@@ -14,6 +14,7 @@ export interface IsbnResult {
   pages: number;
   publishDate: string;
   language: BookLanguage;
+  format: BookFormat | '';
   description: string;
   isbn: string;
 }
@@ -27,7 +28,7 @@ export async function fetchByIsbn(isbn: string): Promise<IsbnResult | null> {
     throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo completar la búsqueda por ISBN.');
   }
   const result = await res.json() as IsbnResult;
-  return { ...result, language: normalizeLanguageCode(result.language) };
+  return { ...result, language: normalizeLanguageCode(result.language), format: normalizeBookFormat(result.format) };
 }
 
 // --- CSV Parser (TheStoryGraph + similar exports) ---
