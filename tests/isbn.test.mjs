@@ -4,16 +4,16 @@ import { readFile } from 'node:fs/promises';
 import { lookupIsbn, normalizeIsbn } from '../server/isbn.js';
 
 const example = '9788410399068';
-const empty = { google: {}, books: {}, search: { docs: [] }, shop: { resources: { results: { products: [] } } }, estanteria: { resources: { results: { products: [] } } } };
+const empty = { google: {}, books: {}, search: { docs: [] }, shop: { resources: { results: { products: [] } } }, estanteria: { resources: { results: { products: [] } } }, paquebote: '' };
 const shopExample = { resources: { results: { products: [{ title: 'Kiss me once', vendor: 'Tack, Stella', tags: [example, 'Inlov'], image: 'https://cdn.shopify.com/cover.jpg', body: 'Ivy Redmond, joven heredera de una empresa multimillonaria.' }] } } };
 function mockProviders(data, calls = []) {
   return async (url, options) => {
     calls.push({ url, options });
-    const key = url.includes('googleapis.com') ? 'google' : url.includes('/api/books') ? 'books' : url.includes('openlibrary.org') ? 'search' : url.includes('laestanterialibros.com') ? 'estanteria' : 'shop';
+    const key = url.includes('paquebote.com') ? 'paquebote' : url.includes('googleapis.com') ? 'google' : url.includes('/api/books') ? 'books' : url.includes('openlibrary.org') ? 'search' : url.includes('laestanterialibros.com') ? 'estanteria' : 'shop';
     const value = data[key];
     if (value instanceof Error) throw value;
     if (typeof value === 'number') return new Response('', { status: value });
-    return Response.json(value);
+    return key === 'paquebote' ? new Response(value, { headers: { 'Content-Type': 'text/html' } }) : Response.json(value);
   };
 }
 
@@ -35,7 +35,7 @@ test('el ISBN facilitado se recupera de La Inevitable cuando Google falla y Open
   assert.equal(result.result.coverUrl, 'https://cdn.shopify.com/cover.jpg');
   assert.equal(result.result.pages, 0);
   assert.equal(result.result.language, '');
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
   assert.ok(calls.every(({ options }) => options.redirect === 'error' && options.signal));
 });
 
@@ -101,4 +101,33 @@ test('La Estantería aporta páginas y fecha del ISBN exacto, no resultados apro
   const wrong = structuredClone(estanteria);
   wrong.resources.results.products[0].body = '<p>ISBN: 9780140449136</p><p>Páginas: 900</p>';
   assert.equal((await lookupIsbn(example, mockProviders({ ...empty, estanteria: wrong }))).status, 'not_found');
+});
+
+test('Paquebote encuentra Fuego por ISBN y completa los datos disponibles de la edición', async () => {
+  // El contenido representa los datos verificados en la ficha pública de la librería.
+  const paquebote = `<!doctype html><html><body><a href="/portadaslibros/9788408310303.jpg"><img src="/portadaslibros/9788408310303.jpg"></a>
+    <div>ISBN: <strong>9788408310303</strong></div><h1>Fuego «El romance de bomberos que arde en TikTok. Edición con cantos tintados»</h1>
+    <h3><a href="/buscar.php?autor=Sloane+St+James&amp;e=1">Sloane St James</a></h3>
+    <div>Editorial: <b>Crossbooks</b></div><div>Año: <strong>2025</strong></div><div>Páginas: <strong>416</strong></div></body></html>`;
+  const calls = [];
+  const found = await lookupIsbn('9788408310303', mockProviders({ ...empty, google: 429, paquebote }, calls));
+  assert.equal(found.status, 'found');
+  assert.match(found.result.title, /^Fuego/);
+  assert.equal(found.result.author, 'Sloane St James');
+  assert.equal(found.result.pages, 416);
+  assert.equal(found.result.publishDate, '2025');
+  assert.equal(found.result.coverUrl, 'https://www.paquebote.com/portadaslibros/9788408310303.jpg');
+  assert.ok(calls.some(({ url }) => url === 'https://www.paquebote.com/9788408310303'));
+  const other = paquebote.replaceAll('9788408310303', '9780140449136');
+  assert.equal((await lookupIsbn('9788408310303', mockProviders({ ...empty, paquebote: other }))).status, 'not_found');
+  const invalid = '<html><body><h1>Página no encontrada</h1></body></html>';
+  assert.equal((await lookupIsbn('9788408310303', mockProviders({ ...empty, paquebote: invalid }))).status, 'not_found');
+});
+
+test('Paquebote identifica una fecha completa y el ISBN-10 equivalente sin confiar en imágenes de otros hosts', async () => {
+  const paquebote = `<html><body><div>ISBN: <b>978-84-10399-06-8</b></div><h1>KISS ME ONCE</h1><h3><a href="/buscar.php?autor=TACK">TACK, STELLA</a></h3><div>Fecha de publicación: <b>11/02/2026</b></div><img src="https://malicious.example/portadaslibros/9788410399068.jpg"></body></html>`;
+  const found = await lookupIsbn('8410399067', mockProviders({ ...empty, paquebote }));
+  assert.equal(found.status, 'found'); assert.equal(found.result.isbn, '8410399067');
+  assert.equal(found.result.author, 'STELLA TACK'); assert.equal(found.result.publishDate, '2026-02-11');
+  assert.equal(found.result.coverUrl, '');
 });

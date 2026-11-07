@@ -15,8 +15,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install backend deps
-COPY server/package.json ./
-RUN npm install --production
+COPY server/package.json server/package-lock.json ./
+RUN npm ci --omit=dev
 
 # Copy backend code
 COPY server/index.js server/isbn.js ./

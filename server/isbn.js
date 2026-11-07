@@ -1,3 +1,5 @@
+import { load } from 'cheerio';
+
 // Consulta ISBN con proveedores fijos: ninguna URL recibida del cliente se solicita.
 const TIMEOUT_MS = 6500;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -33,11 +35,11 @@ const httpsUrl = (value) => {
   try { return new URL(url).protocol === 'https:' ? url : ''; } catch { return ''; }
 };
 
-async function requestJson(url, fetchImpl) {
+async function requestProvider(url, fetchImpl, kind = 'json') {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal, redirect: 'error', headers: { 'Accept': 'application/json', 'User-Agent': 'Bilibook/1.0 (ISBN lookup)' } });
+    const response = await fetchImpl(url, { signal: controller.signal, redirect: 'error', headers: { 'Accept': kind === 'html' ? 'text/html' : 'application/json', 'User-Agent': 'Bilibook/1.0 (ISBN lookup)' } });
     if (!response.ok) {
       if (response.status === 404) return { ok: true, data: null };
       return { ok: false, data: null };
@@ -59,7 +61,7 @@ async function requestJson(url, fetchImpl) {
       text += decoder.decode(value, { stream: true });
     }
     text += decoder.decode();
-    return { ok: true, data: JSON.parse(text) };
+    return { ok: true, data: kind === 'html' ? text : JSON.parse(text) };
   } catch {
     return { ok: false, data: null };
   } finally { clearTimeout(timeout); }
@@ -120,6 +122,39 @@ function estanteriaResult(data, isbn) {
   }
   return { title: cleanString(product.title), author: '', coverUrl: httpsUrl(product.featured_image?.url || product.image), pages: pages(pageMatch?.[1]), publishDate, language: '', format: formatMatch?.[1] || '', description: text.split(/Ficha t[eé]cnica\s*\.?/i)[0].trim(), isbn };
 }
+// Paquebote tiene una ficha pública por ISBN. Solo se usa si la propia ficha
+// identifica exactamente la edición; nunca se sigue ningún enlace externo.
+function paqueboteResult(html, isbn) {
+  if (typeof html !== 'string') return null;
+  const $ = load(html);
+  $('script, style, noscript').remove();
+  $('p, div, li, h1, h2, h3, br, section, article').append(' ');
+  const title = cleanString($('h1').first().text());
+  const body = $('body').text().replace(/\s+/g, ' ');
+  if (!title) return null;
+  const titleIndex = body.indexOf(title.replace(/\s+/g, ' '));
+  if (titleIndex < 0) return null;
+  const identity = body.slice(Math.max(0, titleIndex - 500), titleIndex + title.length + 500);
+  const identifiers = [...identity.matchAll(/\bISBN(?:-1[03])?\s*:?\s*([0-9Xx-]{10,17})/gi)];
+  if (!identifiers.some((match) => matchesIsbn(match[1], isbn))) return null;
+  const rawAuthor = cleanString($('a[href*="buscar.php?autor="]').first().text());
+  const authorParts = rawAuthor.split(',').map((part) => part.trim());
+  const author = authorParts.length === 2 && authorParts.every(Boolean) ? `${authorParts[1]} ${authorParts[0]}` : rawAuthor;
+  const pageMatch = body.match(/P[aá]ginas\s*:\s*(\d{1,5})\b/i);
+  const fullDate = body.match(/Fecha de publicaci[oó]n\s*:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+  const year = body.match(/A[nñ]o\s*:\s*((?:19|20)\d{2})\b/i);
+  let publishDate = year ? year[1] : '';
+  if (fullDate) {
+    const [day, month, y] = fullDate.slice(1).map(Number);
+    const date = new Date(Date.UTC(y, month - 1, day));
+    if (date.getUTCFullYear() === y && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) publishDate = `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  // Solo se acepta una portada cuyo nombre identifique esta edición.
+  const image = $('img').toArray().map((node) => $(node).attr('src') || '').find((src) => new RegExp(`/portadaslibros/${isbn13(isbn)}\\.(?:jpg|jpeg|png)(?:[?#]|$)`, 'i').test(src));
+  const imageUrl = image ? new URL(image, 'https://www.paquebote.com') : null;
+  const coverUrl = imageUrl?.hostname === 'www.paquebote.com' ? httpsUrl(imageUrl.href) : '';
+  return { title, author, coverUrl, pages: pages(pageMatch?.[1]), publishDate, language: '', format: '', description: '', isbn };
+}
 function merge(primary, secondary) {
   if (!primary) return secondary;
   if (!secondary) return primary;
@@ -137,9 +172,10 @@ export async function lookupIsbn(raw, fetchImpl = fetch) {
     `https://openlibrary.org/search.json?isbn=${encoded}`,
     `https://www.lainevitable.com/search/suggest.json?q=${encoded13}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
     `https://laestanterialibros.com/search/suggest.json?q=${encoded13}&resources%5Btype%5D=product&resources%5Blimit%5D=5`,
+    `https://www.paquebote.com/${encoded13}`,
   ];
-  const responses = await Promise.all(urls.map((url) => requestJson(url, fetchImpl)));
-  const parsers = [googleResult, openBooksResult, openSearchResult, shopResult, estanteriaResult];
+  const responses = await Promise.all(urls.map((url, index) => requestProvider(url, fetchImpl, index === urls.length - 1 ? 'html' : 'json')));
+  const parsers = [googleResult, openBooksResult, openSearchResult, shopResult, estanteriaResult, paqueboteResult];
   let result = null;
   responses.forEach((response, i) => {
     try { result = merge(result, parsers[i](response.data, isbn)); }

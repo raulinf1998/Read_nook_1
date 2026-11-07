@@ -303,7 +303,7 @@ export function BookForm({ onSubmit, onClose, editingBook, availableTags, availa
               {!showScanner && <button type="button" onClick={() => setShowScanner(true)} disabled={loading} className={cx(btnSoft, 'mt-3 w-full sm:w-auto')}><ScanBarcode size={16} /> Escanear con la cámara</button>}
               {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onDetected={(value) => { setShowScanner(false); setIsbnInput(value); setIsbn(value); void handleIsbnLookup(value); }} />}
               {isbnError && <p className="text-xs font-semibold text-danger mt-2">{isbnError}</p>}
-              <p className="text-xs text-ink3 mt-2">Consultamos Google Books, Open Library, La Inevitable y La Estantería Libros. Los datos disponibles dependen de cada edición.</p>
+              <p className="text-xs text-ink3 mt-2">Consultamos Google Books, Open Library, La Inevitable, La Estantería Libros y Paquebote. Los datos disponibles dependen de cada edición.</p>
             </div>
           )}
 
