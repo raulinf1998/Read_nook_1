@@ -251,3 +251,30 @@ tests/
 server/
   index.js           API Express, portadas guardadas y servido del build
 ```
+
+## Google Books y la cuota de búsquedas por ISBN
+
+Google puede rechazar las búsquedas anónimas con HTTP 429 porque comparten una
+cuota con otras aplicaciones. Bilibook sigue consultando Open Library y las
+librerías alternativas; no necesita credenciales para esas fuentes. Si se quiere
+usar una cuota propia de Google Books, se puede configurar **opcionalmente** una
+clave en el servidor:
+
+1. En Google Cloud, crea o selecciona un proyecto y habilita **Books API**.
+2. Crea una clave de API y restríngele el acceso a Books API. Si tu servidor tiene
+   una IP pública de salida fija, puedes restringirla también a esa IP (las
+   restricciones por sitio web no corresponden a llamadas desde el servidor).
+3. En el directorio de `docker-compose.yml`, añade en un archivo local `.env` la
+   variable `GOOGLE_BOOKS_API_KEY` con su valor. El archivo está excluido de Git;
+   no publiques la clave ni la escribas en chats. Si ya tienes un `.env`, conserva
+   las demás variables.
+4. Reconstruye y recrea el contenedor con `docker compose up -d --build`. El
+   volumen `book-tracker-data` no se elimina con este comando.
+
+Compose pasa la variable al backend; la clave se envía únicamente a Google en
+una cabecera, no al navegador ni a los demás proveedores. Sin clave se intenta la
+consulta anónima anterior, que puede estar limitada. Una clave propia tampoco
+elimina los límites de Google: si la cuota del proyecto se agota o la clave es
+rechazada, Bilibook avisa y sigue consultando las otras fuentes. Puedes revisar
+cuota, activación de API y restricciones en Google Cloud. Para instalaciones sin
+Compose, define `GOOGLE_BOOKS_API_KEY` en el entorno del proceso del servidor.

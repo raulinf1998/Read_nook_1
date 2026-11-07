@@ -17,6 +17,7 @@ export interface IsbnResult {
   format: BookFormat | '';
   description: string;
   isbn: string;
+  googleWarning?: string;
 }
 
 // La búsqueda pasa por el servidor; así no depende de CORS ni expone proveedores al navegador.
