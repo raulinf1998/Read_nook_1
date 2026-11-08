@@ -611,6 +611,16 @@ async function migrateBookCovers() {
 let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
+const PET_SPECIES = ['cat', 'dragon', 'monkey', 'chicken', 'trex'];
+function cleanPet(value) {
+  const pet = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    species: PET_SPECIES.includes(pet.species) ? pet.species : 'cat',
+    skin: Number.isInteger(pet.skin) && pet.skin >= 0 && pet.skin < 6 ? pet.skin : 0,
+    name: typeof pet.name === 'string' ? pet.name.trim().slice(0, 24) : '',
+  };
+}
+
 const PLANET_STYLES = ['orbita', 'saturno', 'luna', 'aurora', 'cristal', 'eclipse', 'neon', 'acuario', 'vintage', 'cometa'];
 const DEFAULT_SHELF_COLORS = { frame: '#eee6d5', wood: '#d3a15f', background: '#ded7c9' };
 function cleanShelfColors(value, base = DEFAULT_SHELF_COLORS) {
@@ -638,6 +648,7 @@ function normalizeAccount(parsed) {
         chartPreferences: cleanCharts(parsed.chartPreferences),
         shelfColors: cleanShelfColors(parsed.shelfColors),
         planetStyle: PLANET_STYLES.includes(parsed.planetStyle) ? parsed.planetStyle : 'orbita',
+        pet: cleanPet(parsed.pet),
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
@@ -951,6 +962,7 @@ const publicSettings = () => ({
   chartPreferences: db.chartPreferences,
   shelfColors: db.shelfColors,
   planetStyle: db.planetStyle,
+  pet: db.pet,
   settingsVersion: db.settingsVersion || 0,
   settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
 });
@@ -980,6 +992,7 @@ function snapshotSettings() {
     chartPreferences: { ...db.chartPreferences },
     shelfColors: { ...db.shelfColors },
     planetStyle: db.planetStyle,
+    pet: { ...db.pet },
     settingsVersion: db.settingsVersion,
   };
 }
@@ -994,6 +1007,7 @@ function restoreSettings(snapshot) {
   db.chartPreferences = snapshot.chartPreferences;
   db.shelfColors = snapshot.shelfColors;
   db.planetStyle = snapshot.planetStyle;
+  db.pet = snapshot.pet;
   db.settingsVersion = snapshot.settingsVersion;
 }
 
@@ -1084,6 +1098,7 @@ function handleSettingsPatch(req, res) {
   if (VALID_THEMES.includes(req.body.theme)) db.theme = req.body.theme;
   if (LIBRARY_VIEWS.includes(req.body.libraryView)) db.libraryView = req.body.libraryView;
   if (PLANET_STYLES.includes(req.body.planetStyle)) db.planetStyle = req.body.planetStyle;
+  if (req.body.pet && typeof req.body.pet === 'object' && !Array.isArray(req.body.pet)) db.pet = cleanPet(req.body.pet);
   if (req.body.shelfColors) db.shelfColors = cleanShelfColors(req.body.shelfColors, db.shelfColors);
   if (req.body.chartPreferences && typeof req.body.chartPreferences === 'object') {
     db.chartPreferences = cleanCharts(req.body.chartPreferences, db.chartPreferences);
