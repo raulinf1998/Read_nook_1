@@ -60,3 +60,15 @@ test('calendario presenta varias portadas, abre libros y navega meses y años', 
   assert.match(chart.textContent, new RegExp(`Tu actividad en ${year - 1}`));
   assert.equal(chart.querySelectorAll('[role="img"]').length, daysInYear(year - 1).length);
 });
+
+test('los niveles usan colores lisos de la paleta sin puntos, rayas ni blanco fijo', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
+  const rules = [...css.matchAll(/\.reading-activity-[0-3]\s*\{([^}]*)\}/g)].map(match => match[1]);
+  assert.equal(rules.length, 4);
+  assert.equal(new Set(rules).size, 4);
+  for (const rule of rules) {
+    assert.match(rule, /^\s*background-color:\s*rgb\(var\(--(?:line-2|accent-2|accent)\)/);
+    assert.doesNotMatch(rule, /gradient|background-image|#fff|white|box-shadow/i);
+  }
+});
