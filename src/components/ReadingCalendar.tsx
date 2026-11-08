@@ -4,7 +4,8 @@ import type { Book } from '../types';
 import { dateKey, daysInYear, pageLevel, readingActivity } from '../readingCalendar';
 import { BookCover, iconBtn } from './ui';
 
-const levels = ['bg-primary/10', 'bg-primary/30', 'bg-primary/60', 'bg-primary'];
+// Tonos fijos de una misma gama, legibles tanto en paletas claras como oscuras.
+const levels = ['bg-[#e2efe3]', 'bg-[#99d5a7]', 'bg-[#3ba45b]', 'bg-[#075b2c]'];
 const weekday = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const monthNames = Array.from({ length: 12 }, (_, month) => new Date(2024, month, 1).toLocaleDateString('es', { month: 'short' }).replace('.', ''));
 
@@ -30,9 +31,9 @@ export function ReadingCalendar({ books, onOpen }: { books: Book[]; onOpen: (boo
         {Array.from({ length: count }, (_, i) => {
           const date = new Date(year, month.getMonth(), i + 1, 12);
           const day = activity.get(dateKey(date));
-          return <div key={i} className="min-h-[76px] sm:min-h-[125px] rounded-lg border border-line bg-sunken/40 p-1 sm:p-2 overflow-hidden">
+          return <div key={i} className="min-w-0 min-h-[76px] sm:min-h-[125px] rounded-lg border border-line bg-sunken/40 p-1 sm:p-1.5">
             <span className="block text-[11px] sm:text-xs font-bold text-ink2">{i + 1}</span>
-            {day && <div className="mt-1 flex flex-wrap gap-1">{day.books.map((book) => <button key={book.id} type="button" onClick={() => onOpen(book)} title={`${book.title} · ${date.toLocaleDateString('es')}`} aria-label={`Abrir ${book.title}, leído el ${date.toLocaleDateString('es')}`} className="w-[26px] sm:w-12 shrink-0 rounded-sm overflow-hidden shadow-sm focus-visible:ring-2 focus-visible:ring-accent"><BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-full aspect-[2/3]" /></button>)}</div>}
+            {day && <div className={`mt-1 grid gap-1 ${day.books.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>{day.books.map((book) => <button key={book.id} type="button" onClick={() => onOpen(book)} title={`${book.title} · ${date.toLocaleDateString('es')}`} aria-label={`Abrir ${book.title}, leído el ${date.toLocaleDateString('es')}`} className="w-full min-w-0 rounded-sm overflow-hidden shadow-sm focus-visible:ring-2 focus-visible:ring-accent"><BookCover title={book.title} author={book.author} coverUrl={book.coverUrl} detail="sm" className="w-full aspect-[2/3]" /></button>)}</div>}
           </div>;
         })}
       </div>
