@@ -14,6 +14,7 @@ import { ThemePicker } from './components/ThemePicker';
 import { SettingsMenu } from './components/SettingsMenu';
 import { ReadingNow } from './components/ReadingNow';
 import { Statistics } from './components/Statistics';
+import { ReadingCalendar } from './components/ReadingCalendar';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
@@ -35,6 +36,7 @@ const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   shelf: { title: 'Estantería', subtitle: 'Tu colección, balda a balda' },
   discover: { title: 'Descubrir', subtitle: 'Ideas para tu próxima lectura, según tus gustos' },
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
+  calendar: { title: 'Calendario', subtitle: 'Tus lecturas, día a día' },
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
 
@@ -379,6 +381,7 @@ export default function App() {
                 onGoChallenge={() => handleTab('challenge')}
               />
             )}
+            {tab === 'calendar' && <ReadingCalendar books={books} onOpen={handleOpen} />}
             {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
             {tab === 'library' && <Library books={books} view={libraryView} onSetView={setLibraryView} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}
