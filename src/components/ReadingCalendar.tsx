@@ -4,8 +4,8 @@ import type { Book } from '../types';
 import { dateKey, daysInYear, pageLevel, readingActivity } from '../readingCalendar';
 import { BookCover, iconBtn } from './ui';
 
-// Capas del color principal sobre la superficie: cambian con la paleta y el modo.
-const levels = ['bg-primary/[.14] ring-1 ring-inset ring-primary/20', 'bg-primary/[.42]', 'bg-primary/[.72]', 'bg-primary'];
+// Los colores y las marcas también se comparten con la leyenda.
+const levels = ['reading-activity-0', 'reading-activity-1', 'reading-activity-2', 'reading-activity-3'];
 const weekday = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const monthNames = Array.from({ length: 12 }, (_, month) => new Date(2024, month, 1).toLocaleDateString('es', { month: 'short' }).replace('.', ''));
 
