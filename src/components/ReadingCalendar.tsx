@@ -4,7 +4,7 @@ import type { Book } from '../types';
 import { dateKey, daysInYear, pageLevel, readingActivity } from '../readingCalendar';
 import { BookCover, iconBtn } from './ui';
 
-// Los colores y las marcas también se comparten con la leyenda.
+// Los colores también se comparten con la leyenda.
 const levels = ['reading-activity-0', 'reading-activity-1', 'reading-activity-2', 'reading-activity-3'];
 const weekday = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 const monthNames = Array.from({ length: 12 }, (_, month) => new Date(2024, month, 1).toLocaleDateString('es', { month: 'short' }).replace('.', ''));
