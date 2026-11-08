@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, MoreHorizontal, Plus, Upload, Tag, Palette, Moon, Sun,
+  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, MoreHorizontal, Plus, Upload, Tag, Palette, Moon, Sun, CalendarDays,
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
 import { BrandMark, cx, btnPrimary, iconBtn } from './ui';
 
-export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space';
+export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space' | 'calendar';
 
 const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
   { id: 'reading', label: 'Inicio', icon: BookOpen },
   { id: 'library', label: 'Libros', icon: Library },
   { id: 'shelf', label: 'Librería', icon: BookMarked },
   { id: 'space', label: 'Espacio', icon: Orbit },
+  { id: 'calendar', label: 'Calendario', icon: CalendarDays },
   { id: 'discover', label: 'Descubrir', icon: Compass },
   { id: 'challenge', label: 'Reto anual', icon: Target },
   { id: 'stats', label: 'Stats', icon: BarChart3 },
