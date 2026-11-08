@@ -1114,3 +1114,10 @@ input[type='range'].book-slider::-moz-range-thumb {
 .reading-activity-1 { background-color: rgb(var(--accent-2) / .55); }
 .reading-activity-2 { background-color: rgb(var(--accent-2)); }
 .reading-activity-3 { background-color: rgb(var(--accent)); }
+
+/* El pequeño mundo de la mascota */
+.pet-scene { background: #a6b5d1; }
+.pet-scene-sky { position: absolute; inset: 0; background: url('/pet-garden.webp') center 58% / cover no-repeat; image-rendering: pixelated; }
+.pet-sprite { image-rendering: pixelated; animation: pet-idle 2.6s ease-in-out infinite; }
+@keyframes pet-idle { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
+@media (prefers-reduced-motion: reduce) { .pet-sprite { animation: none; } }

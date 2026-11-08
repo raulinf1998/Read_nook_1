@@ -1,3 +1,4 @@
+import type { PetSettings } from './petGame';
 import type { PlanetStyle } from './space';
 import type { ShelfColors } from './shelfColors';
 import type { Book, CustomPalette, ThemeId } from './types';
@@ -83,6 +84,7 @@ export interface Settings {
   chartPreferences: ChartPreferences;
   shelfColors: ShelfColors;
   planetStyle: PlanetStyle;
+  pet: PetSettings;
   /** Crece en el servidor con cada cambio; sirve para sincronizar dispositivos. */
   settingsVersion: number;
   /** Versión del protocolo continuo de ajustes que ofrece el servidor. */

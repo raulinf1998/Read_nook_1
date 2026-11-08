@@ -1,3 +1,4 @@
+import { normalizePet, type PetSettings } from './petGame';
 import { normalizePlanetStyle, type PlanetStyle } from './space';
 import { normalizeShelfColors, type ShelfColors } from './shelfColors';
 import { selectedAccount } from './accounts';
@@ -214,6 +215,7 @@ function normalizeServerSettings(value: unknown): Settings | null {
     chartPreferences: normalizeChartPreferences(candidate.chartPreferences),
     shelfColors: normalizeShelfColors(candidate.shelfColors),
     planetStyle: normalizePlanetStyle(candidate.planetStyle),
+    pet: normalizePet(candidate.pet),
     customPaletteId: candidate.customPaletteId
       && palettes.some((palette) => palette.id === candidate.customPaletteId)
       ? candidate.customPaletteId
@@ -287,6 +289,7 @@ export function useServerSettings() {
     initialServerSettings?.customPaletteId ?? null,
   );
   const [libraryView, setLibraryViewState] = useState<LibraryViewMode>(initialServerSettings?.libraryView ?? 'wood');
+  const [pet, setPetState] = useState<PetSettings>(normalizePet(initialServerSettings?.pet));
   const [planetStyle, setPlanetStyleState] = useState<PlanetStyle>(normalizePlanetStyle(initialServerSettings?.planetStyle));
   const [shelfColors, setShelfColorsState] = useState<ShelfColors>(normalizeShelfColors(initialServerSettings?.shelfColors));
   const [chartPreferences, setChartPreferencesState] = useState<ChartPreferences>(normalizeChartPreferences(initialServerSettings?.chartPreferences));
@@ -372,6 +375,7 @@ export function useServerSettings() {
     setChartPreferencesState(normalized.chartPreferences);
     setShelfColorsState(normalized.shelfColors);
     setPlanetStyleState(normalized.planetStyle);
+    setPetState(normalized.pet);
     return true;
   }, [noteServerSettings]);
 
@@ -743,6 +747,13 @@ export function useServerSettings() {
     persistSettings(mutation, { libraryView: view });
   }, [beginLocalMutation, persistSettings]);
 
+  const setPet = useCallback((value: PetSettings) => {
+    const clean = normalizePet(value);
+    const mutation = beginLocalMutation();
+    setPetState(clean);
+    persistSettings(mutation, { pet: clean });
+  }, [beginLocalMutation, persistSettings]);
+
   const setPlanetStyle = useCallback((style: PlanetStyle) => {
     const value = normalizePlanetStyle(style);
     const mutation = beginLocalMutation();
@@ -786,6 +797,8 @@ export function useServerSettings() {
     setShelfColor,
     planetStyle,
     setPlanetStyle,
+    pet,
+    setPet,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
@@ -813,4 +826,30 @@ export function useServerTags() {
   }, []);
 
   return { tags, addTag, removeTag };
+}
+
+/** Refresca la lectura de la mascota sin sustituir el estado editable de la biblioteca. */
+export function usePetBooks(books: Book[]): Book[] {
+  const [petBooks, setPetBooks] = useState(books);
+  const revision = useRef(0);
+  useEffect(() => {
+    revision.current += 1;
+    setPetBooks(books);
+  }, [books]);
+  useEffect(() => {
+    let active = true;
+    let requestId = 0;
+    const refresh = () => {
+      const started = revision.current;
+      const id = ++requestId;
+      apiClient.getBooks().then((latest) => {
+        if (active && id === requestId && revision.current === started) setPetBooks(latest);
+      }).catch(() => { /* Conservamos el último estado conocido y volvemos a intentarlo. */ });
+    };
+    const interval = window.setInterval(refresh, 15000);
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener('focus', onFocus); };
+  }, []);
+  return petBooks;
 }

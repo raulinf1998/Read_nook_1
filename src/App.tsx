@@ -4,7 +4,7 @@ import type { Book } from './types';
 import { selectedAccount, ACCOUNT_NAMES, selectAccount } from './accounts';
 import { apiClient } from './api';
 import { DEFAULT_TAGS } from './types';
-import { useBooks, useServerSettings, useServerTags } from './hooks';
+import { useBooks, usePetBooks, useServerSettings, useServerTags } from './hooks';
 import { Sidebar, MobileNav, MobileThemeToggle } from './components/Navigation';
 import type { TabId } from './components/Navigation';
 import { BookForm } from './components/BookForm';
@@ -15,6 +15,7 @@ import { SettingsMenu } from './components/SettingsMenu';
 import { ReadingNow } from './components/ReadingNow';
 import { Statistics } from './components/Statistics';
 import { ReadingCalendar } from './components/ReadingCalendar';
+import { PetGame, PetHomeCard } from './components/PetGame';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
 import { Bookshelf } from './components/Bookshelf';
@@ -36,6 +37,7 @@ const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   shelf: { title: 'Estantería', subtitle: 'Tu colección, balda a balda' },
   discover: { title: 'Descubrir', subtitle: 'Ideas para tu próxima lectura, según tus gustos' },
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
+  pet: { title: 'Mascota', subtitle: 'Cada página es una aventura juntos' },
   calendar: { title: 'Calendario', subtitle: 'Tus lecturas, día a día' },
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
@@ -71,6 +73,7 @@ function greeting() {
 
 export default function App() {
   const { books, loading, addBook, borrowBook, updateBook, deleteBook, importBooks, mergeExistingStoryGraphJournal } = useBooks();
+  const petBooks = usePetBooks(books);
   const { tags, addTag, removeTag } = useServerTags();
   const {
     goal,
@@ -92,6 +95,8 @@ export default function App() {
     setShelfColor,
     planetStyle,
     setPlanetStyle,
+    pet,
+    setPet,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
@@ -369,6 +374,8 @@ export default function App() {
             ) : (
               <>
             {tab === 'reading' && (
+              <div className="space-y-6">
+              <PetHomeCard books={petBooks} pet={pet} onOpen={() => handleTab('pet')} />
               <ReadingNow
                 books={books}
                 goal={goal}
@@ -380,7 +387,9 @@ export default function App() {
                 onLoadDemo={handleLoadDemo}
                 onGoChallenge={() => handleTab('challenge')}
               />
+              </div>
             )}
+            {tab === 'pet' && <PetGame books={petBooks} pet={pet} onSetPet={setPet} />}
             {tab === 'calendar' && <ReadingCalendar books={books} onOpen={handleOpen} />}
             {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
