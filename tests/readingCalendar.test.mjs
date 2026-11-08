@@ -44,7 +44,13 @@ test('calendario presenta varias portadas, abre libros y navega meses y años', 
   const chart = document.querySelector('[aria-label="Actividad de lectura anual"]');
   assert.equal(chart.querySelectorAll('[role="img"]').length, daysInYear(year).length);
   const square = chart.querySelector(`[aria-label="${new Date(year, month - 1, 1, 12).toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}: 51 páginas"]`);
-  assert.ok(square.className.includes('bg-primary'));
+  assert.ok(square.className.includes('bg-[#075b2c]'));
+  const coverButtons = calendar.querySelectorAll('button[aria-label^="Abrir Libro"]');
+  assert.ok([...coverButtons].every(button => button.className.includes('w-full')));
+  assert.ok(coverButtons[0].parentElement.className.includes('grid-cols-2'));
+  const legend = [...chart.querySelectorAll('span.inline-flex span')].map(span => span.className);
+  assert.equal(new Set(legend).size, 4);
+  assert.ok(legend[3].includes('bg-[#075b2c]'));
   await React.act(async () => document.querySelector('[aria-label="Mes siguiente"]').click());
   assert.equal(calendar.querySelectorAll('button[aria-label^="Abrir Libro"]').length, 0);
   await React.act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Hoy').click());
