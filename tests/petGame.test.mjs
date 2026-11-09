@@ -252,5 +252,8 @@ test('las posturas T. rex documentadas coinciden con los recursos de la aplicaci
   }
   const { headAnchor } = await import('../src/petArt.ts');
   assert.notEqual(headAnchor('cat', 0, 'sentado').width, headAnchor('cat', 0, 'andando').width);
-  assert.ok(headAnchor('dragon', 5, 'sentado').y < 40);
+  assert.ok(headAnchor('dragon', 5, 'sentado').y > 80);
+  assert.ok(headAnchor('dragon', 5, 'andando').x < 20);
+  assert.equal(headAnchor('munchkin', 0, 'jugando').x, 34);
+  assert.ok(headAnchor('munchkin', 3, 'andando').x < 23);
 });
