@@ -3,7 +3,7 @@ import { PET_ACCESSORIES } from '../petGame';
 // Bounds of the visible artwork, including strokes, so its bottom edge is a
 // predictable contact point instead of the empty padding in the original SVG.
 const ART_BOUNDS = [
-  '12 5 76 64', '8 8 84 61', '8 24 84 38', '21 17 58 53', '25 10 50 59',
+  '12 5 76 64', '8 4 84 65', '8 22 84 40', '18 16 64 56', '24 10 53 59',
   '23 18 54 42', '19 20 63 45', '14 6 72 62', '16 25 68 37', '12 10 76 56',
   '17 18 64 43', '22 13 56 52', '21 17 58 48', '24 16 52 46', '17 25 66 24',
   '17 11 65 52', '21 11 43 54', '17 19 66 49', '24 20 52 46', '28 16 44 50',
@@ -26,12 +26,12 @@ export function PetAccessory({ id, className = '' }: { id: number; className?: s
       <path fill={ink} d="M43 5h14v4h5v10h-5v5H43v-5h-5V9h5z"/><path fill="#fff8eb" d="M43 9h14v10H43z"/><path fill="#fff" d="M45 9h7v5h-7z"/>
       {variant ? <path fill="#f2d16c" d="M68 42h5v5h-5z"/> : <path fill="#f6d079" d="M61 41h4v4h4v4h-4v4h-4v-4h-4v-4h4z"/>}
     </>}
-    {kind === 1 && <><path fill={ink} d="M8 59h84v10H8zM20 54h60v6H20zM28 51h44L55 8H44z"/><path fill={variant?'#765584':'#3f4f9c'} d="M35 52l14-36 16 36z"/><path fill="#e3b65e" d="M35 48h30v6H35zM46 31h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/></>}
-    {kind === 2 && <><path fill={ink} d="M8 54h84v8H8zM20 48h60v8H20zM27 24h13v7h20v-7h13v27H27z"/><path fill={variant?'#c58b4f':'#90603c'} d="M31 29h8v6h22v-6h8v19H31z"/><path fill="#eed39d" d="M29 43h42v5H29zM46 42h9v7h-9z"/></>}
-    {kind === 3 && <><path fill={ink} d="M29 28h42v6h8v29h-8v7H29v-7h-8V34h8zM46 17h9v12h-9z"/><path fill="#e68b39" d="M29 34h42v29H29z"/><path fill="#f9b44d" d="M39 33h8v31h-8zm15 0h8v31h-8z"/><path fill="#527b42" d="M46 18h8v12h-8zM52 18h13v6H52z"/><path fill={ink} d="M33 42h6v6h-6zm28 0h6v6h-6zM39 55h22v4H39z"/></>}
-    {kind === 4 && <><path fill="#4c7e48" d="M47 43h6v25h-6zM35 36h12v6H35zM53 30h12v6H53z"/><path fill="#72b56a" d="M25 28h11v7h11v8H34v-6h-9zm29 0h9v-7h12v9h-6v7H54z"/>{!!variant && <><path fill="#f2b3c9" d="M43 10h14v6h7v12h-7v7H43v-7h-7V16h7z"/><path fill="#e8b954" d="M46 19h8v8h-8z"/></>}</>}
-    {kind === 5 && <><path fill={ink} d="M23 24h10v-6h13v7h8v-7h13v6h10v20H70v8h-8v8H38v-8h-8v-8h-7z"/><path fill={variant?'#ed8caf':'#e95466'} d="M28 25h13v7h18v-7h13v17h-8v8h-8v6H44v-6h-8v-8h-8z"/><path fill="#ffd5dd" d="M33 28h7v7h-7z"/></>}
-    {kind === 6 && <><path fill={ink} d="M19 23h9v8h10V20h9v10h7V20h9v11h10v-8h9v42H19z"/><path fill="#eabb4b" d="M24 34h18v-8h4v11h9V26h4v8h18v25H24z"/><path fill={variant?'#eea7ba':'#f7df8b'} d="M30 46h6v6h-6zm17 0h6v6h-6zm17 0h6v6h-6z"/></>}
+    {kind === 1 && <><path fill="#211d38" d="M8 58h84v11H8zM19 52h62v7H19zM27 52L43 10h7V4h8v8h5v8h5v10h5v12h6v10z"/><path fill={variant?'#655077':'#394b85'} d="M32 51l14-36h8v9h7v9h6v10h5v8z"/><path fill={variant?'#a181aa':'#6b80bb'} d="M36 44l11-27h4v9h5v7h5v6h-7v-5h-6v8z"/><path fill="#bf914f" d="M28 46h45v7H28z"/><path fill="#f6d889" d="M31 47h38v3H31zM47 29h3v4h4v3h-4v4h-3v-4h-4v-3h4zM59 39h3v3h-3z"/><path fill="#474265" d="M12 60h76v5H12z"/></>}
+    {kind === 2 && <><path fill="#302020" d="M8 54h84v8H8zM19 49h62v7H19zM25 22h13v7h24v-7h13v29H25z"/><path fill={variant?'#ba8250':'#94613a'} d="M30 28h7v6h26v-6h7v20H30z"/><path fill="#d8a66d" d="M32 30h4v6h28v-6h4v5H32z"/><path fill="#693f2e" d="M29 41h42v8H29z"/><path fill="#e9bd6b" d="M44 41h12v8H44z"/><path fill="#6e4a31" d="M47 43h6v4h-6z"/><path fill="#bc8c59" d="M13 56h74v3H13z"/></>}
+    {kind === 3 && <><path fill="#35231e" d="M31 25h13v-9h11v9h14v5h9v7h4v23h-5v7h-9v5H32v-5h-9v-7h-5V37h5v-7h8z"/><path fill={variant?'#eea847':'#d9702f'} d="M29 33h42v6h6v20h-6v6H29v-6h-6V39h6z"/><path fill="#f2a143" d="M37 31h9v34h-9zM54 31h9v34h-9z"/><path fill="#b85224" d="M33 37h3v20h-3zm30 0h3v20h-3z"/><path fill="#48683b" d="M46 17h8v14h-8zm7 0h12v5H53z"/><path fill="#f8d079" d="M33 36h4v4h-4zm23-2h4v4h-4z"/><path fill="#39241e" d="M33 43h7v6h-7zm27 0h7v6h-7zM38 55h24v4H38z"/></>}
+    {kind === 4 && <><path fill="#304c32" d="M46 35h8v34h-8zM31 30h15v6H31zM54 25h15v6H54z"/><path fill="#4d8b50" d="M24 25h11v6h11v10H34v-5H24zm30 0h9v-6h14v10h-7v6H54z"/><path fill="#9bd180" d="M27 27h8v4h6v4h-7v-3h-7zm32-3h6v-3h8v4h-5v4h-9z"/>{!!variant && <><path fill="#8c546e" d="M43 10h14v6h7v12h-7v7H43v-7h-7V16h7z"/><path fill="#eaa7ba" d="M44 13h12v5h5v9h-5v5H44v-5h-5v-9h5z"/><path fill="#f4d06c" d="M46 20h8v7h-8z"/></>}</>}
+    {kind === 5 && <><path fill="#553044" d="M23 24h10v-6h13v7h8v-7h13v6h10v20H70v8h-8v8H38v-8h-8v-8h-7z"/><path fill={variant?'#dc769c':'#d5455a'} d="M28 25h13v7h18v-7h13v17h-8v8h-8v6H44v-6h-8v-8h-8z"/><path fill="#f78c97" d="M31 26h8v5h7v5H31zm24 18h7v5h-7z"/><path fill="#ffd6cc" d="M32 28h5v5h-5z"/></>}
+    {kind === 6 && <><path fill="#5a3a2b" d="M19 23h9v8h10V20h9v10h7V20h9v11h10v-8h9v42H19z"/><path fill="#c9923f" d="M24 34h18v-8h4v11h9V26h4v8h18v25H24z"/><path fill="#f3d46d" d="M28 36h13v4H28zm19 0h7v4h-7zm13 0h13v4H60zM25 56h50v4H25z"/><path fill={variant?'#ed9fac':'#87b6c8'} d="M31 46h6v7h-6zm16 0h6v7h-6zm16 0h6v7h-6z"/><path fill="#fff3be" d="M32 46h3v3h-3zm16 0h3v3h-3zm16 0h3v3h-3z"/></>}
     {kind === 7 && <><path fill={ink} d="M45 8h10l26 54H19zM14 60h72v8H14z"/><path fill={variant?'#e79a66':'#72a8c7'} d="M49 18l23 42H28z"/><path fill="#f7d877" d="M39 40h7v7h-7zm17-9h7v7h-7zm1 21h7v7h-7zM46 6h8v9h-8z"/></>}
     {kind === 8 && <><path fill={ink} d="M16 25h68v26H73v11H27V51H16z"/><path fill={variant?'#f3eee2':'#555666'} d="M21 30h58v17H68v10H32V47H21z"/><path fill={variant?'#54769b':'#e7e2cf'} d="M44 34h12v12H44zM39 48h22v4H39z"/></>}
     {kind === 9 && <><path fill={ink} d="M20 52h60v14H20zM22 46H12V25h10V17h16v-7h24v7h16v8h10v21H78v6z"/><path fill="#faf1d9" d="M18 26h11v-7h16v-6h11v6h16v7h10v17H18zM25 51h50v10H25z"/><path fill={main} d="M27 49h46v5H27z"/></>}
@@ -50,5 +50,24 @@ export function PetAccessory({ id, className = '' }: { id: number; className?: s
     {kind === 22 && <><path fill="#527e43" d="M47 47h6v22h-6z"/><path fill={variant?'#68ad61':'#d28242'} d="M47 46H35v-7h-9V27h9v-8h12v8h6v-8h12v8h9v12h-9v7H53z"/><path fill="#c9db8b" d="M47 32h6v15h-6z"/></>}
     {kind === 23 && <><path fill="#9c7040" d="M39 19h22v7h7v27h7v7H25v-7h7V26h7zM45 62h10v7H45z"/><path fill={variant?'#d5eafa':'#f5ca61'} d="M39 27h22v27H39z"/><path fill="#fff1bd" d="M42 30h6v16h-6z"/></>}
     {kind === 24 && <><path fill="#4e567e" d="M38 14h24l15 24-27 30-27-30z"/><path fill={variant?'#a6e1e9':'#aa94df'} d="M41 19h18l12 19-21 24-21-24z"/><path fill="#f1effe" d="M43 24h6v11h-6zm12 15h5v10h-5z"/></>}
+    {/* Luces y detalles escalonados: mismos píxeles y paleta cálida de los sprites. */}
+    {kind === 7 && <path fill="#fff0bd" d="M47 20h4v5h-4zM34 53h4v4h-4zm25 0h4v4h-4z"/>}
+    {kind === 8 && <><path fill="#c8a772" d="M20 28h60v3H20zM27 55h46v3H27z"/><path fill="#f3d38d" d="M45 36h10v3H45z"/></>}
+    {kind === 9 && <><path fill="#ded3bc" d="M17 41h66v5H17zM25 60h50v3H25z"/><path fill="#fff" d="M32 21h8v3h-8zm20-6h8v3h-8z"/></>}
+    {kind === 10 && <><path fill="#f2aa91" d="M30 31h19v3H30z"/><path fill="#6b4050" d="M29 51h42v4H29z"/></>}
+    {kind === 11 && <><path fill="#e8c2c0" d="M38 29h6v4h-6zm14 0h6v4h-6z"/><path fill="#a8bbce" d="M25 59h50v3H25z"/></>}
+    {kind === 12 && <><path fill="#dbe0df" d="M30 26h5v9h-5zm9-4h21v3H39z"/><path fill="#6b7181" d="M30 52h5v5h-5zm35 0h5v5h-5z"/></>}
+    {kind === 13 && <path fill="#f5c7ac" d="M29 29h3v8h-3zm38 0h3v8h-3z"/>}
+    {kind === 14 && <path fill="#fff5c5" d="M28 29h20v3H28zm36 6h8v3h-8z"/>}
+    {kind === 15 && <path fill="#fff4b7" d="M48 23h4v13h7v3h-7v10h-4V39h-7v-3h7z"/>}
+    {kind === 16 && <path fill="#fff5bc" d="M32 28h4v18h-4zm7-8h7v4h-7z"/>}
+    {kind === 17 && <path fill="#fff" d="M30 37h8v-6h10v-4h8v4H45v6h-7v4h-8z"/>}
+    {kind === 18 && <><path fill="#fff0ca" d="M33 38h7v4h-7zm25 0h6v4h-6z"/><path fill="#ddbaa1" d="M46 59h8v3h-8z"/></>}
+    {kind === 19 && <><path fill="#fff" d="M36 27h5v5h-5zm18-5h5v4h-5z"/><path fill="#b6c1cf" d="M33 53h5v5h-5zm29 0h5v5h-5z"/></>}
+    {kind === 20 && <path fill="#fff2c0" d="M23 23h5v4h-5zm49 0h5v4h-5zm-43 26h5v4h-5zm38 0h5v4h-5z"/>}
+    {kind === 21 && <path fill="#f5c7c9" d="M25 34h5v5h-5zm45 0h5v5h-5zM46 37h3v7h-3z"/>}
+    {kind === 22 && <path fill="#f2d79a" d="M36 26h5v4h-5zm21 0h5v4h-5z"/>}
+    {kind === 23 && <><path fill="#f9df92" d="M35 23h30v3H35zM32 54h36v4H32z"/><path fill="#fff8d4" d="M43 32h4v10h-4z"/></>}
+    {kind === 24 && <><path fill="#d9c9f5" d="M38 25h4v9h-4zM60 26h4v8h-4z"/><path fill="#655b91" d="M32 39h36v3H32z"/></>}
   </svg>;
 }
