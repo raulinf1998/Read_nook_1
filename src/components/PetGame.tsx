@@ -27,8 +27,12 @@ function PetScene({ pet, phase, className = '', compact = false, interactive = f
   // quepa completa también en la tarjeta estrecha de Inicio.
   // Porcentaje y límite en píxeles funcionan también en navegadores móviles
   // que aún no admiten unidades de contenedor (cqw/cqh).
-  const spriteWidth = `${(compact ? 53 : 52) * scale}%`;
-  const spriteMaxWidth = `${(compact ? 64 : 120) * scale}px`;
+  // El lienzo de los munchkin tiene más margen transparente que otros sprites.
+  // Aumentamos su tamaño base manteniendo la relación entre sus posturas.
+  const widthBase = pet.species === 'munchkin' ? 80 : (compact ? 53 : 52);
+  const maxWidthBase = pet.species === 'munchkin' ? (compact ? 96 : 180) : (compact ? 64 : 120);
+  const spriteWidth = `${widthBase * scale}%`;
+  const spriteMaxWidth = `${maxWidthBase * scale}px`;
   const accessory = pet.accessory === null ? null : PET_ACCESSORIES[pet.accessory];
   return <div className={`pet-scene relative overflow-hidden ${className}`}>
     <div className="pet-scene-sky" style={{ backgroundImage: `url(${petBackgroundImage(pet.background, phase)})` }} />
