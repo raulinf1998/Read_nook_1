@@ -25,6 +25,9 @@ export const PET_BACKGROUNDS = [
   { id: 'interior-magic', label: 'Estudio mágico', image: '/pets/interior-magic.webp' },
 ] as const;
 export type PetBackground = typeof PET_BACKGROUNDS[number]['id'];
+export function petBackgroundImage(background: PetBackground, phase: 'day' | 'night'): string {
+  return `/pets/backgrounds/${phase}/${background}.webp`;
+}
 export interface PetSettings { pose?: 'sentado' | 'durmiendo' | 'andando' | 'jugando'; species: PetSpecies; skin: number; name: string; background: PetBackground; accessory: number | null }
 export const PET_SPECIES: { id: PetSpecies; label: string; skins: string[] }[] = [
   { id: 'cat', label: 'Gato', skins: ['Europeo atigrado', 'Siamés', 'Bombay', 'Británico tricolor', 'British shorthair gris', 'Maine coon'] },

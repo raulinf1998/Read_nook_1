@@ -14,12 +14,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Named time zones for the server clock (including daylight saving).
+RUN apk add --no-cache tzdata
+
 # Install backend deps
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy backend code
-COPY server/index.js server/isbn.js ./
+COPY server/index.js server/isbn.js server/petDayNight.js ./
 
 # Copy built frontend
 COPY --from=builder /app/dist ./dist

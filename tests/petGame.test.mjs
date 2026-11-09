@@ -45,7 +45,7 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   await React.act(async () => document.querySelector('[aria-label="Fondo Costa tranquila"]').click());
   assert.equal(pet.background, 'ocean');
   assert.equal(document.querySelector('[aria-label="Fondo Costa tranquila"]').getAttribute('aria-pressed'), 'true');
-  assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el => el.style.backgroundImage.includes('pet-bg-ocean.webp')));
+  assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el => el.style.backgroundImage.includes('/ocean.webp')));
   assert.equal(document.querySelectorAll('button[disabled]').length,51);
   assert.equal(document.querySelectorAll('[aria-label="Elegir añadido visual"] button').length, 50);
   const original = {...pet};
@@ -102,6 +102,12 @@ test('servidor conserva mascota por cuenta y al reiniciar, con validación', asy
   async function stop() { if (child && child.exitCode === null) { child.kill(); await new Promise(resolve => child.once('exit',resolve)); } }
   async function start() { child=spawn(process.execPath,['server/index.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),DATA_DIR:tmp},stdio:'ignore'}); for (let i=0;i<100;i++) { try { if ((await fetch(`${base}/api/health`)).ok) return; } catch {} await new Promise(resolve=>setTimeout(resolve,100)); } throw new Error('Servidor no arrancó'); }
   t.after(async()=>{await stop();await rm(tmp,{recursive:true,force:true});}); await start();
+  const phaseResponse = await fetch(`${base}/api/pet/day-night`);
+  assert.equal(phaseResponse.status, 200);
+  assert.match(phaseResponse.headers.get('cache-control'), /no-store/);
+  const clock = await phaseResponse.json();
+  assert.ok(['day', 'night'].includes(clock.phase));
+  assert.ok(clock.nextTransition > clock.serverTime);
   async function req(account, patch) { const res=await fetch(`${base}/api/settings`,{method:patch?'PUT':'GET',headers:{'Content-Type':'application/json',cookie:`bilibook-account=${account}`},...(patch?{body:JSON.stringify({pet:patch})}:{})}); assert.equal(res.status,200);return res.json(); }
   assert.deepEqual((await req('raul')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
   assert.deepEqual((await req('raul',{species:'munchkin',skin:0,name:'Mini',pose:'durmiendo'})).pet,{species:'munchkin',skin:0,name:'Mini',background:'garden',accessory:null,pose:'durmiendo'});
@@ -224,6 +230,9 @@ test('los huecos corregidos son transparentes y el cascarón azul se conserva', 
   assert.equal(pixel('cat/2/sentado', 175, 231), '0');
   assert.equal(pixel('cat/5/durmiendo', 209, 237), '0');
   assert.equal(pixel('dragon/1/sentado', 161, 71), '0');
+  assert.equal(pixel('munchkin/1/jugando', 163, 217), '0');
+  assert.equal(pixel('munchkin/1/jugando', 168, 215), '0');
+  assert.equal(pixel('munchkin/4/sentado', 70, 140), '1');
   assert.equal(pixel('munchkin/2/sentado', 80, 217), '0');
   assert.equal(pixel('munchkin/2/sentado', 193, 224), '0');
   assert.equal(pixel('trex/2/jugando', 121, 132), '0');
@@ -260,4 +269,44 @@ test('las posturas T. rex documentadas coinciden con los recursos de la aplicaci
   assert.ok(headAnchor('dragon', 5, 'andando').x < 20);
   assert.equal(headAnchor('munchkin', 0, 'jugando').x, 34);
   assert.ok(headAnchor('munchkin', 3, 'andando').x < 23);
+});
+
+test('el reloj del servidor cambia de fase a las 08:00 y a las 20:00', async () => {
+  const { petDayNight } = await import('../server/petDayNight.js');
+  const local = (hour, minute = 0, second = 0) => new Date(2026, 5, 15, hour, minute, second);
+  assert.equal(petDayNight(local(7,59,59)).phase, 'night');
+  assert.equal(petDayNight(local(8)).phase, 'day');
+  assert.equal(petDayNight(local(19,59,59)).phase, 'day');
+  assert.equal(petDayNight(local(20)).phase, 'night');
+  assert.equal(petDayNight(local(20)).nextTransition, new Date(2026, 5, 16, 8).getTime());
+  assert.equal(petDayNight(local(7)).nextTransition, local(8).getTime());
+  assert.equal(petDayNight(local(12)).nextTransition, local(20).getTime());
+});
+
+test('cada escenario tiene una imagen de día y otra de noche', async () => {
+  const { stat, readFile } = await import('node:fs/promises');
+  const { petBackgroundImage } = await import('../src/petGame.ts');
+  for (const scene of PET_BACKGROUNDS) {
+    const day = petBackgroundImage(scene.id, 'day');
+    const night = petBackgroundImage(scene.id, 'night');
+    const dayPath = new URL(`../public${day}`, import.meta.url);
+    const nightPath = new URL(`../public${night}`, import.meta.url);
+    assert.ok((await stat(dayPath)).size > 1000);
+    assert.ok((await stat(nightPath)).size > 1000);
+    assert.notDeepEqual(await readFile(dayPath), await readFile(nightPath));
+  }
+});
+
+test('Inicio y selector muestran la fase recibida del servidor', async (t) => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', {url:'http://bilibook.test/'});
+  globalThis.window=dom.window; globalThis.document=dom.window.document; Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true}); globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { assert.equal(url, '/api/pet/day-night'); return {ok:true, json:async()=>({phase:'night',serverTime:1000,nextTransition:60000})}; };
+  const React=await import('react'); const {createRoot}=await import('react-dom/client'); const {createServer}=await import('vite');
+  const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); const {PetHomeCard,PetGame}=await vite.ssrLoadModule('/src/components/PetGame.tsx'); const root=createRoot(document.getElementById('root'));
+  t.after(async()=>{await React.act(async()=>root.unmount());await vite.close();dom.window.close();globalThis.fetch=originalFetch;delete globalThis.window;delete globalThis.document;delete globalThis.navigator;delete globalThis.IS_REACT_ACT_ENVIRONMENT;});
+  const pet=normalizePet({background:'ocean'});
+  await React.act(async()=>root.render(React.createElement(React.Fragment,null,React.createElement(PetHomeCard,{books:[],pet,challenge:started,onOpen(){}}),React.createElement(PetGame,{books:[],pet,challenge:started,onActivate:async()=>{},onSetPet(){}}))));
+  assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el=>el.style.backgroundImage.includes('/night/ocean.webp')));
+  assert.match(document.querySelector('[aria-label="Fondo Costa tranquila"] img').src, /\/night\/ocean.webp$/);
 });
