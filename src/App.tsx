@@ -391,7 +391,7 @@ export default function App() {
               />
               </div>
             )}
-            {tab === 'pet' && <PetGame books={petBooks} pet={pet} challenge={petChallenge} onActivate={activatePet} onSetPet={setPet} />}
+            {tab === 'pet' && <PetGame key={account} books={petBooks} pet={pet} challenge={petChallenge} onActivate={activatePet} onSetPet={setPet} />}
             {tab === 'calendar' && <ReadingCalendar books={books} onOpen={handleOpen} />}
             {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}

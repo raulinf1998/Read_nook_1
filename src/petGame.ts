@@ -13,6 +13,16 @@ export const PET_BACKGROUNDS = [
   { id: 'castle', label: 'Castillo', image: '/pet-bg-castle.webp' },
   { id: 'cherry', label: 'Cerezos', image: '/pet-bg-cherry.webp' },
   { id: 'autumn', label: 'Bosque de otoño', image: '/pet-bg-autumn.webp' },
+  { id: 'interior-library', label: 'Biblioteca acogedora', image: '/pets/interior-library.webp' },
+  { id: 'interior-fireplace', label: 'Junto a la chimenea', image: '/pets/interior-fireplace.webp' },
+  { id: 'interior-attic', label: 'Desván lector', image: '/pets/interior-attic.webp' },
+  { id: 'interior-cafe', label: 'Café de libros', image: '/pets/interior-cafe.webp' },
+  { id: 'interior-greenhouse', label: 'Invernadero lector', image: '/pets/interior-greenhouse.webp' },
+  { id: 'interior-observatory', label: 'Observatorio', image: '/pets/interior-observatory.webp' },
+  { id: 'interior-gothic', label: 'Biblioteca gótica', image: '/pets/interior-gothic.webp' },
+  { id: 'interior-workshop', label: 'Taller de encuadernación', image: '/pets/interior-workshop.webp' },
+  { id: 'interior-rain', label: 'Tarde de lluvia', image: '/pets/interior-rain.webp' },
+  { id: 'interior-magic', label: 'Estudio mágico', image: '/pets/interior-magic.webp' },
 ] as const;
 export type PetBackground = typeof PET_BACKGROUNDS[number]['id'];
 export interface PetSettings { pose?: 'sentado' | 'durmiendo' | 'andando' | 'jugando'; species: PetSpecies; skin: number; name: string; background: PetBackground; accessory: number | null }

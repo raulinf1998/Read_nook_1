@@ -3,7 +3,7 @@ import { PET_ACCESSORIES } from '../petGame';
 // Bounds of the visible artwork, including strokes, so its bottom edge is a
 // predictable contact point instead of the empty padding in the original SVG.
 const ART_BOUNDS = [
-  '18 7 65 62', '8 8 84 61', '8 24 84 38', '21 17 58 53', '25 10 50 59',
+  '12 5 76 64', '8 8 84 61', '8 24 84 38', '21 17 58 53', '25 10 50 59',
   '23 18 54 42', '19 20 63 45', '14 6 72 62', '16 25 68 37', '12 10 76 56',
   '17 18 64 43', '22 13 56 52', '21 17 58 48', '24 16 52 46', '17 25 66 24',
   '17 11 65 52', '21 11 43 54', '17 19 66 49', '24 20 52 46', '28 16 44 50',
@@ -16,7 +16,16 @@ export function PetAccessory({ id, className = '' }: { id: number; className?: s
   const { kind, variant } = item;
   const ink = '#303047', main = variant ? '#7661b1' : '#cf554d', light = variant ? '#dcd3f3' : '#ffe6c5';
   return <svg aria-hidden="true" className={className} viewBox={ART_BOUNDS[kind]} preserveAspectRatio="xMidYMax meet" shapeRendering="crispEdges">
-    {kind === 0 && <><path fill={ink} d="M18 57h65v12H18zM25 48h48V29H58V15H46V9H35v14h-7v17h-3z"/><path fill={variant?'#529b69':'#c83b42'} d="M30 48V27h8V15h8v8h12v13h9v12z"/><path fill="#fff7e6" d="M19 57h62v9H19zM33 7h13v10H33z"/><path fill="#f6cb64" d="M49 38h8v7h-8z"/></>}
+    {kind === 0 && <>
+      {/* Silueta continua: el cuerpo une el pompón con la banda de pelo. */}
+      <path fill={ink} d="M13 53h7v-9h5v-9h6v-9h6v-9h9V9h10v5h8v6h7v9h5v9h4v15h8v16H12V53z"/>
+      <path fill={variant ? '#35845b' : '#b92738'} d="M22 53v-9h6v-9h6v-9h7v-9h10v5h8v6h7v9h7v16z"/>
+      <path fill={variant ? '#64b982' : '#e65053'} d="M29 48v-9h6v-9h7v-8h8v7h7v7h7v12z"/>
+      <path fill={variant ? '#a8db9d' : '#f58273'} d="M38 33h5v-7h6v5h5v5h-8v5h-8z"/>
+      <path fill="#d8d4c9" d="M14 54h73v13H14z"/><path fill="#fff9ec" d="M17 55h67v8H17z"/><path fill="#fff" d="M23 56h8v4h-8zm18 0h8v4h-8zm18 0h8v4h-8z"/>
+      <path fill={ink} d="M43 5h14v4h5v10h-5v5H43v-5h-5V9h5z"/><path fill="#fff8eb" d="M43 9h14v10H43z"/><path fill="#fff" d="M45 9h7v5h-7z"/>
+      {variant ? <path fill="#f2d16c" d="M68 42h5v5h-5z"/> : <path fill="#f6d079" d="M61 41h4v4h4v4h-4v4h-4v-4h-4v-4h4z"/>}
+    </>}
     {kind === 1 && <><path fill={ink} d="M8 59h84v10H8zM20 54h60v6H20zM28 51h44L55 8H44z"/><path fill={variant?'#765584':'#3f4f9c'} d="M35 52l14-36 16 36z"/><path fill="#e3b65e" d="M35 48h30v6H35zM46 31h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/></>}
     {kind === 2 && <><path fill={ink} d="M8 54h84v8H8zM20 48h60v8H20zM27 24h13v7h20v-7h13v27H27z"/><path fill={variant?'#c58b4f':'#90603c'} d="M31 29h8v6h22v-6h8v19H31z"/><path fill="#eed39d" d="M29 43h42v5H29zM46 42h9v7h-9z"/></>}
     {kind === 3 && <><path fill={ink} d="M29 28h42v6h8v29h-8v7H29v-7h-8V34h8zM46 17h9v12h-9z"/><path fill="#e68b39" d="M29 34h42v29H29z"/><path fill="#f9b44d" d="M39 33h8v31h-8zm15 0h8v31h-8z"/><path fill="#527b42" d="M46 18h8v12h-8zM52 18h13v6H52z"/><path fill={ink} d="M33 42h6v6h-6zm28 0h6v6h-6zM39 55h22v4H39z"/></>}

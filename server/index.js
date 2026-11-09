@@ -612,7 +612,7 @@ let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
 const PET_SPECIES = ['cat', 'munchkin', 'dragon', 'monkey', 'chicken', 'trex'];
-const PET_BACKGROUNDS = ['garden', 'ocean', 'library', 'snow', 'space', 'jungle', 'desert', 'castle', 'cherry', 'autumn'];
+const PET_BACKGROUNDS = ['garden', 'ocean', 'library', 'snow', 'space', 'jungle', 'desert', 'castle', 'cherry', 'autumn', 'interior-library', 'interior-fireplace', 'interior-attic', 'interior-cafe', 'interior-greenhouse', 'interior-observatory', 'interior-gothic', 'interior-workshop', 'interior-rain', 'interior-magic'];
 function cleanPet(value) {
   const pet = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   return {
