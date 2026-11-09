@@ -54,3 +54,22 @@ export function headAnchor(species: PetSpecies, skin: number, pose: PetPose): He
   const poseIndex = Math.max(0, PET_POSES.indexOf(pose));
   return { ...rows[index][poseIndex], width: HEAD_WIDTHS[species][index][poseIndex] };
 }
+
+// Anchuras aproximadas de las cabezas visibles, en píxeles de los originales
+// de 256 × 256. No son los anchos de los sombreros: de perfil, ambos difieren.
+const MUNCHKIN_HEAD_SIZE: readonly (readonly [number, number, number, number])[] = [
+  [90, 85, 64, 74], [86, 92, 58, 83], [82, 95, 60, 78],
+  [78, 75, 70, 76], [98, 93, 69, 68], [78, 80, 58, 80],
+];
+const CLOUD_HEAD_SIZE = [32, 65, 32, 61] as const;
+
+// La escala se aplica al sprite y a sus accesorios juntos, sin deformar el dibujo.
+export function petPoseScale(species: PetSpecies, skin: number, pose: PetPose): number {
+  const poseIndex = Math.max(0, PET_POSES.indexOf(pose));
+  if (species === 'munchkin') {
+    const row = MUNCHKIN_HEAD_SIZE[Number.isInteger(skin) && skin >= 0 && skin < 6 ? skin : 0];
+    return 78 / row[poseIndex];
+  }
+  if (species === 'dragon' && skin === 5) return 50 / CLOUD_HEAD_SIZE[poseIndex];
+  return 1;
+}

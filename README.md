@@ -278,3 +278,13 @@ elimina los límites de Google: si la cuota del proyecto se agota o la clave es
 rechazada, Bilibook avisa y sigue consultando las otras fuentes. Puedes revisar
 cuota, activación de API y restricciones en Google Cloud. Para instalaciones sin
 Compose, define `GOOGLE_BOOKS_API_KEY` en el entorno del proceso del servidor.
+
+### Hora de los escenarios de mascotas
+
+Los escenarios usan la hora local del servidor: de 08:00 (inclusive) a 20:00
+(exclusive) se muestra la variante diurna; el resto, la nocturna. En Docker
+Compose, configura `TZ=Europe/Madrid` en el archivo `.env` o en el entorno del
+host si quieres usar la hora peninsular española; por defecto se usa UTC. El
+servidor tiene datos de zonas horarias para aplicar automáticamente los cambios
+de horario de verano. El navegador consulta la fase al servidor y la actualiza
+sin recargar; si se pierde la conexión conserva la última fase y reintenta.

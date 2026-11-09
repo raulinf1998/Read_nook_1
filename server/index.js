@@ -1,5 +1,6 @@
 import express from 'express';
 import { lookupIsbn } from './isbn.js';
+import { petDayNight } from './petDayNight.js';
 import { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync, copyFileSync, constants as fsConstants, promises as fsPromises } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -1045,6 +1046,11 @@ function commitSettings(res, previous) {
   broadcastSettings();
   return sendSettings(res);
 }
+
+app.get('/api/pet/day-night', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(petDayNight());
+});
 
 app.get('/api/health', (req, res) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
