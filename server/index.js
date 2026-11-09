@@ -612,12 +612,15 @@ let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
 const PET_SPECIES = ['cat', 'dragon', 'monkey', 'chicken', 'trex'];
+const PET_BACKGROUNDS = ['garden', 'ocean', 'library', 'snow', 'space', 'jungle', 'desert', 'castle', 'cherry', 'autumn'];
 function cleanPet(value) {
   const pet = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   return {
     species: PET_SPECIES.includes(pet.species) ? pet.species : 'cat',
     skin: Number.isInteger(pet.skin) && pet.skin >= 0 && pet.skin < 6 ? pet.skin : 0,
     name: typeof pet.name === 'string' ? pet.name.trim().slice(0, 24) : '',
+    background: PET_BACKGROUNDS.includes(pet.background) ? pet.background : 'garden',
+    accessory: Number.isInteger(pet.accessory) && pet.accessory >= 0 && pet.accessory < 50 ? pet.accessory : null,
   };
 }
 
@@ -649,6 +652,7 @@ function normalizeAccount(parsed) {
         shelfColors: cleanShelfColors(parsed.shelfColors),
         planetStyle: PLANET_STYLES.includes(parsed.planetStyle) ? parsed.planetStyle : 'orbita',
         pet: cleanPet(parsed.pet),
+        petChallenge: parsed.petChallenge && typeof parsed.petChallenge.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.petChallenge.startDate) && Array.isArray(parsed.petChallenge.excluded) ? { startDate: parsed.petChallenge.startDate, excluded: parsed.petChallenge.excluded.filter(key => typeof key === 'string') } : null,
         customPaletteId: customPalettes.some((palette) => palette.id === parsed.customPaletteId)
           ? parsed.customPaletteId
           : null,
@@ -963,6 +967,7 @@ const publicSettings = () => ({
   shelfColors: db.shelfColors,
   planetStyle: db.planetStyle,
   pet: db.pet,
+  petChallenge: db.petChallenge,
   settingsVersion: db.settingsVersion || 0,
   settingsSyncProtocol: SETTINGS_SYNC_PROTOCOL,
 });
@@ -993,6 +998,7 @@ function snapshotSettings() {
     shelfColors: { ...db.shelfColors },
     planetStyle: db.planetStyle,
     pet: { ...db.pet },
+    petChallenge: db.petChallenge,
     settingsVersion: db.settingsVersion,
   };
 }
@@ -1008,6 +1014,7 @@ function restoreSettings(snapshot) {
   db.shelfColors = snapshot.shelfColors;
   db.planetStyle = snapshot.planetStyle;
   db.pet = snapshot.pet;
+  db.petChallenge = snapshot.petChallenge;
   db.settingsVersion = snapshot.settingsVersion;
 }
 
@@ -1119,6 +1126,33 @@ function handleSettingsPatch(req, res) {
   }
   return commitSettings(res, previous);
 }
+
+// La activación es idempotente y se serializa con las escrituras del diario.
+app.post('/api/pet/activate', async (req, res) => {
+  const date = req.body?.startDate;
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Fecha de inicio no válida.' });
+  const parts = date.split('-').map(Number);
+  const candidate = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+  const parsed = new Date(candidate);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (parsed.getUTCFullYear() !== parts[0] || parsed.getUTCMonth() !== parts[1] - 1 || parsed.getUTCDate() !== parts[2] || Math.abs(candidate - todayUTC) > 86400000) return res.status(400).json({ error: 'La fecha debe ser el día actual.' });
+  try {
+    await enqueueBookMutation(async () => {
+      if (db.petChallenge) return sendSettings(res);
+      const requestedPet = req.body?.pet;
+      if (!requestedPet || !PET_SPECIES.includes(requestedPet.species) || typeof requestedPet.name !== 'string' || !requestedPet.name.trim()) return res.status(400).json({ error: 'Elige una mascota y ponle un nombre.' });
+      const previous = snapshotSettings();
+      db.pet = cleanPet({ ...requestedPet, skin: 0, accessory: null });
+      const excluded = db.books.flatMap(book => (Array.isArray(book.journal) ? book.journal : []).map(entry => JSON.stringify([book.id, entry?.id || ''])));
+      db.petChallenge = { startDate: date, excluded };
+      return commitSettings(res, previous);
+    });
+  } catch (error) {
+    console.error('No se pudo activar la mascota:', error);
+    return res.status(500).json({ error: 'No se pudo iniciar el reto. Vuelve a intentarlo.' });
+  }
+});
 
 app.put('/api/settings', handleSettingsPatch);
 // Alias por compatibilidad con proxies o navegadores integrados que bloqueen

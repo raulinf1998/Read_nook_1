@@ -1,16 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { PET_SPECIES, SKIN_THRESHOLDS, normalizePet, effectivePet, petProgress } from '../src/petGame.ts';
+import { PET_SPECIES, PET_ACCESSORIES, PET_BACKGROUNDS, SKIN_THRESHOLDS, normalizePet, effectivePet, petProgress } from '../src/petGame.ts';
 
 const date = (y,m,d) => new Date(y,m-1,d,12).getTime();
 const book = (...journal) => ({ journal });
 const entry = (day,pages,other = {}) => ({ date: day, pages, ...other });
+const started = { startDate: '2000-01-01', excluded: [] };
 
 test('mascotas y aspectos: cinco especies, seis diseños y desbloqueos seguros', () => {
+  assert.equal(PET_BACKGROUNDS.length, 10);
+  assert.equal(new Set(PET_BACKGROUNDS.map(b => b.id)).size, 10);
+  assert.equal(normalizePet({ background: 'wrong' }).background, 'garden');
   assert.equal(PET_SPECIES.length, 5); assert.ok(PET_SPECIES.every(s => s.skins.length === 6));
   assert.deepEqual(SKIN_THRESHOLDS, [0,100,300,600,1000,1600]);
-  assert.deepEqual(normalizePet({ species:'fake', skin:9, name:' x ' }), { species:'cat', skin:0, name:'x' });
+  assert.deepEqual(normalizePet({ species:'fake', skin:9, name:' x ' }), { species:'cat', skin:0, name:'x', background:'garden', accessory:null });
   assert.equal(normalizePet({ name:'x'.repeat(100) }).name.length, 24);
   assert.equal(effectivePet({ species:'dragon', skin:2, name:'D' }, 299).skin, 0);
   assert.equal(effectivePet({ species:'dragon', skin:2, name:'D' }, 300).skin, 2);
@@ -19,11 +23,11 @@ test('mascotas y aspectos: cinco especies, seis diseños y desbloqueos seguros',
 test('páginas del diario cuentan por fecha exacta, suman sesiones y se recalculan sin inventar datos', () => {
   const now = new Date(2026, 0, 7, 12);
   const books = [book(entry(date(2026,1,7),12),entry(date(2026,1,7),13),entry(date(2026,1,6),20),entry(date(2026,1,5),30),entry(date(2026,1,1),100),entry(date(2026,1,7),500,{datePrecision:'year'}),entry(date(2026,1,8),999),entry(date(2026,1,7),-12)), book(entry(date(2026,1,7),25))];
-  const p = petProgress(books, now);
+  const p = petProgress(books, now, started);
   assert.deepEqual([p.total,p.dayPages,p.weekPages,p.streak,p.level,p.levelPages,p.activeDays], [200,50,100,3,3,0,4]);
-  assert.equal(petProgress([book(entry(date(2026,1,6),1))],now).streak, 1);
-  assert.equal(petProgress([book(entry(date(2026,1,5),1))],now).streak, 0);
-  assert.equal(petProgress([],now).total,0);
+  assert.equal(petProgress([book(entry(date(2026,1,6),1))],now,started).streak, 1);
+  assert.equal(petProgress([book(entry(date(2026,1,5),1))],now,started).streak, 0);
+  assert.equal(petProgress([],now,started).total,0);
 });
 
 test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra resumen en inicio', async (t) => {
@@ -33,15 +37,34 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   const vite = await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); const {PetGame, PetHomeCard} = await vite.ssrLoadModule('/src/components/PetGame.tsx');
   const root = createRoot(document.getElementById('root'));
   t.after(async () => { await React.act(async () => root.unmount()); await vite.close(); dom.window.close(); delete globalThis.window; delete globalThis.document; delete globalThis.navigator; delete globalThis.IS_REACT_ACT_ENVIRONMENT; });
-  const today = new Date(); const books = [book(entry(today.getTime(), 350))]; let pet = {species:'cat',skin:0,name:''}; let opened = false;
-  const render = () => root.render(React.createElement(React.Fragment,null,React.createElement(PetHomeCard,{books,pet,onOpen:()=>{opened=true;}}),React.createElement(PetGame,{books,pet,onSetPet:p => {pet=p;render();}})));
+  const today = new Date(); const books = [book(entry(today.getTime(), 350))]; let pet = {species:'cat',skin:0,name:'',background:'garden',accessory:null}; let opened = false;
+  const render = () => root.render(React.createElement(React.Fragment,null,React.createElement(PetHomeCard,{books,pet,challenge:started,onOpen:()=>{opened=true;}}),React.createElement(PetGame,{books,pet,challenge:started,onActivate:async()=>{},onSetPet:p => {pet=p;render();}})));
   await React.act(async () => render());
   assert.equal(document.querySelectorAll('[aria-label="Elegir mascota"] button').length,5);
-  assert.equal(document.querySelectorAll('button[disabled]').length,3);
+  assert.equal(document.querySelectorAll('[aria-label="Elegir fondo"] button').length,10);
+  await React.act(async () => document.querySelector('[aria-label="Fondo Costa tranquila"]').click());
+  assert.equal(pet.background, 'ocean');
+  assert.equal(document.querySelector('[aria-label="Fondo Costa tranquila"]').getAttribute('aria-pressed'), 'true');
+  assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el => el.style.backgroundImage.includes('pet-bg-ocean.webp')));
+  assert.equal(document.querySelectorAll('button[disabled]').length,51);
+  assert.equal(document.querySelectorAll('[aria-label="Elegir añadido visual"] button').length, 50);
+  await React.act(async () => document.querySelector('[aria-label="Elegir añadido visual"] button').click());
+  assert.equal(pet.accessory, 0);
+  assert.equal(document.querySelectorAll('.pet-scene .pet-sprite svg').length, 2);
+  const accessories = document.querySelectorAll('[aria-label="Elegir añadido visual"] button');
+  assert.equal(accessories[1].disabled, false);
+  assert.equal(accessories[2].disabled, true);
+  await React.act(async () => accessories[1].click());
+  assert.equal(pet.accessory, 1);
+  assert.equal(accessories[1].getAttribute('aria-pressed'), 'true');
+  await React.act(async () => [...document.querySelectorAll('button')].find(button => button.textContent === 'Sin añadido').click());
+  assert.equal(pet.accessory, null);
+  await React.act(async () => document.querySelector('[aria-label="Elegir añadido visual"] button').click());
+  assert.equal(pet.accessory, 0);
   await React.act(async () => document.querySelector('[aria-label="Abrir Mi mascota"]').click()); assert.equal(opened,true);
   await React.act(async () => [...document.querySelectorAll('[aria-label="Elegir mascota"] button')].find(x => x.textContent.includes('Dragón')).click());
-  assert.equal(pet.species,'dragon');
-  await React.act(async () => [...document.querySelectorAll('button')].find(x => x.textContent.includes('Océano')).click()); assert.equal(pet.skin,2);
+  assert.equal(pet.species,'dragon'); assert.equal(pet.accessory,0); assert.match(document.body.textContent,/Nivel 4/);
+  await React.act(async () => [...document.querySelectorAll('button')].find(x => x.textContent.includes('Océano') && !x.getAttribute('aria-label')?.startsWith('Fondo ')).click()); assert.equal(pet.skin,2);
   assert.match(document.body.textContent,/Nivel 4/); assert.match(document.body.textContent,/3\/3 completadas/);
   await React.act(async () => document.querySelector('[aria-label="Saludar a Dragón"]').click());
   assert.match(document.body.textContent,/Me encanta leer contigo/);
@@ -57,9 +80,86 @@ test('servidor conserva mascota por cuenta y al reiniciar, con validación', asy
   async function start() { child=spawn(process.execPath,['server/index.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),DATA_DIR:tmp},stdio:'ignore'}); for (let i=0;i<100;i++) { try { if ((await fetch(`${base}/api/health`)).ok) return; } catch {} await new Promise(resolve=>setTimeout(resolve,100)); } throw new Error('Servidor no arrancó'); }
   t.after(async()=>{await stop();await rm(tmp,{recursive:true,force:true});}); await start();
   async function req(account, patch) { const res=await fetch(`${base}/api/settings`,{method:patch?'PUT':'GET',headers:{'Content-Type':'application/json',cookie:`bilibook-account=${account}`},...(patch?{body:JSON.stringify({pet:patch})}:{})}); assert.equal(res.status,200);return res.json(); }
-  assert.deepEqual((await req('raul')).pet,{species:'cat',skin:0,name:''});
-  assert.deepEqual((await req('raul',{species:'trex',skin:5,name:' Dino '})).pet,{species:'trex',skin:5,name:'Dino'});
-  assert.deepEqual((await req('pequenaja')).pet,{species:'cat',skin:0,name:''});
-  assert.deepEqual((await req('pequenaja',{species:'invalida',skin:-1,name:5})).pet,{species:'cat',skin:0,name:''});
-  await stop(); await start(); assert.deepEqual((await req('raul')).pet,{species:'trex',skin:5,name:'Dino'}); assert.equal((await req('pequenaja')).pet.species,'cat');
+  assert.deepEqual((await req('raul')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
+  assert.deepEqual((await req('raul',{species:'trex',skin:5,name:' Dino ',background:'space'})).pet,{species:'trex',skin:5,name:'Dino',background:'space',accessory:null});
+  assert.deepEqual((await req('pequenaja')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
+  assert.deepEqual((await req('pequenaja',{species:'invalida',skin:-1,name:5,background:'../../secret'})).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
+  const created = await (await fetch(`${base}/api/books`, {method:'POST', headers:{'Content-Type':'application/json', cookie:'bilibook-account=raul'}, body:JSON.stringify({ title:'Antes', journal:[{id:'old',date:Date.now(),pages:500}] })})).json();
+  const date = new Date(); const today = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const bad = await fetch(`${base}/api/pet/activate`, {method:'POST',headers:{'Content-Type':'application/json',cookie:'bilibook-account=raul'},body:JSON.stringify({startDate:today,pet:{species:'cat',name:'   '}})}); assert.equal(bad.status,400); assert.equal((await req('raul')).petChallenge,null);
+  const activate = async () => (await fetch(`${base}/api/pet/activate`, {method:'POST',headers:{'Content-Type':'application/json',cookie:'bilibook-account=raul'},body:JSON.stringify({startDate:today,pet:{species:'dragon',name:'Nube',skin:0,background:'space'}})})).json();
+  const first = await activate(); assert.deepEqual(first.pet, {species:'dragon',skin:0,name:'Nube',background:'space',accessory:null}); assert.equal(first.petChallenge.startDate,today); assert.deepEqual(first.petChallenge.excluded,[JSON.stringify([created.id,'old'])]);
+  const second = await activate(); assert.deepEqual(second.petChallenge, first.petChallenge); assert.equal(second.settingsVersion,first.settingsVersion);
+  assert.equal((await req('pequenaja')).petChallenge,null);
+  const switched = await req('raul', { species:'monkey', skin:0, name:'Nube', background:'space', accessory:0 });
+  assert.deepEqual(switched.petChallenge, first.petChallenge); assert.equal(switched.pet.accessory,0);
+  await stop(); await start(); assert.deepEqual((await req('raul')).petChallenge,first.petChallenge); assert.deepEqual((await req('raul')).pet,{species:'monkey',skin:0,name:'Nube',background:'space',accessory:0}); assert.equal((await req('pequenaja')).pet.species,'cat');
+});
+
+test('las 30 mascotas cuentan con ilustraciones locales distintas', async (t) => {
+  const { createServer } = await import('vite'); const React = await import('react'); const { renderToStaticMarkup } = await import('react-dom/server');
+  const { stat, readFile } = await import('node:fs/promises');
+  const { createHash } = await import('node:crypto');
+  const vite = await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});
+  t.after(async () => vite.close());
+  const { PixelPet } = await vite.ssrLoadModule('/src/components/PixelPet.tsx');
+  const hashes = new Set();
+  for (const species of PET_SPECIES) for (let skin = 0; skin < 6; skin++) {
+    const path = new URL(`../public/pets/${species.id}-${skin}.webp`, import.meta.url);
+    assert.ok((await stat(path)).size > 1000);
+    hashes.add(createHash('sha256').update(await readFile(path)).digest('hex'));
+    const html = renderToStaticMarkup(React.createElement(PixelPet,{species:species.id,skin}));
+    assert.ok(html.includes(`/pets/${species.id}-${skin}.webp`));
+    assert.ok(html.includes(species.skins[skin]));
+  }
+  assert.equal(hashes.size, 30);
+});
+
+test('los diez fondos están disponibles como archivos locales', async () => {
+  const {stat} = await import('node:fs/promises');
+  for (const background of PET_BACKGROUNDS) assert.ok((await stat(new URL(`../public${background.image}`, import.meta.url))).size > 1000);
+});
+
+
+test('inicio en nivel 1 excluye registros anteriores, incluso del mismo día, y lecturas importadas antiguas', () => {
+  const now = new Date(2026, 4, 5, 15); const challenge = { startDate: '2026-05-05', excluded: [JSON.stringify(['b', 'old'])] };
+  const entries = [{id:'old', date:date(2026,5,5), pages:700}, {id:'new',date:date(2026,5,5),pages:25}, {id:'imported',date:date(2026,5,4),pages:500}];
+  const books = [{id:'b',journal:entries}];
+  assert.equal(petProgress(books, now).total, 0);
+  assert.equal(petProgress(books, now, challenge).total, 25);
+  assert.equal(petProgress(books, now, challenge).level, 1);
+  entries[0].pages = 999; entries[0].date = date(2026,5,5);
+  assert.equal(petProgress(books, now, challenge).total, 25);
+  entries[1].pages = 101;
+  assert.equal(petProgress(books, now, challenge).level, 2);
+});
+
+
+test('50 añadidos se desbloquean cada dos niveles y se mantienen al cambiar mascota', () => {
+  assert.equal(PET_ACCESSORIES.length, 50);
+  assert.equal(new Set(PET_ACCESSORIES.map(a => a.name)).size, 50);
+  for (const item of PET_ACCESSORIES) {
+    assert.equal(item.level, (item.id + 1) * 2);
+    for (const species of PET_SPECIES) {
+      const pet = normalizePet({ species: species.id, skin: 0, accessory: item.id });
+      assert.equal(effectivePet(pet, (item.level - 1) * 100 - 1).accessory, null);
+      assert.equal(effectivePet(pet, (item.level - 1) * 100).accessory, item.id);
+    }
+  }
+  assert.equal(normalizePet({ accessory: 50 }).accessory, null);
+});
+
+test('se elige mascota y nombre antes de empezar en nivel uno', async (t) => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', {url:'http://bilibook.test/'});
+  globalThis.window=dom.window; globalThis.document=dom.window.document; Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configurable:true}); globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+  const React=await import('react'); const {createRoot}=await import('react-dom/client'); const {createServer}=await import('vite');
+  const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); const {PetGame}=await vite.ssrLoadModule('/src/components/PetGame.tsx'); const root=createRoot(document.getElementById('root')); let activated;
+  t.after(async()=>{await React.act(async()=>root.unmount());await vite.close();dom.window.close();delete globalThis.window;delete globalThis.document;delete globalThis.navigator;delete globalThis.IS_REACT_ACT_ENVIRONMENT;});
+  await React.act(async()=>root.render(React.createElement(PetGame,{books:[],pet:normalizePet({}),challenge:null,onActivate:async p=>{activated=p;},onSetPet(){}})));
+  const initial=document.querySelector('[aria-label="Elegir primera mascota"]'); assert.equal(initial.querySelectorAll('button').length,5);
+  await React.act(async()=>[...initial.querySelectorAll('button')].find(x=>x.textContent.includes('Pollo')).click());
+  const input=document.querySelector('#first-pet-name');
+  await React.act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(input,'Pío');input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
+  await React.act(async()=>input.closest('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true})));
+  assert.equal(activated.species,'chicken'); assert.equal(activated.name,'Pío'); assert.equal(activated.accessory,null);
 });

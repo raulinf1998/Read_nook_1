@@ -1,4 +1,4 @@
-import type { PetSettings } from './petGame';
+import type { PetChallenge, PetSettings } from './petGame';
 import type { PlanetStyle } from './space';
 import type { ShelfColors } from './shelfColors';
 import type { Book, CustomPalette, ThemeId } from './types';
@@ -85,6 +85,7 @@ export interface Settings {
   shelfColors: ShelfColors;
   planetStyle: PlanetStyle;
   pet: PetSettings;
+  petChallenge: PetChallenge | null;
   /** Crece en el servidor con cada cambio; sirve para sincronizar dispositivos. */
   settingsVersion: number;
   /** Versión del protocolo continuo de ajustes que ofrece el servidor. */
@@ -126,11 +127,12 @@ export const apiClient = {
   // La marca temporal evita que un proxy o navegador móvil reutilice una
   // respuesta antigua aunque ignore `no-store`. El canal principal en vivo
   // es SSE; esta petición actúa como confirmación y respaldo.
+  activatePet: (startDate: string, pet: PetSettings) => api<Settings>('/pet/activate', { method: 'POST', body: JSON.stringify({ startDate, pet }), timeoutMs: 12000 }),
   getSettings: () => api<Settings>(`/settings?ts=${Date.now()}`, {
     cache: 'no-store',
     timeoutMs: 12_000,
   }),
-  setSettings: async (settings: Partial<Omit<Settings, 'settingsVersion' | 'settingsSyncProtocol' | 'chartPreferences' | 'shelfColors'>> & { chartPreferences?: Partial<ChartPreferences>; shelfColors?: Partial<ShelfColors> }) => {
+  setSettings: async (settings: Partial<Omit<Settings, 'settingsVersion' | 'settingsSyncProtocol' | 'petChallenge' | 'chartPreferences' | 'shelfColors'>> & { chartPreferences?: Partial<ChartPreferences>; shelfColors?: Partial<ShelfColors> }) => {
     try {
       return await api<Settings>('/settings', {
         method: 'PUT',
