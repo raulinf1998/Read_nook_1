@@ -3,7 +3,7 @@ import { ArrowRight, BookOpen, Check, Crown, Flame, LockKeyhole, Sparkles, Star,
 import type { Book } from '../types';
 import { effectivePet, PET_ACCESSORIES, PET_BACKGROUNDS, PET_SPECIES, petProgress, SKIN_THRESHOLDS, type PetChallenge, type PetSettings, type PetSpecies } from '../petGame';
 import { PixelPet } from './PixelPet';
-import { headAnchor, PET_POSES, type PetPose } from '../petArt';
+import { headAnchor, petPoseScale, PET_POSES, type PetPose } from '../petArt';
 import { PetAccessory } from './PetAccessory';
 import { ProgressBar } from './ui';
 
@@ -24,8 +24,10 @@ function PetScene({ pet, className = '', compact = false, interactive = false, o
   return <div className={`pet-scene relative overflow-hidden ${className}`}>
     <div className="pet-scene-sky" style={{ backgroundImage: `url(${PET_BACKGROUNDS.find(item => item.id === pet.background)?.image || PET_BACKGROUNDS[0].image})` }} />
     <div className={`pet-sprite absolute bottom-[5%] left-1/2 -translate-x-1/2 ${compact ? 'w-[90%] max-w-[200px]' : 'w-[52%] max-w-[240px]'}`}>
+      <div className="relative w-full" style={{ transform: `scale(${petPoseScale(pet.species, pet.skin, pose)})`, transformOrigin: 'bottom center' }}>
       <PixelPet species={pet.species} skin={pet.skin} pose={pose} className="w-full drop-shadow-[0_9px_2px_rgba(33,44,32,.3)]" />
       {accessory && <div className="absolute pointer-events-none drop-shadow-md" style={accessory.placement === 'side' ? { width: '28%', bottom: '2%', left: head.x > 50 ? '4%' : '72%' } : { width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: `translate(-50%, ${[5, 14, 15, 16, 17, 20, 24].includes(accessory.kind) ? '-110%' : '-96%'})` }}><PetAccessory id={accessory.id} className="w-full" /></div>}
+      </div>
     </div>
     {interactive && <button type="button" onClick={advance} aria-label={`Saludar a ${petName(pet)} y cambiar postura`} className="absolute inset-x-[20%] bottom-0 h-[75%] rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" />}
   </div>;
