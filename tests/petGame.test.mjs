@@ -221,6 +221,11 @@ test('los huecos corregidos son transparentes y el cascarón azul se conserva', 
   assert.equal(pixel('monkey/4/sentado', 188, 166), '0');
   assert.equal(pixel('trex/1/sentado', 173, 222), '0');
   assert.equal(pixel('chicken/5/sentado', 120, 60), '1');
+  assert.equal(pixel('cat/2/sentado', 175, 231), '0');
+  assert.equal(pixel('munchkin/2/sentado', 80, 217), '0');
+  assert.equal(pixel('munchkin/2/sentado', 193, 224), '0');
+  assert.equal(pixel('trex/2/jugando', 121, 132), '0');
+  assert.equal(pixel('trex/5/sentado', 124, 215), '0');
 });
 
 
@@ -235,4 +240,17 @@ test('la postura avanza cada diez segundos sin guardar cambios', async (t) => {
   const img=document.querySelector('.pet-sprite img'); assert.match(img.src,/sentado.webp$/);
   await React.act(async()=>callbacks[0]()); assert.match(img.src,/durmiendo.webp$/);
   await React.act(async()=>document.querySelector('[aria-label*="cambiar postura"]').click()); assert.match(img.src,/andando.webp$/);
+});
+
+test('las posturas T. rex documentadas coinciden con los recursos de la aplicación', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const names = ['verde', 'rojo', 'laguna', 'ciruela', 'desierto', 'fosil'];
+  for (const [i, name] of names.entries()) for (const pose of ['sentado', 'durmiendo', 'andando', 'jugando']) {
+    const published = await readFile(new URL(`../public/pets/poses/trex/${i}/${pose}.webp`, import.meta.url));
+    const documented = await readFile(new URL(`../pet-designs/mascotas/trex/${name}/posturas-app/${pose}.webp`, import.meta.url));
+    assert.deepEqual(documented, published, `${name}/${pose}`);
+  }
+  const { headAnchor } = await import('../src/petArt.ts');
+  assert.notEqual(headAnchor('cat', 0, 'sentado').width, headAnchor('cat', 0, 'andando').width);
+  assert.ok(headAnchor('dragon', 5, 'sentado').y < 40);
 });
