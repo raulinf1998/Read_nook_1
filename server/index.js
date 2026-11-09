@@ -611,11 +611,12 @@ async function migrateBookCovers() {
 let dbLoadFailed = false;
 let legacyDatabaseLoaded = false;
 
-const PET_SPECIES = ['cat', 'dragon', 'monkey', 'chicken', 'trex'];
+const PET_SPECIES = ['cat', 'munchkin', 'dragon', 'monkey', 'chicken', 'trex'];
 const PET_BACKGROUNDS = ['garden', 'ocean', 'library', 'snow', 'space', 'jungle', 'desert', 'castle', 'cherry', 'autumn'];
 function cleanPet(value) {
   const pet = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   return {
+    ...(['sentado', 'durmiendo', 'andando', 'jugando'].includes(pet.pose) ? { pose: pet.pose } : {}),
     species: PET_SPECIES.includes(pet.species) ? pet.species : 'cat',
     skin: Number.isInteger(pet.skin) && pet.skin >= 0 && pet.skin < 6 ? pet.skin : 0,
     name: typeof pet.name === 'string' ? pet.name.trim().slice(0, 24) : '',

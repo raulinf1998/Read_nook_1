@@ -8,11 +8,11 @@ const book = (...journal) => ({ journal });
 const entry = (day,pages,other = {}) => ({ date: day, pages, ...other });
 const started = { startDate: '2000-01-01', excluded: [] };
 
-test('mascotas y aspectos: cinco especies, seis diseños y desbloqueos seguros', () => {
+test('mascotas y aspectos: seis especies, seis diseños y desbloqueos seguros', () => {
   assert.equal(PET_BACKGROUNDS.length, 10);
   assert.equal(new Set(PET_BACKGROUNDS.map(b => b.id)).size, 10);
   assert.equal(normalizePet({ background: 'wrong' }).background, 'garden');
-  assert.equal(PET_SPECIES.length, 5); assert.ok(PET_SPECIES.every(s => s.skins.length === 6));
+  assert.equal(PET_SPECIES.length, 6); assert.ok(PET_SPECIES.every(s => s.skins.length === 6));
   assert.deepEqual(SKIN_THRESHOLDS, [0,100,300,600,1000,1600]);
   assert.deepEqual(normalizePet({ species:'fake', skin:9, name:' x ' }), { species:'cat', skin:0, name:'x', background:'garden', accessory:null });
   assert.equal(normalizePet({ name:'x'.repeat(100) }).name.length, 24);
@@ -40,7 +40,7 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   const today = new Date(); const books = [book(entry(today.getTime(), 350))]; let pet = {species:'cat',skin:0,name:'',background:'garden',accessory:null}; let opened = false;
   const render = () => root.render(React.createElement(React.Fragment,null,React.createElement(PetHomeCard,{books,pet,challenge:started,onOpen:()=>{opened=true;}}),React.createElement(PetGame,{books,pet,challenge:started,onActivate:async()=>{},onSetPet:p => {pet=p;render();}})));
   await React.act(async () => render());
-  assert.equal(document.querySelectorAll('[aria-label="Elegir mascota"] button').length,5);
+  assert.equal(document.querySelectorAll('[aria-label="Elegir mascota"] button').length,6);
   assert.equal(document.querySelectorAll('[aria-label="Elegir fondo"] button').length,10);
   await React.act(async () => document.querySelector('[aria-label="Fondo Costa tranquila"]').click());
   assert.equal(pet.background, 'ocean');
@@ -64,7 +64,7 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   await React.act(async () => document.querySelector('[aria-label="Abrir Mi mascota"]').click()); assert.equal(opened,true);
   await React.act(async () => [...document.querySelectorAll('[aria-label="Elegir mascota"] button')].find(x => x.textContent.includes('Dragón')).click());
   assert.equal(pet.species,'dragon'); assert.equal(pet.accessory,0); assert.match(document.body.textContent,/Nivel 4/);
-  await React.act(async () => [...document.querySelectorAll('button')].find(x => x.textContent.includes('Océano') && !x.getAttribute('aria-label')?.startsWith('Fondo ')).click()); assert.equal(pet.skin,2);
+  await React.act(async () => [...document.querySelectorAll('button')].find(x => x.textContent.includes('Acuático') && !x.getAttribute('aria-label')?.startsWith('Fondo ')).click()); assert.equal(pet.skin,2);
   assert.match(document.body.textContent,/Nivel 4/); assert.match(document.body.textContent,/3\/3 completadas/);
   await React.act(async () => document.querySelector('[aria-label="Saludar a Dragón"]').click());
   assert.match(document.body.textContent,/Me encanta leer contigo/);
@@ -81,6 +81,10 @@ test('servidor conserva mascota por cuenta y al reiniciar, con validación', asy
   t.after(async()=>{await stop();await rm(tmp,{recursive:true,force:true});}); await start();
   async function req(account, patch) { const res=await fetch(`${base}/api/settings`,{method:patch?'PUT':'GET',headers:{'Content-Type':'application/json',cookie:`bilibook-account=${account}`},...(patch?{body:JSON.stringify({pet:patch})}:{})}); assert.equal(res.status,200);return res.json(); }
   assert.deepEqual((await req('raul')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
+  assert.deepEqual((await req('raul',{species:'munchkin',skin:0,name:'Mini',pose:'durmiendo'})).pet,{species:'munchkin',skin:0,name:'Mini',background:'garden',accessory:null,pose:'durmiendo'});
+  assert.equal((await req('raul')).pet.pose, 'durmiendo');
+  await stop(); await start();
+  assert.equal((await req('raul')).pet.pose, 'durmiendo');
   assert.deepEqual((await req('raul',{species:'trex',skin:5,name:' Dino ',background:'space'})).pet,{species:'trex',skin:5,name:'Dino',background:'space',accessory:null});
   assert.deepEqual((await req('pequenaja')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
   assert.deepEqual((await req('pequenaja',{species:'invalida',skin:-1,name:5,background:'../../secret'})).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
@@ -96,7 +100,7 @@ test('servidor conserva mascota por cuenta y al reiniciar, con validación', asy
   await stop(); await start(); assert.deepEqual((await req('raul')).petChallenge,first.petChallenge); assert.deepEqual((await req('raul')).pet,{species:'monkey',skin:0,name:'Nube',background:'space',accessory:0}); assert.equal((await req('pequenaja')).pet.species,'cat');
 });
 
-test('las 30 mascotas cuentan con ilustraciones locales distintas', async (t) => {
+test('las 36 mascotas cuentan con ilustraciones locales distintas', async (t) => {
   const { createServer } = await import('vite'); const React = await import('react'); const { renderToStaticMarkup } = await import('react-dom/server');
   const { stat, readFile } = await import('node:fs/promises');
   const { createHash } = await import('node:crypto');
@@ -112,7 +116,7 @@ test('las 30 mascotas cuentan con ilustraciones locales distintas', async (t) =>
     assert.ok(html.includes(`/pets/${species.id}-${skin}.webp`));
     assert.ok(html.includes(species.skins[skin]));
   }
-  assert.equal(hashes.size, 30);
+  assert.equal(hashes.size, 36);
 });
 
 test('los diez fondos están disponibles como archivos locales', async () => {
@@ -156,10 +160,28 @@ test('se elige mascota y nombre antes de empezar en nivel uno', async (t) => {
   const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); const {PetGame}=await vite.ssrLoadModule('/src/components/PetGame.tsx'); const root=createRoot(document.getElementById('root')); let activated;
   t.after(async()=>{await React.act(async()=>root.unmount());await vite.close();dom.window.close();delete globalThis.window;delete globalThis.document;delete globalThis.navigator;delete globalThis.IS_REACT_ACT_ENVIRONMENT;});
   await React.act(async()=>root.render(React.createElement(PetGame,{books:[],pet:normalizePet({}),challenge:null,onActivate:async p=>{activated=p;},onSetPet(){}})));
-  const initial=document.querySelector('[aria-label="Elegir primera mascota"]'); assert.equal(initial.querySelectorAll('button').length,5);
+  const initial=document.querySelector('[aria-label="Elegir primera mascota"]'); assert.equal(initial.querySelectorAll('button').length,6);
   await React.act(async()=>[...initial.querySelectorAll('button')].find(x=>x.textContent.includes('Pollo')).click());
   const input=document.querySelector('#first-pet-name');
   await React.act(async()=>{Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype,'value').set.call(input,'Pío');input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));});
   await React.act(async()=>input.closest('form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true})));
   assert.equal(activated.species,'chicken'); assert.equal(activated.name,'Pío'); assert.equal(activated.accessory,null);
+});
+
+
+test('hay cuatro posturas y un anclaje calibrado por cada variante', async () => {
+  const { PET_POSES, PET_HEAD_ANCHORS, headAnchor } = await import('../src/petArt.ts');
+  const { stat } = await import('node:fs/promises');
+  assert.deepEqual(PET_POSES, ['sentado', 'durmiendo', 'andando', 'jugando']);
+  for (const species of PET_SPECIES) {
+    assert.equal(PET_HEAD_ANCHORS[species.id].length, 6);
+    for (let skin = 0; skin < 6; skin++) for (const pose of PET_POSES) {
+      const anchor = headAnchor(species.id, skin, pose);
+      assert.ok(anchor.x >= 0 && anchor.x <= 100 && anchor.y >= 0 && anchor.y <= 100 && anchor.width > 0);
+      assert.ok((await stat(new URL(`../public/pets/poses/${species.id}/${skin}/${pose}.webp`, import.meta.url))).size > 1000);
+    }
+  }
+  assert.equal(normalizePet({species:'munchkin',pose:'durmiendo'}).pose, 'durmiendo');
+  assert.equal(normalizePet({pose:'invalid'}).pose, undefined);
+  assert.equal(PET_ACCESSORIES[6].placement, 'side');
 });
