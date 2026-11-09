@@ -338,6 +338,20 @@ test('la escala de la pose se aplica al contenedor de mascota y accesorio en Ini
   const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
   const draw = (species, skin, pose) => renderToStaticMarkup(React.createElement(PetHomeCard, {books:[],pet:{species,skin,pose,name:'',background:'garden',accessory:null},challenge:started,onOpen(){}}));
   const walking=draw('munchkin',0,'andando'); const sitting=draw('munchkin',0,'sentado');
-  assert.match(walking, /pet-sprite-compact[^>]*style="width:min\(/);
-  assert.notEqual(walking.match(/style="width:min\([^\"]+/)?.[0], sitting.match(/style="width:min\([^\"]+/)?.[0]);
+  assert.match(walking, /pet-sprite-compact[^>]*style="width:[\d.]+%;max-width:[\d.]+px/);
+  assert.notEqual(walking.match(/style="width:[^\"]+/)?.[0], sitting.match(/style="width:[^\"]+/)?.[0]);
+  assert.doesNotMatch(walking, /(?:cqw|cqh)/);
+});
+
+test('la tarjeta compacta tiene anchura explícita compatible sin unidades de contenedor', async (t) => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('../src/index.css', import.meta.url), 'utf8');
+  const rule = css.match(/\.pet-sprite-compact\s*\{[^}]+\}/)?.[0];
+  assert.ok(rule);
+  assert.doesNotMatch(rule, /cq[wh]|\bmin\(/);
+  const dom = new JSDOM(`<!doctype html><style>${rule}</style><div class="pet-sprite-compact"></div>`);
+  t.after(()=>dom.window.close());
+  const style=dom.window.getComputedStyle(dom.window.document.querySelector('.pet-sprite-compact'));
+  assert.equal(style.width, '78%');
+  assert.equal(style.maxWidth, '100px');
 });

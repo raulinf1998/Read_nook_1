@@ -25,13 +25,14 @@ function PetScene({ pet, phase, className = '', compact = false, interactive = f
   const scale = petPoseScale(pet.species, pet.skin, pose);
   // Reservamos el mismo margen en todas las posturas para que la más larga
   // quepa completa también en la tarjeta estrecha de Inicio.
-  const spriteWidth = compact
-    ? `min(${53 * scale}cqw, ${43 * scale}cqh, ${128 * scale}px)`
-    : `min(${52 * scale}cqw, ${48 * scale}cqh, ${230 * scale}px)`;
+  // Porcentaje y límite en píxeles funcionan también en navegadores móviles
+  // que aún no admiten unidades de contenedor (cqw/cqh).
+  const spriteWidth = `${(compact ? 53 : 52) * scale}%`;
+  const spriteMaxWidth = `${(compact ? 64 : 120) * scale}px`;
   const accessory = pet.accessory === null ? null : PET_ACCESSORIES[pet.accessory];
   return <div className={`pet-scene relative overflow-hidden ${className}`}>
     <div className="pet-scene-sky" style={{ backgroundImage: `url(${petBackgroundImage(pet.background, phase)})` }} />
-    <div className={`pet-sprite absolute bottom-[5%] left-1/2 -translate-x-1/2 ${compact ? 'pet-sprite-compact' : 'w-[52%] max-w-[240px]'}`} style={calibrated ? { width: spriteWidth, maxWidth: 'none' } : undefined}>
+    <div className={`pet-sprite absolute bottom-[5%] left-1/2 -translate-x-1/2 ${compact ? 'pet-sprite-compact' : 'w-[52%] max-w-[240px]'}`} style={calibrated ? { width: spriteWidth, maxWidth: spriteMaxWidth } : undefined}>
       <PixelPet species={pet.species} skin={pet.skin} pose={pose} className="w-full drop-shadow-[0_9px_2px_rgba(33,44,32,.3)]" />
       {accessory && <div className="absolute pointer-events-none drop-shadow-md" style={accessory.placement === 'side' ? { width: '28%', bottom: '2%', left: head.x > 50 ? '4%' : '72%' } : { width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: `translate(-50%, ${[5, 14, 15, 16, 17, 20, 24].includes(accessory.kind) ? '-110%' : '-96%'})` }}><PetAccessory id={accessory.id} className="w-full" /></div>}
     </div>
