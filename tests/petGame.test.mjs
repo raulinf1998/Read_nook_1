@@ -51,6 +51,12 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   await React.act(async () => document.querySelector('[aria-label="Elegir añadido visual"] button').click());
   assert.equal(pet.accessory, 0);
   assert.equal(document.querySelectorAll('.pet-scene .pet-sprite svg').length, 2);
+  const santa = document.querySelector('.pet-scene .pet-sprite svg');
+  assert.equal(santa.getAttribute('viewBox'), '18 7 65 62');
+  assert.match(santa.parentElement.style.transform, /-96%/);
+  for (const icon of document.querySelectorAll('[aria-label="Elegir añadido visual"] svg')) {
+    assert.notEqual(icon.getAttribute('viewBox'), '0 0 100 80');
+  }
   const accessories = document.querySelectorAll('[aria-label="Elegir añadido visual"] button');
   assert.equal(accessories[1].disabled, false);
   assert.equal(accessories[2].disabled, true);
@@ -184,4 +190,15 @@ test('hay cuatro posturas y un anclaje calibrado por cada variante', async () =>
   assert.equal(normalizePet({species:'munchkin',pose:'durmiendo'}).pose, 'durmiendo');
   assert.equal(normalizePet({pose:'invalid'}).pose, undefined);
   assert.equal(PET_ACCESSORIES[6].placement, 'side');
+});
+
+
+test('los huecos corregidos son transparentes y el cascarón azul se conserva', async (t) => {
+  const { execFileSync, spawnSync } = await import('node:child_process');
+  if (spawnSync('convert', ['-version']).error) return t.skip('ImageMagick no está instalado');
+  const pixel = (path, x, y) => execFileSync('convert', [new URL(`../public/pets/poses/${path}.webp`, import.meta.url).pathname, '-format', `%[fx:p{${x},${y}}.a]`, 'info:'], {encoding:'utf8'}).trim();
+  assert.equal(pixel('dragon/2/sentado', 61, 183), '0');
+  assert.equal(pixel('monkey/4/sentado', 188, 166), '0');
+  assert.equal(pixel('trex/1/sentado', 173, 222), '0');
+  assert.equal(pixel('chicken/5/sentado', 120, 60), '1');
 });

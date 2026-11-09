@@ -19,7 +19,7 @@ function PetScene({ pet, className = '' }: { pet: PetSettings; className?: strin
     <div className="pet-scene-sky" style={{ backgroundImage: `url(${PET_BACKGROUNDS.find(item => item.id === pet.background)?.image || PET_BACKGROUNDS[0].image})` }} />
     <div className="pet-sprite absolute bottom-[8%] left-1/2 w-[40%] max-w-[190px] -translate-x-1/2">
       <PixelPet species={pet.species} skin={pet.skin} pose={pose} className="w-full drop-shadow-[0_9px_2px_rgba(33,44,32,.3)]" />
-      {accessory && <div className="absolute pointer-events-none drop-shadow-md" style={accessory.placement === 'side' ? { width: '28%', bottom: '2%', left: head.x > 50 ? '4%' : '72%' } : { width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: 'translate(-50%, -88%)' }}><PetAccessory id={accessory.id} className="w-full" /></div>}
+      {accessory && <div className="absolute pointer-events-none drop-shadow-md" style={accessory.placement === 'side' ? { width: '28%', bottom: '2%', left: head.x > 50 ? '4%' : '72%' } : { width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: `translate(-50%, ${[5, 14, 15, 16, 17, 20, 24].includes(accessory.kind) ? '-110%' : '-96%'})` }}><PetAccessory id={accessory.id} className="w-full" /></div>}
     </div>
   </div>;
 }

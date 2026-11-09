@@ -1,11 +1,21 @@
 import { PET_ACCESSORIES } from '../petGame';
 
+// Bounds of the visible artwork, including strokes, so its bottom edge is a
+// predictable contact point instead of the empty padding in the original SVG.
+const ART_BOUNDS = [
+  '18 7 65 62', '8 8 84 61', '8 24 84 38', '21 17 58 53', '25 10 50 59',
+  '23 18 54 42', '19 20 63 45', '14 6 72 62', '16 25 68 37', '12 10 76 56',
+  '17 18 64 43', '22 13 56 52', '21 17 58 48', '24 16 52 46', '17 25 66 24',
+  '17 11 65 52', '21 11 43 54', '17 19 66 49', '24 20 52 46', '28 16 44 50',
+  '20 20 60 40', '17 25 66 36', '26 19 48 50', '25 19 50 50', '23 14 54 54',
+] as const;
+
 /** Iconos de píxel vectoriales, compartidos por el vestidor y la escena. */
 export function PetAccessory({ id, className = '' }: { id: number; className?: string }) {
   const item = PET_ACCESSORIES[id]; if (!item) return null;
   const { kind, variant } = item;
   const ink = '#303047', main = variant ? '#7661b1' : '#cf554d', light = variant ? '#dcd3f3' : '#ffe6c5';
-  return <svg aria-hidden="true" className={className} viewBox="0 0 100 80" shapeRendering="crispEdges">
+  return <svg aria-hidden="true" className={className} viewBox={ART_BOUNDS[kind]} preserveAspectRatio="xMidYMax meet" shapeRendering="crispEdges">
     {kind === 0 && <><path fill={ink} d="M18 57h65v12H18zM25 48h48V29H58V15H46V9H35v14h-7v17h-3z"/><path fill={variant?'#529b69':'#c83b42'} d="M30 48V27h8V15h8v8h12v13h9v12z"/><path fill="#fff7e6" d="M19 57h62v9H19zM33 7h13v10H33z"/><path fill="#f6cb64" d="M49 38h8v7h-8z"/></>}
     {kind === 1 && <><path fill={ink} d="M8 59h84v10H8zM20 54h60v6H20zM28 51h44L55 8H44z"/><path fill={variant?'#765584':'#3f4f9c'} d="M35 52l14-36 16 36z"/><path fill="#e3b65e" d="M35 48h30v6H35zM46 31h5v5h5v5h-5v5h-5v-5h-5v-5h5z"/></>}
     {kind === 2 && <><path fill={ink} d="M8 54h84v8H8zM20 48h60v8H20zM27 24h13v7h20v-7h13v27H27z"/><path fill={variant?'#c58b4f':'#90603c'} d="M31 29h8v6h22v-6h8v19H31z"/><path fill="#eed39d" d="M29 43h42v5H29zM46 42h9v7h-9z"/></>}
