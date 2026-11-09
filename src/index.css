@@ -1116,8 +1116,10 @@ input[type='range'].book-slider::-moz-range-thumb {
 .reading-activity-3 { background-color: rgb(var(--accent)); }
 
 /* El pequeño mundo de la mascota */
-.pet-scene { background: #a6b5d1; }
+.pet-scene { background: #a6b5d1; container-type: size; }
 .pet-scene-sky { position: absolute; inset: 0; background-position: center 58%; background-size: cover; background-repeat: no-repeat; image-rendering: pixelated; }
+/* Reserva espacio para accesorios y para el movimiento, tanto en alto como en ancho. */
+.pet-sprite-compact { width: min(78cqw, 68cqh, 200px); }
 .pet-sprite { image-rendering: pixelated; animation: pet-idle 2.6s ease-in-out infinite; }
 @keyframes pet-idle { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -5px); } }
 @media (prefers-reduced-motion: reduce) { .pet-sprite { animation: none; } }
