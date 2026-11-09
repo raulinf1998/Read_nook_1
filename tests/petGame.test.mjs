@@ -310,3 +310,34 @@ test('Inicio y selector muestran la fase recibida del servidor', async (t) => {
   assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el=>el.style.backgroundImage.includes('/night/ocean.webp')));
   assert.match(document.querySelector('[aria-label="Fondo Costa tranquila"] img').src, /\/night\/ocean.webp$/);
 });
+
+test('las posturas de munchkin y Nube se escalan por el tamaño visual de la cabeza', async () => {
+  const { petPoseScale, PET_POSES } = await import('../src/petArt.ts');
+  const measured = [
+    [90,85,64,74], [86,92,58,83], [82,95,60,78],
+    [78,75,70,76], [98,93,69,68], [78,80,58,80],
+  ];
+  for (let skin = 0; skin < 6; skin++) {
+    for (const [i, pose] of PET_POSES.entries()) {
+      assert.ok(Math.abs(petPoseScale('munchkin', skin, pose) * measured[skin][i] - 78) < 1e-8);
+    }
+    assert.ok(petPoseScale('munchkin', skin, 'andando') > petPoseScale('munchkin', skin, 'sentado'));
+  }
+  for (const [i, pose] of PET_POSES.entries()) {
+    assert.ok(Math.abs(petPoseScale('dragon', 5, pose) * [32,65,32,61][i] - 50) < 1e-8);
+    assert.equal(petPoseScale('dragon', 0, pose), 1);
+    assert.equal(petPoseScale('cat', 0, pose), 1);
+  }
+  assert.equal(petPoseScale('munchkin', 99, 'andando'), petPoseScale('munchkin', 0, 'andando'));
+});
+
+test('la escala de la pose se aplica al contenedor de mascota y accesorio en Inicio', async (t) => {
+  const React = await import('react'); const {renderToStaticMarkup} = await import('react-dom/server'); const {createServer} = await import('vite');
+  const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});
+  t.after(async()=>vite.close());
+  const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
+  const draw = (species, skin, pose) => renderToStaticMarkup(React.createElement(PetHomeCard, {books:[],pet:{species,skin,pose,name:'',background:'garden',accessory:null},challenge:started,onOpen(){}}));
+  const walking=draw('munchkin',0,'andando'); const sitting=draw('munchkin',0,'sentado');
+  assert.match(walking, /pet-sprite-compact[^>]*style="width:min\(/);
+  assert.notEqual(walking.match(/style="width:min\([^\"]+/)?.[0], sitting.match(/style="width:min\([^\"]+/)?.[0]);
+});
