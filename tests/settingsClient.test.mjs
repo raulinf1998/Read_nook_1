@@ -67,8 +67,8 @@ test('dos clientes aplican cambios automáticos y reintentan un guardado fallido
   await act(async () => { clients.pc.setTheme('oceano'); await new Promise((r) => setTimeout(r, 100)); });
   assert.equal(clients.phone.theme, 'oceano');
   assert.equal(clients.phone.settingsVersion, 6);
-  await act(async () => { clients.pc.setPet({ species: 'dragon', skin: 2, name: 'Luna' }); await new Promise((r) => setTimeout(r, 100)); });
-  assert.deepEqual(clients.phone.pet, { species: 'dragon', skin: 2, name: 'Luna' });
+  await act(async () => { clients.pc.setPet({ species: 'dragon', skin: 2, name: 'Luna', background: 'cherry', accessory: 3 }); await new Promise((r) => setTimeout(r, 100)); });
+  assert.deepEqual(clients.phone.pet, { species: 'dragon', skin: 2, name: 'Luna', background: 'cherry', accessory: 3 });
   // Simula una recarga: desmontar y crear un cliente nuevo sin estado local.
   await act(async () => {
     roots[0].unmount();
@@ -78,5 +78,5 @@ test('dos clientes aplican cambios automáticos y reintentan un guardado fallido
   });
   assert.equal(clients.phone.theme, 'oceano');
   assert.equal(clients.phone.settingsVersion, 7);
-  assert.deepEqual(clients.phone.pet, { species: 'dragon', skin: 2, name: 'Luna' });
+  assert.deepEqual(clients.phone.pet, { species: 'dragon', skin: 2, name: 'Luna', background: 'cherry', accessory: 3 });
 });

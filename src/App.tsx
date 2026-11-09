@@ -97,6 +97,8 @@ export default function App() {
     setPlanetStyle,
     pet,
     setPet,
+    petChallenge,
+    activatePet,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
@@ -375,7 +377,7 @@ export default function App() {
               <>
             {tab === 'reading' && (
               <div className="space-y-6">
-              <PetHomeCard books={petBooks} pet={pet} onOpen={() => handleTab('pet')} />
+              <PetHomeCard books={petBooks} pet={pet} challenge={petChallenge} onOpen={() => handleTab('pet')} />
               <ReadingNow
                 books={books}
                 goal={goal}
@@ -389,7 +391,7 @@ export default function App() {
               />
               </div>
             )}
-            {tab === 'pet' && <PetGame books={petBooks} pet={pet} onSetPet={setPet} />}
+            {tab === 'pet' && <PetGame books={petBooks} pet={pet} challenge={petChallenge} onActivate={activatePet} onSetPet={setPet} />}
             {tab === 'calendar' && <ReadingCalendar books={books} onOpen={handleOpen} />}
             {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}

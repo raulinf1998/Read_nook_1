@@ -1,4 +1,5 @@
-import { normalizePet, type PetSettings } from './petGame';
+import { dateKey } from './readingCalendar';
+import { normalizePet, normalizePetChallenge, type PetSettings } from './petGame';
 import { normalizePlanetStyle, type PlanetStyle } from './space';
 import { normalizeShelfColors, type ShelfColors } from './shelfColors';
 import { selectedAccount } from './accounts';
@@ -216,6 +217,7 @@ function normalizeServerSettings(value: unknown): Settings | null {
     shelfColors: normalizeShelfColors(candidate.shelfColors),
     planetStyle: normalizePlanetStyle(candidate.planetStyle),
     pet: normalizePet(candidate.pet),
+    petChallenge: normalizePetChallenge(candidate.petChallenge),
     customPaletteId: candidate.customPaletteId
       && palettes.some((palette) => palette.id === candidate.customPaletteId)
       ? candidate.customPaletteId
@@ -289,6 +291,7 @@ export function useServerSettings() {
     initialServerSettings?.customPaletteId ?? null,
   );
   const [libraryView, setLibraryViewState] = useState<LibraryViewMode>(initialServerSettings?.libraryView ?? 'wood');
+  const [petChallenge, setPetChallengeState] = useState(normalizePetChallenge(initialServerSettings?.petChallenge));
   const [pet, setPetState] = useState<PetSettings>(normalizePet(initialServerSettings?.pet));
   const [planetStyle, setPlanetStyleState] = useState<PlanetStyle>(normalizePlanetStyle(initialServerSettings?.planetStyle));
   const [shelfColors, setShelfColorsState] = useState<ShelfColors>(normalizeShelfColors(initialServerSettings?.shelfColors));
@@ -376,6 +379,7 @@ export function useServerSettings() {
     setShelfColorsState(normalized.shelfColors);
     setPlanetStyleState(normalized.planetStyle);
     setPetState(normalized.pet);
+    setPetChallengeState(normalized.petChallenge);
     return true;
   }, [noteServerSettings]);
 
@@ -747,6 +751,11 @@ export function useServerSettings() {
     persistSettings(mutation, { libraryView: view });
   }, [beginLocalMutation, persistSettings]);
 
+  const activatePet = useCallback(async (pet: PetSettings) => {
+    await apiClient.activatePet(dateKey(new Date()), pet);
+    await refreshSettings(true);
+  }, [refreshSettings]);
+
   const setPet = useCallback((value: PetSettings) => {
     const clean = normalizePet(value);
     const mutation = beginLocalMutation();
@@ -799,6 +808,8 @@ export function useServerSettings() {
     setPlanetStyle,
     pet,
     setPet,
+    petChallenge,
+    activatePet,
     settingsVersion,
     settingsSyncStatus,
     settingsSyncError,
