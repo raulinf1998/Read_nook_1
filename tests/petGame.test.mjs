@@ -9,8 +9,8 @@ const entry = (day,pages,other = {}) => ({ date: day, pages, ...other });
 const started = { startDate: '2000-01-01', excluded: [] };
 
 test('mascotas y aspectos: seis especies, seis diseños y desbloqueos seguros', () => {
-  assert.equal(PET_BACKGROUNDS.length, 10);
-  assert.equal(new Set(PET_BACKGROUNDS.map(b => b.id)).size, 10);
+  assert.equal(PET_BACKGROUNDS.length, 20);
+  assert.equal(new Set(PET_BACKGROUNDS.map(b => b.id)).size, 20);
   assert.equal(normalizePet({ background: 'wrong' }).background, 'garden');
   assert.equal(PET_SPECIES.length, 6); assert.ok(PET_SPECIES.every(s => s.skins.length === 6));
   assert.deepEqual(SKIN_THRESHOLDS, [0,100,300,600,1000,1600]);
@@ -41,18 +41,30 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   const render = () => root.render(React.createElement(React.Fragment,null,React.createElement(PetHomeCard,{books,pet,challenge:started,onOpen:()=>{opened=true;}}),React.createElement(PetGame,{books,pet,challenge:started,onActivate:async()=>{},onSetPet:p => {pet=p;render();}})));
   await React.act(async () => render());
   assert.equal(document.querySelectorAll('[aria-label="Elegir mascota"] button').length,6);
-  assert.equal(document.querySelectorAll('[aria-label="Elegir fondo"] button').length,10);
+  assert.equal(document.querySelectorAll('[aria-label="Elegir fondo"] button').length,20);
   await React.act(async () => document.querySelector('[aria-label="Fondo Costa tranquila"]').click());
   assert.equal(pet.background, 'ocean');
   assert.equal(document.querySelector('[aria-label="Fondo Costa tranquila"]').getAttribute('aria-pressed'), 'true');
   assert.ok([...document.querySelectorAll('.pet-scene-sky')].every(el => el.style.backgroundImage.includes('pet-bg-ocean.webp')));
   assert.equal(document.querySelectorAll('button[disabled]').length,51);
   assert.equal(document.querySelectorAll('[aria-label="Elegir añadido visual"] button').length, 50);
+  const original = {...pet};
+  const togglePreview = [...document.querySelectorAll('button')].find(b => b.textContent === 'Probar todo temporalmente');
+  await React.act(async () => togglePreview.click());
+  const lastAccessory = document.querySelectorAll('[aria-label="Elegir añadido visual"] button')[49];
+  assert.equal(lastAccessory.disabled, false);
+  await React.act(async () => lastAccessory.click());
+  assert.deepEqual(pet, original, 'modo de prueba nunca guarda la selección');
+  assert.equal(lastAccessory.getAttribute('aria-pressed'), 'true');
+  await React.act(async () => togglePreview.click());
+  assert.deepEqual(pet, original);
+  assert.equal(lastAccessory.disabled, true);
+
   await React.act(async () => document.querySelector('[aria-label="Elegir añadido visual"] button').click());
   assert.equal(pet.accessory, 0);
   assert.equal(document.querySelectorAll('.pet-scene .pet-sprite svg').length, 2);
   const santa = document.querySelector('.pet-scene .pet-sprite svg');
-  assert.equal(santa.getAttribute('viewBox'), '18 7 65 62');
+  assert.equal(santa.getAttribute('viewBox'), '12 5 76 64');
   assert.match(santa.parentElement.style.transform, /-96%/);
   for (const icon of document.querySelectorAll('[aria-label="Elegir añadido visual"] svg')) {
     assert.notEqual(icon.getAttribute('viewBox'), '0 0 100 80');
@@ -72,7 +84,12 @@ test('interfaz permite elegir mascota, desbloquea aspectos, nombra y muestra res
   assert.equal(pet.species,'dragon'); assert.equal(pet.accessory,0); assert.match(document.body.textContent,/Nivel 4/);
   await React.act(async () => [...document.querySelectorAll('button')].find(x => x.textContent.includes('Acuático') && !x.getAttribute('aria-label')?.startsWith('Fondo ')).click()); assert.equal(pet.skin,2);
   assert.match(document.body.textContent,/Nivel 4/); assert.match(document.body.textContent,/3\/3 completadas/);
-  await React.act(async () => document.querySelector('[aria-label="Saludar a Dragón"]').click());
+  const mainScene = [...document.querySelectorAll('[aria-label="Saludar a Dragón y cambiar postura"]')].at(-1);
+  const sceneImage = mainScene.parentElement.querySelector('.pet-sprite img');
+  const beforePose = sceneImage.getAttribute('src');
+  await React.act(async () => mainScene.click());
+  assert.notEqual(sceneImage.getAttribute('src'), beforePose);
+
   assert.match(document.body.textContent,/Me encanta leer contigo/);
   assert.match(document.body.textContent,/Reto semanal completado/);
 });
@@ -91,6 +108,9 @@ test('servidor conserva mascota por cuenta y al reiniciar, con validación', asy
   assert.equal((await req('raul')).pet.pose, 'durmiendo');
   await stop(); await start();
   assert.equal((await req('raul')).pet.pose, 'durmiendo');
+  assert.equal((await req('raul',{species:'dragon',background:'interior-attic'})).pet.background,'interior-attic');
+  await stop(); await start();
+  assert.equal((await req('raul')).pet.background,'interior-attic');
   assert.deepEqual((await req('raul',{species:'trex',skin:5,name:' Dino ',background:'space'})).pet,{species:'trex',skin:5,name:'Dino',background:'space',accessory:null});
   assert.deepEqual((await req('pequenaja')).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
   assert.deepEqual((await req('pequenaja',{species:'invalida',skin:-1,name:5,background:'../../secret'})).pet,{species:'cat',skin:0,name:'',background:'garden',accessory:null});
@@ -125,7 +145,7 @@ test('las 36 mascotas cuentan con ilustraciones locales distintas', async (t) =>
   assert.equal(hashes.size, 36);
 });
 
-test('los diez fondos están disponibles como archivos locales', async () => {
+test('los veinte fondos están disponibles como archivos locales', async () => {
   const {stat} = await import('node:fs/promises');
   for (const background of PET_BACKGROUNDS) assert.ok((await stat(new URL(`../public${background.image}`, import.meta.url))).size > 1000);
 });
@@ -201,4 +221,18 @@ test('los huecos corregidos son transparentes y el cascarón azul se conserva', 
   assert.equal(pixel('monkey/4/sentado', 188, 166), '0');
   assert.equal(pixel('trex/1/sentado', 173, 222), '0');
   assert.equal(pixel('chicken/5/sentado', 120, 60), '1');
+});
+
+
+test('la postura avanza cada diez segundos sin guardar cambios', async (t) => {
+  const dom = new JSDOM('<!doctype html><div id="root"></div>', {url:'http://bilibook.test/'});
+  globalThis.window=dom.window; globalThis.document=dom.window.document; Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator, configurable:true}); globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+  const callbacks=[]; dom.window.setInterval=(callback, ms)=>{assert.equal(ms,10000);callbacks.push(callback);return callbacks.length;}; dom.window.clearInterval=()=>{};
+  const React=await import('react'); const {createRoot}=await import('react-dom/client'); const {createServer}=await import('vite');
+  const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx'); const root=createRoot(document.getElementById('root'));
+  t.after(async()=>{await React.act(async()=>root.unmount());await vite.close();dom.window.close();delete globalThis.window;delete globalThis.document;delete globalThis.navigator;delete globalThis.IS_REACT_ACT_ENVIRONMENT;});
+  await React.act(async()=>root.render(React.createElement(PetHomeCard,{books:[],pet:normalizePet({}),challenge:started,onOpen(){}})));
+  const img=document.querySelector('.pet-sprite img'); assert.match(img.src,/sentado.webp$/);
+  await React.act(async()=>callbacks[0]()); assert.match(img.src,/durmiendo.webp$/);
+  await React.act(async()=>document.querySelector('[aria-label*="cambiar postura"]').click()); assert.match(img.src,/andando.webp$/);
 });
