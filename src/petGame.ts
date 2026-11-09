@@ -1,7 +1,7 @@
 import type { Book } from './types';
 import { dateKey } from './readingCalendar.ts';
 
-export type PetSpecies = 'cat' | 'dragon' | 'monkey' | 'chicken' | 'trex';
+export type PetSpecies = 'cat' | 'munchkin' | 'dragon' | 'monkey' | 'chicken' | 'trex';
 export const PET_BACKGROUNDS = [
   { id: 'garden', label: 'Bosque mágico', image: '/pet-garden.webp' },
   { id: 'ocean', label: 'Costa tranquila', image: '/pet-bg-ocean.webp' },
@@ -15,23 +15,42 @@ export const PET_BACKGROUNDS = [
   { id: 'autumn', label: 'Bosque de otoño', image: '/pet-bg-autumn.webp' },
 ] as const;
 export type PetBackground = typeof PET_BACKGROUNDS[number]['id'];
-export interface PetSettings { species: PetSpecies; skin: number; name: string; background: PetBackground; accessory: number | null }
+export interface PetSettings { pose?: 'sentado' | 'durmiendo' | 'andando' | 'jugando'; species: PetSpecies; skin: number; name: string; background: PetBackground; accessory: number | null }
 export const PET_SPECIES: { id: PetSpecies; label: string; skins: string[] }[] = [
-  { id: 'cat', label: 'Gato', skins: ['Europeo atigrado', 'Siamés', 'Bombay', 'Británico tricolor', 'Azul ruso', 'Maine coon'] },
-  { id: 'dragon', label: 'Dragón', skins: ['Bosque', 'Rubí', 'Océano', 'Amatista', 'Sol', 'Escarcha'] },
+  { id: 'cat', label: 'Gato', skins: ['Europeo atigrado', 'Siamés', 'Bombay', 'Británico tricolor', 'British shorthair gris', 'Maine coon'] },
+  { id: 'munchkin', label: 'Munchkin', skins: ['Atigrado', 'Siamés', 'Gris', 'Tricolor', 'Blanco', 'Blanco y negro'] },
+  { id: 'dragon', label: 'Dragón', skins: ['Verde', 'Rojo', 'Acuático', 'Constelación', 'Dorado', 'Nube'] },
   { id: 'monkey', label: 'Mono', skins: ['Cacao', 'Dorado', 'Nieve', 'Selva', 'Canela', 'Medianoche'] },
   { id: 'chicken', label: 'Pollo', skins: ['Pollito', 'En el huevo', 'Canela', 'Cascarón', 'Lavanda', 'Noche'] },
   { id: 'trex', label: 'T. rex', skins: ['Jurásico', 'Volcán', 'Laguna', 'Ciruela', 'Desierto', 'Fósil'] },
 ];
 export const SKIN_THRESHOLDS = [0, 100, 300, 600, 1000, 1600];
-export const ACCESSORY_TYPES = ['Gorro aventurero', 'Corona', 'Sombrero mágico', 'Boina', 'Lazo', 'Halo', 'Estrellas', 'Pétalos', 'Luna', 'Chispas'] as const;
-export const ACCESSORY_COLORS = ['ámbar', 'océano', 'lavanda', 'bosque', 'rubí'] as const;
-export const PET_ACCESSORIES = Array.from({ length: 50 }, (_, id) => ({ id, kind: id % 10, color: Math.floor(id / 10), name: `${ACCESSORY_TYPES[id % 10]} ${ACCESSORY_COLORS[Math.floor(id / 10)]}`, level: (id + 1) * 2 }));
+// Dos diseños de cada familia, todos con nombre propio y desbloqueo cada dos niveles.
+const ACCESSORY_NAMES = [
+  ['Gorro de Navidad', 'Gorro de duende'], ['Sombrero de mago', 'Sombrero de bruja'],
+  ['Sombrero cowboy', 'Sombrero del desierto'], ['Calabaza sonriente', 'Calabaza luminosa'],
+  ['Brote de primavera', 'Flor silvestre'], ['Corazón', 'Corazón brillante'],
+  ['Corona real', 'Corona de flores'], ['Gorro de fiesta', 'Gorro de cumpleaños'],
+  ['Sombrero pirata', 'Sombrero marinero'], ['Gorro de cocinero', 'Gorro de pastelero'],
+  ['Boina francesa', 'Boina de artista'], ['Gorro de invierno', 'Gorro de nieve'],
+  ['Casco de caballero', 'Casco de aventurero'], ['Diadema de orejas', 'Cuernos de fiesta'],
+  ['Aureola dorada', 'Aureola lunar'], ['Estrella fugaz', 'Constelación'],
+  ['Luna creciente', 'Sol radiante'], ['Nube pequeña', 'Nube de lluvia'],
+  ['Seta roja', 'Seta del bosque'], ['Fantasmita', 'Fantasma amable'],
+  ['Mariposa', 'Abejita'], ['Lazo de seda', 'Lazo de lunares'],
+  ['Hoja otoñal', 'Hoja de trébol'], ['Campanita', 'Copo de nieve'],
+  ['Cristal mágico', 'Diamante brillante'],
+] as const;
+export const PET_ACCESSORIES = Array.from({ length: 50 }, (_, id) => {
+  const kind = Math.floor(id / 2), variant = id % 2;
+  return { id, kind, variant, name: ACCESSORY_NAMES[kind][variant], level: (id + 1) * 2, placement: ([3, 19].includes(kind) ? 'side' : 'head') as 'side' | 'head' };
+});
 export const DEFAULT_PET: PetSettings = { species: 'cat', skin: 0, name: '', background: 'garden', accessory: null };
 export function normalizePet(value: unknown): PetSettings {
   const data = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const species = PET_SPECIES.some(pet => pet.id === data.species) ? data.species as PetSpecies : 'cat';
-  return { species, skin: Number.isInteger(data.skin) && Number(data.skin) >= 0 && Number(data.skin) < 6 ? Number(data.skin) : 0, name: typeof data.name === 'string' ? data.name.trim().slice(0, 24) : '', background: PET_BACKGROUNDS.some(item => item.id === data.background) ? data.background as PetBackground : 'garden', accessory: Number.isInteger(data.accessory) && Number(data.accessory) >= 0 && Number(data.accessory) < 50 ? Number(data.accessory) : null };
+  const pose = ['sentado', 'durmiendo', 'andando', 'jugando'].includes(String(data.pose)) ? data.pose as PetSettings['pose'] : undefined;
+  return { ...(pose ? { pose } : {}), species, skin: Number.isInteger(data.skin) && Number(data.skin) >= 0 && Number(data.skin) < 6 ? Number(data.skin) : 0, name: typeof data.name === 'string' ? data.name.trim().slice(0, 24) : '', background: PET_BACKGROUNDS.some(item => item.id === data.background) ? data.background as PetBackground : 'garden', accessory: Number.isInteger(data.accessory) && Number(data.accessory) >= 0 && Number(data.accessory) < 50 ? Number(data.accessory) : null };
 }
 export interface PetChallenge { startDate: string; excluded: string[] }
 export function normalizePetChallenge(value: unknown): PetChallenge | null {
