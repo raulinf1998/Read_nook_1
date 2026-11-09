@@ -54,9 +54,3 @@ export function headAnchor(species: PetSpecies, skin: number, pose: PetPose): He
   const poseIndex = Math.max(0, PET_POSES.indexOf(pose));
   return { ...rows[index][poseIndex], width: HEAD_WIDTHS[species][index][poseIndex] };
 }
-
-// Las posturas originales de Nube tienen cabezas de tamaños muy distintos.
-// Reducimos las dos más grandes sin deformar ni recortar las ilustraciones.
-export function petPoseScale(species: PetSpecies, skin: number, pose: PetPose): number {
-  return species === 'dragon' && skin === 5 ? ({ sentado: 1, durmiendo: 0.52, andando: 1, jugando: 0.55 } as const)[pose] : 1;
-}

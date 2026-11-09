@@ -222,6 +222,8 @@ test('los huecos corregidos son transparentes y el cascarón azul se conserva', 
   assert.equal(pixel('trex/1/sentado', 173, 222), '0');
   assert.equal(pixel('chicken/5/sentado', 120, 60), '1');
   assert.equal(pixel('cat/2/sentado', 175, 231), '0');
+  assert.equal(pixel('cat/5/durmiendo', 209, 237), '0');
+  assert.equal(pixel('dragon/1/sentado', 161, 71), '0');
   assert.equal(pixel('munchkin/2/sentado', 80, 217), '0');
   assert.equal(pixel('munchkin/2/sentado', 193, 224), '0');
   assert.equal(pixel('trex/2/jugando', 121, 132), '0');
@@ -238,6 +240,8 @@ test('la postura avanza cada diez segundos sin guardar cambios', async (t) => {
   t.after(async()=>{await React.act(async()=>root.unmount());await vite.close();dom.window.close();delete globalThis.window;delete globalThis.document;delete globalThis.navigator;delete globalThis.IS_REACT_ACT_ENVIRONMENT;});
   await React.act(async()=>root.render(React.createElement(PetHomeCard,{books:[],pet:normalizePet({}),challenge:started,onOpen(){}})));
   const img=document.querySelector('.pet-sprite img'); assert.match(img.src,/sentado.webp$/);
+  assert.ok(document.querySelector('.pet-sprite-compact'));
+  assert.equal(img.parentElement.style.transform, '');
   await React.act(async()=>callbacks[0]()); assert.match(img.src,/durmiendo.webp$/);
   await React.act(async()=>document.querySelector('[aria-label*="cambiar postura"]').click()); assert.match(img.src,/andando.webp$/);
 });
