@@ -355,3 +355,22 @@ test('la tarjeta compacta tiene anchura explícita compatible sin unidades de co
   assert.equal(style.width, '78%');
   assert.equal(style.maxWidth, '100px');
 });
+
+test('los munchkin tienen un tamaño base mayor sin perder la escala por postura', async (t) => {
+  const React = await import('react'); const {renderToStaticMarkup} = await import('react-dom/server'); const {createServer} = await import('vite');
+  const vite = await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'});
+  t.after(async()=>vite.close());
+  const {PetHomeCard} = await vite.ssrLoadModule('/src/components/PetGame.tsx');
+  const {petPoseScale, PET_POSES} = await import('../src/petArt.ts');
+  for (let skin = 0; skin < 6; skin++) for (const pose of PET_POSES) {
+    const pet = normalizePet({species:'munchkin',skin,pose,accessory:0});
+    const html = renderToStaticMarkup(React.createElement(PetHomeCard,{books:[book(entry(Date.now(), 1600))],pet,challenge:started,onOpen(){}}));
+    const match = html.match(/pet-sprite-compact[^>]*style="width:([\d.]+)%;max-width:([\d.]+)px/);
+    assert.ok(match);
+    const scale = petPoseScale('munchkin',skin,pose);
+    assert.ok(Math.abs(Number(match[1]) - 80*scale) < 1e-8);
+    assert.ok(Math.abs(Number(match[2]) - 96*scale) < 1e-8);
+    assert.ok(Number(match[2]) <= 136, 'la postura debe caber en la tarjeta móvil');
+    assert.match(html, /<svg/); // El accesorio sigue dentro del mismo contenedor escalado.
+  }
+});
