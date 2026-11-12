@@ -388,6 +388,10 @@ test('se conservan los 16 accesorios elegidos y los otros 34 son compañeros lat
     }
   }
   assert.equal(new Set(PET_ACCESSORIES.map(x=>x.name)).size,50);
+  const companions = PET_ACCESSORIES.filter(x=>x.companion);
+  assert.equal(new Set(companions.map(x=>x.companion.image)).size, 34);
+  assert.ok(companions.every(x=>!('filter' in x.companion)));
+  assert.equal(new Set(companions.map(x=>x.companion.image.split('/').at(-1).split('-')[0])).size,17);
 });
 
 test('una mascota pequeña aparece al lado y el brote se ancla sobre la cabeza', async (t) => {
@@ -398,18 +402,24 @@ test('una mascota pequeña aparece al lado y el brote se ancla sobre la cabeza',
   const companion=draw(6);
   assert.match(companion,/left:\s*40%/);
   assert.match(companion,/left-\[73%\]/);
-  assert.match(companion,/\/pets\/companions\/rabbit\.webp/);
-  const sprout=draw(8); assert.match(sprout, /translate\(-50%, -94%\)/);
-  const flower=draw(9); assert.match(flower, /translate\(-50%, -94%\)/);
+  assert.match(companion,/\/pets\/companions\/rabbit-clasico\.webp/);
+  for (const id of [8,9]) {
+    const html=draw(id);
+    assert.match(html, /translate\(-50%, -110%\)/);
+    assert.ok(html.indexOf('data-pet-head-accessory="behind"') < html.indexOf('relative z-10 w-full'));
+  }
+  const hat=draw(0); assert.ok(hat.indexOf('data-pet-head-accessory="front"') > hat.indexOf('relative z-10 w-full'));
+  assert.doesNotMatch(companion, /filter:/);
   const blueHeart=draw(11); assert.match(blueHeart, /#55b9e8/);
   const lunarHalo=draw(29); assert.match(lunarHalo, /#657487/);
 });
 
-test('los ocho diseños de compañeros tienen fondo transparente', async (t) => {
+test('los 34 compañeros tienen fondo transparente', async (t) => {
   const {execFileSync, spawnSync} = await import('node:child_process');
   if (spawnSync('convert', ['-version']).error) return t.skip('ImageMagick no está instalado');
-  for (const name of ['rabbit','fox','frog','hedgehog','owl','turtle','squirrel','hamster']) {
-    const path = new URL(`../public/pets/companions/${name}.webp`, import.meta.url).pathname;
+  for (const item of PET_ACCESSORIES.filter(x=>x.companion)) {
+    const name = item.companion.image;
+    const path = new URL(`../public${name}`, import.meta.url).pathname;
     const alpha = execFileSync('convert',[path,'-format','%[fx:p{0,0}.a]','info:'],{encoding:'utf8'}).trim();
     assert.equal(alpha,'0',name);
   }
