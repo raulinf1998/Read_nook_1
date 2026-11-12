@@ -60,7 +60,7 @@ const KEPT_ACCESSORY_IDS = new Set([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 14, 15, 22, 
 // Dos imágenes de color independientes por animal, sin filtros CSS.
 const COMPANION_TYPES = [
   ['rabbit', 'Conejito', 'lila', 'lila'], ['fox', 'Zorrito', 'rojizo', 'rojizo'],
-  ['frog', 'Ranita', 'azul', 'azul'], ['hedgehog', 'Erizo', 'cobrizo', 'cobrizo'],
+  ['frog', 'Ranita', 'azul', 'azul'], ['puffer', 'Pez globo', 'azul', 'azul'],
   ['owl', 'Búho', 'caramelo', 'caramelo'], ['turtle', 'Tortuguita', 'turquesa', 'turquesa'],
   ['squirrel', 'Ardilla', 'blanca', 'blanca'], ['hamster', 'Hámster', 'rosado', 'rosado'],
   ['bat', 'Murciélago', 'azul', 'azul'], ['penguin', 'Pingüino', 'azul', 'azul'],
@@ -70,7 +70,7 @@ const COMPANION_TYPES = [
   ['bee', 'Abejita', 'rosada', 'rosada'],
 ] as const;
 const COMPANIONS = COMPANION_TYPES.flatMap(([image, label, alternate, alternateLabel]) => [
-  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : `${label} clásico` },
+  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : image === 'puffer' ? 'Pez globo amarillo' : `${label} clásico` },
   { image: `/pets/companions/${image}-${alternate}.webp`, label: `${label} ${alternateLabel}` },
 ]);
 let companionIndex = 0;
