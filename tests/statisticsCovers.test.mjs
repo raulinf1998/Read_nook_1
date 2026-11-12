@@ -57,12 +57,12 @@ test('nombres de navegación son iguales en móvil y ordenador', async (t) => {
   const noop = () => {};
   await React.act(async () => root.render(React.createElement(React.Fragment, null, React.createElement(Sidebar, { active: 'reading', counts: {}, onChange: noop, onAdd: noop, onImport: noop, onTags: noop, onAppearance: noop, theme: 'calido', onSetTheme: noop, dark: false, onToggleDark: noop }), React.createElement(MobileNav, { active: 'reading', onChange: noop }))));
   const desktop = [...document.querySelectorAll('aside nav button')].map((button) => button.textContent.trim());
-  assert.deepEqual(desktop, ['Inicio', 'Libros', 'Librería', 'Espacio', 'Calendario', 'Mascota', 'Descubrir', 'Reto anual', 'Stats']);
+  assert.deepEqual(desktop, ['Inicio', 'Libros', 'Librería', 'Espacio', 'Calendario', 'Wrap-up', 'Mascota', 'Descubrir', 'Reto anual', 'Stats']);
   const mobile = [...document.querySelectorAll('nav > div.grid > button')].map((button) => button.getAttribute('aria-label'));
   assert.deepEqual(mobile, ['Inicio', 'Libros', 'Stats', 'Librería', 'Otros']);
   for (const label of mobile.filter((label) => label !== 'Otros')) assert.ok(desktop.includes(label));
   await React.act(async () => document.querySelector('[aria-label="Otros"]').click());
   const others = [...document.querySelectorAll('#mobile-other-tabs button')].map((button) => button.textContent.trim());
-  assert.deepEqual(others, ['Espacio', 'Calendario', 'Mascota', 'Descubrir', 'Reto anual']);
+  assert.deepEqual(others, ['Espacio', 'Calendario', 'Wrap-up', 'Mascota', 'Descubrir', 'Reto anual']);
   for (const label of others) assert.ok(desktop.includes(label));
 });

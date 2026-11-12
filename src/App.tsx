@@ -15,6 +15,7 @@ import { SettingsMenu } from './components/SettingsMenu';
 import { ReadingNow } from './components/ReadingNow';
 import { Statistics } from './components/Statistics';
 import { ReadingCalendar } from './components/ReadingCalendar';
+import { WrapUp } from './components/WrapUp';
 import { PetGame, PetHomeCard } from './components/PetGame';
 import { ReadingChallenge } from './components/ReadingChallenge';
 import { Library } from './components/Library';
@@ -39,6 +40,7 @@ const TAB_TITLES: Record<TabId, { title: string; subtitle: string }> = {
   challenge: { title: 'Reto anual', subtitle: 'Tu objetivo de lectura, día a día' },
   pet: { title: 'Mascota', subtitle: 'Cada página es una aventura juntos' },
   calendar: { title: 'Calendario', subtitle: 'Tus lecturas, día a día' },
+  wrapup: { title: 'Wrap-up', subtitle: 'Tus lecturas en una imagen para guardar' },
   stats: { title: 'Estadísticas', subtitle: 'Páginas, géneros, autores y ritmos' },
 };
 
@@ -393,6 +395,7 @@ export default function App() {
             )}
             {tab === 'pet' && <PetGame key={account} books={petBooks} pet={pet} challenge={petChallenge} onActivate={activatePet} onSetPet={setPet} />}
             {tab === 'calendar' && <ReadingCalendar books={books} onOpen={handleOpen} />}
+            {tab === 'wrapup' && <WrapUp books={books} />}
             {tab === 'stats' && <Statistics books={books} onOpen={handleOpen} chartPreferences={chartPreferences} onSetChartPreference={setChartPreference} />}
             {tab === 'challenge' && <ReadingChallenge books={books} goal={goal} onSetGoal={setGoal} onOpen={handleOpen} />}
             {tab === 'library' && <Library books={books} view={libraryView} onSetView={setLibraryView} onUpdate={updateBook} onDelete={deleteBook} onEdit={handleEdit} onOpen={handleOpen} onOpenSeries={handleOpenSeries} />}

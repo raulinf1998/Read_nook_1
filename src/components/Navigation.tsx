@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, MoreHorizontal, Plus, Upload, Tag, Palette, Moon, Sun, CalendarDays, PawPrint,
+  BookOpen, BarChart3, Compass, Target, Library, BookMarked, Orbit, MoreHorizontal, Plus, Upload, Tag, Palette, Moon, Sun, CalendarDays, PawPrint, Image,
 } from 'lucide-react';
 import type { ThemeId } from '../types';
 import { THEMES } from '../types';
 import { BrandMark, cx, btnPrimary, iconBtn } from './ui';
 
-export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space' | 'calendar' | 'pet';
+export type TabId = 'reading' | 'discover' | 'stats' | 'challenge' | 'library' | 'shelf' | 'space' | 'calendar' | 'pet' | 'wrapup';
 
 const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
   { id: 'reading', label: 'Inicio', icon: BookOpen },
@@ -14,6 +14,7 @@ const TABS: { id: TabId; label: string; icon: typeof BookOpen }[] = [
   { id: 'shelf', label: 'Librería', icon: BookMarked },
   { id: 'space', label: 'Espacio', icon: Orbit },
   { id: 'calendar', label: 'Calendario', icon: CalendarDays },
+  { id: 'wrapup', label: 'Wrap-up', icon: Image },
   { id: 'pet', label: 'Mascota', icon: PawPrint },
   { id: 'discover', label: 'Descubrir', icon: Compass },
   { id: 'challenge', label: 'Reto anual', icon: Target },
