@@ -54,9 +54,30 @@ const ACCESSORY_NAMES = [
   ['Hoja otoñal', 'Hoja de trébol'], ['Campanita', 'Copo de nieve'],
   ['Cristal mágico', 'Diamante brillante'],
 ] as const;
+// Los identificadores se conservan: una selección guardada ocupa el mismo
+// nivel y se convierte en su nuevo compañero cuando el diseño se reemplaza.
+const KEPT_ACCESSORY_IDS = new Set([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 14, 15, 22, 23, 28, 29]);
+const COMPANION_TYPES = [
+  ['rabbit', 'Conejito'], ['fox', 'Zorrito'], ['frog', 'Ranita'], ['hedgehog', 'Erizo'],
+  ['owl', 'Búho'], ['turtle', 'Tortuguita'], ['squirrel', 'Ardilla'], ['hamster', 'Hámster'],
+] as const;
+const COMPANION_PALETTES = [
+  { label: 'clásico', filter: 'none' },
+  { label: 'plateado', filter: 'saturate(.55) brightness(1.12)' },
+  { label: 'otoñal', filter: 'sepia(.35) saturate(1.15)' },
+  { label: 'mágico', filter: 'hue-rotate(35deg) saturate(.8)' },
+  { label: 'luminoso', filter: 'brightness(1.2) saturate(.8)' },
+] as const;
+let companionIndex = 0;
 export const PET_ACCESSORIES = Array.from({ length: 50 }, (_, id) => {
   const kind = Math.floor(id / 2), variant = id % 2;
-  return { id, kind, variant, name: ACCESSORY_NAMES[kind][variant], level: (id + 1) * 2, placement: ([3, 19].includes(kind) ? 'side' : 'head') as 'side' | 'head' };
+  const companion = KEPT_ACCESSORY_IDS.has(id) ? null : (() => {
+    const n = companionIndex++;
+    const [image, label] = COMPANION_TYPES[n % COMPANION_TYPES.length];
+    const palette = COMPANION_PALETTES[Math.floor(n / COMPANION_TYPES.length)];
+    return { image: `/pets/companions/${image}.webp`, label: `${label} ${palette.label}`, filter: palette.filter };
+  })();
+  return { id, kind, variant, name: companion?.label ?? ACCESSORY_NAMES[kind][variant], level: (id + 1) * 2, placement: (companion ? 'side' : 'head') as 'side' | 'head', companion };
 });
 export const DEFAULT_PET: PetSettings = { species: 'cat', skin: 0, name: '', background: 'garden', accessory: null };
 export function normalizePet(value: unknown): PetSettings {

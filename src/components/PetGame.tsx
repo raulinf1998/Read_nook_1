@@ -31,15 +31,18 @@ function PetScene({ pet, phase, className = '', compact = false, interactive = f
   // Aumentamos su tamaño base manteniendo la relación entre sus posturas.
   const widthBase = pet.species === 'munchkin' ? 80 : (compact ? 53 : 52);
   const maxWidthBase = pet.species === 'munchkin' ? (compact ? 96 : 180) : (compact ? 64 : 120);
-  const spriteWidth = `${widthBase * scale}%`;
-  const spriteMaxWidth = `${maxWidthBase * scale}px`;
   const accessory = pet.accessory === null ? null : PET_ACCESSORIES[pet.accessory];
+  const companion = accessory?.companion;
+  const sceneScale = companion ? 0.8 : 1;
+  const spriteWidth = `${widthBase * scale * sceneScale}%`;
+  const spriteMaxWidth = `${maxWidthBase * scale * sceneScale}px`;
   return <div className={`pet-scene relative overflow-hidden ${className}`}>
     <div className="pet-scene-sky" style={{ backgroundImage: `url(${petBackgroundImage(pet.background, phase)})` }} />
-    <div className={`pet-sprite absolute bottom-[5%] left-1/2 -translate-x-1/2 ${compact ? 'pet-sprite-compact' : 'w-[52%] max-w-[240px]'}`} style={calibrated ? { width: spriteWidth, maxWidth: spriteMaxWidth } : undefined}>
+    <div className={`pet-sprite absolute bottom-[5%] left-1/2 -translate-x-1/2 ${compact ? 'pet-sprite-compact' : 'w-[52%] max-w-[240px]'}`} style={calibrated ? { width: spriteWidth, maxWidth: spriteMaxWidth, ...(companion ? { left: '40%' } : {}) } : companion ? { left: '40%', width: compact ? '62.4%' : '41.6%', maxWidth: compact ? '80px' : '192px' } : undefined}>
       <PixelPet species={pet.species} skin={pet.skin} pose={pose} className="w-full drop-shadow-[0_9px_2px_rgba(33,44,32,.3)]" />
-      {accessory && <div className="absolute pointer-events-none drop-shadow-md" style={accessory.placement === 'side' ? { width: '28%', bottom: '2%', left: head.x > 50 ? '4%' : '72%' } : { width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: `translate(-50%, ${[5, 14, 15, 16, 17, 20, 24].includes(accessory.kind) ? '-110%' : '-96%'})` }}><PetAccessory id={accessory.id} className="w-full" /></div>}
+      {accessory && !companion && <div className="absolute pointer-events-none drop-shadow-md" style={{ width: `${head.width}%`, left: `${head.x}%`, top: `${head.y}%`, transform: `translate(-50%, ${accessory.kind === 4 ? '-94%' : [5, 14].includes(accessory.kind) ? '-110%' : '-96%'})` }}><PetAccessory id={accessory.id} className="w-full" /></div>}
     </div>
+    {accessory && companion && <div className="absolute pointer-events-none bottom-[5%] left-[73%] w-[24%] max-w-[64px] drop-shadow-md"><PetAccessory id={accessory.id} className="w-full" /></div>}
     {interactive && <button type="button" onClick={advance} aria-label={`Saludar a ${petName(pet)} y cambiar postura`} className="absolute inset-x-[20%] bottom-0 h-[75%] rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-white" />}
   </div>;
 }
