@@ -57,26 +57,26 @@ const ACCESSORY_NAMES = [
 // Los identificadores se conservan: una selección guardada ocupa el mismo
 // nivel y se convierte en su nuevo compañero cuando el diseño se reemplaza.
 const KEPT_ACCESSORY_IDS = new Set([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 14, 15, 22, 23, 28, 29]);
+// Dos imágenes de color independientes por animal, sin filtros CSS.
 const COMPANION_TYPES = [
-  ['rabbit', 'Conejito'], ['fox', 'Zorrito'], ['frog', 'Ranita'], ['hedgehog', 'Erizo'],
-  ['owl', 'Búho'], ['turtle', 'Tortuguita'], ['squirrel', 'Ardilla'], ['hamster', 'Hámster'],
+  ['rabbit', 'Conejito', 'lila', 'lila'], ['fox', 'Zorrito', 'rojizo', 'rojizo'],
+  ['frog', 'Ranita', 'azul', 'azul'], ['hedgehog', 'Erizo', 'cobrizo', 'cobrizo'],
+  ['owl', 'Búho', 'caramelo', 'caramelo'], ['turtle', 'Tortuguita', 'turquesa', 'turquesa'],
+  ['squirrel', 'Ardilla', 'dorada', 'dorada'], ['hamster', 'Hámster', 'rosado', 'rosado'],
+  ['bat', 'Murciélago', 'azul', 'azul'], ['penguin', 'Pingüino', 'azul', 'azul'],
+  ['raccoon', 'Mapache', 'castano', 'castaño'], ['duck', 'Patito', 'blanco', 'blanco'],
+  ['sheep', 'Ovejita', 'melocoton', 'melocotón'], ['mouse', 'Ratoncito', 'canela', 'canela'],
+  ['puppy', 'Perrito', 'castano', 'castaño'], ['snail', 'Caracol', 'verde', 'verde'],
+  ['bee', 'Abejita', 'rosada', 'rosada'],
 ] as const;
-const COMPANION_PALETTES = [
-  { label: 'clásico', filter: 'none' },
-  { label: 'plateado', filter: 'saturate(.55) brightness(1.12)' },
-  { label: 'otoñal', filter: 'sepia(.35) saturate(1.15)' },
-  { label: 'mágico', filter: 'hue-rotate(35deg) saturate(.8)' },
-  { label: 'luminoso', filter: 'brightness(1.2) saturate(.8)' },
-] as const;
+const COMPANIONS = COMPANION_TYPES.flatMap(([image, label, alternate, alternateLabel]) => [
+  { image: `/pets/companions/${image}-clasico.webp`, label: `${label} clásico` },
+  { image: `/pets/companions/${image}-${alternate}.webp`, label: `${label} ${alternateLabel}` },
+]);
 let companionIndex = 0;
 export const PET_ACCESSORIES = Array.from({ length: 50 }, (_, id) => {
   const kind = Math.floor(id / 2), variant = id % 2;
-  const companion = KEPT_ACCESSORY_IDS.has(id) ? null : (() => {
-    const n = companionIndex++;
-    const [image, label] = COMPANION_TYPES[n % COMPANION_TYPES.length];
-    const palette = COMPANION_PALETTES[Math.floor(n / COMPANION_TYPES.length)];
-    return { image: `/pets/companions/${image}.webp`, label: `${label} ${palette.label}`, filter: palette.filter };
-  })();
+  const companion = KEPT_ACCESSORY_IDS.has(id) ? null : COMPANIONS[companionIndex++];
   return { id, kind, variant, name: companion?.label ?? ACCESSORY_NAMES[kind][variant], level: (id + 1) * 2, placement: (companion ? 'side' : 'head') as 'side' | 'head', companion };
 });
 export const DEFAULT_PET: PetSettings = { species: 'cat', skin: 0, name: '', background: 'garden', accessory: null };

@@ -13,7 +13,7 @@ const ART_BOUNDS = [
 /** Iconos de píxel vectoriales, compartidos por el vestidor y la escena. */
 export function PetAccessory({ id, className = '' }: { id: number; className?: string }) {
   const item = PET_ACCESSORIES[id]; if (!item) return null;
-  if (item.companion) return <img aria-hidden="true" alt="" src={item.companion.image} className={className} style={{ objectFit: 'contain', imageRendering: 'pixelated', filter: item.companion.filter }} />;
+  if (item.companion) return <img aria-hidden="true" alt="" src={item.companion.image} className={className} style={{ objectFit: 'contain', imageRendering: 'pixelated' }} />;
   const { kind, variant } = item;
   const ink = '#303047', main = variant ? '#7661b1' : '#cf554d', light = variant ? '#dcd3f3' : '#ffe6c5';
   return <svg aria-hidden="true" className={className} viewBox={ART_BOUNDS[kind]} preserveAspectRatio="xMidYMax meet" shapeRendering="crispEdges">
