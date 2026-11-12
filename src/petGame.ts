@@ -62,7 +62,7 @@ const COMPANION_TYPES = [
   ['rabbit', 'Conejito', 'lila', 'lila'], ['fox', 'Zorrito', 'rojizo', 'rojizo'],
   ['frog', 'Ranita', 'azul', 'azul'], ['hedgehog', 'Erizo', 'cobrizo', 'cobrizo'],
   ['owl', 'Búho', 'caramelo', 'caramelo'], ['turtle', 'Tortuguita', 'turquesa', 'turquesa'],
-  ['squirrel', 'Ardilla', 'dorada', 'dorada'], ['hamster', 'Hámster', 'rosado', 'rosado'],
+  ['squirrel', 'Ardilla', 'blanca', 'blanca'], ['hamster', 'Hámster', 'rosado', 'rosado'],
   ['bat', 'Murciélago', 'azul', 'azul'], ['penguin', 'Pingüino', 'azul', 'azul'],
   ['raccoon', 'Mapache', 'castano', 'castaño'], ['duck', 'Patito', 'blanco', 'blanco'],
   ['sheep', 'Ovejita', 'melocoton', 'melocotón'], ['mouse', 'Ratoncito', 'canela', 'canela'],
