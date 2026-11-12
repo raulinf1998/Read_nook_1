@@ -60,17 +60,17 @@ const KEPT_ACCESSORY_IDS = new Set([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 14, 15, 22, 
 // Dos imágenes de color independientes por animal, sin filtros CSS.
 const COMPANION_TYPES = [
   ['rabbit', 'Conejito', 'lila', 'lila'], ['fox', 'Zorrito', 'rojizo', 'rojizo'],
-  ['frog', 'Ranita', 'azul', 'azul'], ['hedgehog', 'Erizo', 'cobrizo', 'cobrizo'],
+  ['frog', 'Ranita', 'azul', 'azul'], ['puffer', 'Pez globo', 'azul', 'azul'],
   ['owl', 'Búho', 'caramelo', 'caramelo'], ['turtle', 'Tortuguita', 'turquesa', 'turquesa'],
-  ['squirrel', 'Ardilla', 'dorada', 'dorada'], ['hamster', 'Hámster', 'rosado', 'rosado'],
+  ['squirrel', 'Ardilla', 'blanca', 'blanca'], ['hamster', 'Hámster', 'rosado', 'rosado'],
   ['bat', 'Murciélago', 'azul', 'azul'], ['penguin', 'Pingüino', 'azul', 'azul'],
   ['raccoon', 'Mapache', 'castano', 'castaño'], ['duck', 'Patito', 'blanco', 'blanco'],
   ['sheep', 'Ovejita', 'melocoton', 'melocotón'], ['mouse', 'Ratoncito', 'canela', 'canela'],
-  ['puppy', 'Perrito', 'castano', 'castaño'], ['snail', 'Caracol', 'verde', 'verde'],
+  ['butterfly', 'Mariposa', 'azul', 'azul'], ['snail', 'Caracol', 'verde', 'verde'],
   ['bee', 'Abejita', 'rosada', 'rosada'],
 ] as const;
 const COMPANIONS = COMPANION_TYPES.flatMap(([image, label, alternate, alternateLabel]) => [
-  { image: `/pets/companions/${image}-clasico.webp`, label: `${label} clásico` },
+  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : image === 'puffer' ? 'Pez globo naranja' : `${label} clásico` },
   { image: `/pets/companions/${image}-${alternate}.webp`, label: `${label} ${alternateLabel}` },
 ]);
 let companionIndex = 0;

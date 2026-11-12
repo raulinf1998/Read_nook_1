@@ -392,12 +392,21 @@ test('se conservan los 16 accesorios elegidos y los otros 34 son compañeros lat
   assert.equal(new Set(companions.map(x=>x.companion.image)).size, 34);
   assert.ok(companions.every(x=>!('filter' in x.companion)));
   assert.equal(new Set(companions.map(x=>x.companion.image.split('/').at(-1).split('-')[0])).size,17);
+  assert.deepEqual(companions.filter(x=>x.companion.image.includes('/butterfly-')).map(x=>x.name), ['Mariposa monarca', 'Mariposa azul']);
+  assert.ok(companions.every(x=>!x.companion.image.includes('/puppy-')));
+  assert.deepEqual(companions.filter(x=>x.companion.image.includes('/puffer-')).map(x=>x.name), ['Pez globo naranja', 'Pez globo azul']);
+  assert.ok(companions.every(x=>!x.companion.image.includes('/hedgehog-')));
+  const whiteSquirrel = companions.find(x=>x.companion.image.endsWith('/squirrel-blanca.webp'));
+  assert.equal(whiteSquirrel?.name, 'Ardilla blanca');
+  assert.ok(companions.every(x=>!x.companion.image.includes('/squirrel-dorada')));
 });
 
 test('una mascota pequeña aparece al lado y el brote se ancla sobre la cabeza', async (t) => {
   const React = await import('react'); const {renderToStaticMarkup} = await import('react-dom/server'); const {createServer} = await import('vite');
   const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); t.after(()=>vite.close());
-  const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
+  const {PetHomeCard,PetGame}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
+  const gameHtml=renderToStaticMarkup(React.createElement(PetGame,{books:[],pet:normalizePet({}),challenge:started,onActivate:async()=>{},onSetPet(){}}));
+  assert.doesNotMatch(gameHtml,/TU RINCÓN DE LECTURA/);
   const draw=(accessory)=>renderToStaticMarkup(React.createElement(PetHomeCard,{books:[book(entry(Date.now(),10000))],pet:normalizePet({species:'cat',accessory}),challenge:started,onOpen(){}}));
   const companion=draw(6);
   assert.match(companion,/left:\s*46%/);
