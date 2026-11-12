@@ -66,11 +66,11 @@ const COMPANION_TYPES = [
   ['bat', 'Murciélago', 'azul', 'azul'], ['penguin', 'Pingüino', 'azul', 'azul'],
   ['raccoon', 'Mapache', 'castano', 'castaño'], ['duck', 'Patito', 'blanco', 'blanco'],
   ['sheep', 'Ovejita', 'melocoton', 'melocotón'], ['mouse', 'Ratoncito', 'canela', 'canela'],
-  ['puppy', 'Perrito', 'castano', 'castaño'], ['snail', 'Caracol', 'verde', 'verde'],
+  ['butterfly', 'Mariposa', 'azul', 'azul'], ['snail', 'Caracol', 'verde', 'verde'],
   ['bee', 'Abejita', 'rosada', 'rosada'],
 ] as const;
 const COMPANIONS = COMPANION_TYPES.flatMap(([image, label, alternate, alternateLabel]) => [
-  { image: `/pets/companions/${image}-clasico.webp`, label: `${label} clásico` },
+  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : `${label} clásico` },
   { image: `/pets/companions/${image}-${alternate}.webp`, label: `${label} ${alternateLabel}` },
 ]);
 let companionIndex = 0;
