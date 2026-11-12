@@ -394,7 +394,7 @@ test('se conservan los 16 accesorios elegidos y los otros 34 son compañeros lat
   assert.equal(new Set(companions.map(x=>x.companion.image.split('/').at(-1).split('-')[0])).size,17);
   assert.deepEqual(companions.filter(x=>x.companion.image.includes('/butterfly-')).map(x=>x.name), ['Mariposa monarca', 'Mariposa azul']);
   assert.ok(companions.every(x=>!x.companion.image.includes('/puppy-')));
-  assert.deepEqual(companions.filter(x=>x.companion.image.includes('/puffer-')).map(x=>x.name), ['Pez globo amarillo', 'Pez globo azul']);
+  assert.deepEqual(companions.filter(x=>x.companion.image.includes('/puffer-')).map(x=>x.name), ['Pez globo naranja', 'Pez globo azul']);
   assert.ok(companions.every(x=>!x.companion.image.includes('/hedgehog-')));
   const whiteSquirrel = companions.find(x=>x.companion.image.endsWith('/squirrel-blanca.webp'));
   assert.equal(whiteSquirrel?.name, 'Ardilla blanca');

@@ -70,7 +70,7 @@ const COMPANION_TYPES = [
   ['bee', 'Abejita', 'rosada', 'rosada'],
 ] as const;
 const COMPANIONS = COMPANION_TYPES.flatMap(([image, label, alternate, alternateLabel]) => [
-  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : image === 'puffer' ? 'Pez globo amarillo' : `${label} clásico` },
+  { image: `/pets/companions/${image}-clasico.webp`, label: image === 'butterfly' ? 'Mariposa monarca' : image === 'puffer' ? 'Pez globo naranja' : `${label} clásico` },
   { image: `/pets/companions/${image}-${alternate}.webp`, label: `${label} ${alternateLabel}` },
 ]);
 let companionIndex = 0;
