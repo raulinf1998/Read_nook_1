@@ -400,8 +400,11 @@ test('una mascota pequeña aparece al lado y el brote se ancla sobre la cabeza',
   const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
   const draw=(accessory)=>renderToStaticMarkup(React.createElement(PetHomeCard,{books:[book(entry(Date.now(),10000))],pet:normalizePet({species:'cat',accessory}),challenge:started,onOpen(){}}));
   const companion=draw(6);
-  assert.match(companion,/left:\s*40%/);
-  assert.match(companion,/left-\[73%\]/);
+  assert.match(companion,/left:\s*46%/);
+  assert.match(companion,/left-\[68%\] w-\[55%\]/);
+  // La mini mascota comparte el contenedor (y sus límites de tamaño) con el sprite.
+  assert.ok(companion.indexOf('data-pet-companion') > companion.indexOf('relative z-10 w-full'));
+  assert.match(companion, /data-pet-companion[^>]*bottom-0/);
   assert.match(companion,/\/pets\/companions\/rabbit-clasico\.webp/);
   for (const id of [8,9]) {
     const html=draw(id);
