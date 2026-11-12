@@ -374,3 +374,43 @@ test('los munchkin tienen un tamaño base mayor sin perder la escala por postura
     assert.match(html, /<svg/); // El accesorio sigue dentro del mismo contenedor escalado.
   }
 });
+
+test('se conservan los 16 accesorios elegidos y los otros 34 son compañeros laterales', async () => {
+  const { stat } = await import('node:fs/promises');
+  const kept = [0,1,2,3,4,5,8,9,10,11,14,15,22,23,28,29];
+  assert.deepEqual(PET_ACCESSORIES.filter(x=>!x.companion).map(x=>x.id), kept);
+  assert.equal(PET_ACCESSORIES.filter(x=>x.companion).length, 34);
+  for (const item of PET_ACCESSORIES) {
+    assert.equal(item.level, (item.id+1)*2);
+    assert.equal(item.placement, item.companion ? 'side' : 'head');
+    if (item.companion) {
+      assert.ok((await stat(new URL(`../public${item.companion.image}`,import.meta.url))).size > 1000);
+    }
+  }
+  assert.equal(new Set(PET_ACCESSORIES.map(x=>x.name)).size,50);
+});
+
+test('una mascota pequeña aparece al lado y el brote se ancla sobre la cabeza', async (t) => {
+  const React = await import('react'); const {renderToStaticMarkup} = await import('react-dom/server'); const {createServer} = await import('vite');
+  const vite=await createServer({server:{middlewareMode:true},appType:'custom',logLevel:'silent'}); t.after(()=>vite.close());
+  const {PetHomeCard}=await vite.ssrLoadModule('/src/components/PetGame.tsx');
+  const draw=(accessory)=>renderToStaticMarkup(React.createElement(PetHomeCard,{books:[book(entry(Date.now(),10000))],pet:normalizePet({species:'cat',accessory}),challenge:started,onOpen(){}}));
+  const companion=draw(6);
+  assert.match(companion,/left:\s*40%/);
+  assert.match(companion,/left-\[73%\]/);
+  assert.match(companion,/\/pets\/companions\/rabbit\.webp/);
+  const sprout=draw(8); assert.match(sprout, /translate\(-50%, -94%\)/);
+  const flower=draw(9); assert.match(flower, /translate\(-50%, -94%\)/);
+  const blueHeart=draw(11); assert.match(blueHeart, /#55b9e8/);
+  const lunarHalo=draw(29); assert.match(lunarHalo, /#657487/);
+});
+
+test('los ocho diseños de compañeros tienen fondo transparente', async (t) => {
+  const {execFileSync, spawnSync} = await import('node:child_process');
+  if (spawnSync('convert', ['-version']).error) return t.skip('ImageMagick no está instalado');
+  for (const name of ['rabbit','fox','frog','hedgehog','owl','turtle','squirrel','hamster']) {
+    const path = new URL(`../public/pets/companions/${name}.webp`, import.meta.url).pathname;
+    const alpha = execFileSync('convert',[path,'-format','%[fx:p{0,0}.a]','info:'],{encoding:'utf8'}).trim();
+    assert.equal(alpha,'0',name);
+  }
+});
